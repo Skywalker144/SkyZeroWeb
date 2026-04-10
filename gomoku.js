@@ -229,7 +229,7 @@ class Gomoku {
     constructor(boardSize = 15, useRenju = true) {
         this.boardSize = boardSize;
         this.useRenju = useRenju;
-        this.numPlanes = 3;  // my stones, opponent stones, color-to-play
+        this.numPlanes = 4;
         this.fpf = new ForbiddenPointFinder(boardSize);
     }
 
@@ -242,33 +242,32 @@ class Gomoku {
         return [new Int8Array(this.boardSize * this.boardSize)];
     }
 
-    getExpandedRegion(state, k = 2) {
+    isNearOccupied(board, r, c, dist) {
+        for (let dr = -dist; dr <= dist; dr++) {
+            for (let dc = -dist; dc <= dist; dc++) {
+                const nr = r + dr;
+                const nc = c + dc;
+                if (nr >= 0 && nr < this.boardSize && nc >= 0 && nc < this.boardSize) {
+                    if (board[nr * this.boardSize + nc] !== 0) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    getLegalActions(state, toPlay, restricted = true) {
         const currentBoard = state[0];
-        const expanded = new Uint8Array(this.boardSize * this.boardSize).fill(0);
+        const legalMask = new Uint8Array(this.boardSize * this.boardSize).fill(0);
         let hasStone = false;
 
         for (let i = 0; i < currentBoard.length; i++) {
             if (currentBoard[i] !== 0) {
                 hasStone = true;
-                const r = Math.floor(i / this.boardSize);
-                const c = i % this.boardSize;
-                for (let dr = -k; dr <= k; dr++) {
-                    for (let dc = -k; dc <= k; dc++) {
-                        const nr = r + dr, nc = c + dc;
-                        if (nr >= 0 && nr < this.boardSize && nc >= 0 && nc < this.boardSize) {
-                            expanded[nr * this.boardSize + nc] = 1;
-                        }
-                    }
-                }
+                break;
             }
         }
-        return { expanded, hasStone };
-    }
-
-    getLegalActions(state, toPlay, restricted = true) {
-        const currentBoard = state[0];
-        const { expanded, hasStone } = this.getExpandedRegion(state, 2);
-        const legalMask = new Uint8Array(this.boardSize * this.boardSize).fill(0);
 
         if (restricted && !hasStone && this.useRenju) {
             const center = Math.floor(this.boardSize / 2) * this.boardSize + Math.floor(this.boardSize / 2);
@@ -276,24 +275,19 @@ class Gomoku {
             return legalMask;
         }
 
-        this.fpf.clear();
         for (let i = 0; i < currentBoard.length; i++) {
             if (currentBoard[i] !== 0) {
-                const r = Math.floor(i / this.boardSize);
-                const c = i % this.boardSize;
-                this.fpf.setStone(r, c, currentBoard[i] === 1 ? C_BLACK : C_WHITE);
+                continue;
             }
-        }
+            if (!restricted) {
+                legalMask[i] = 1;
+                continue;
+            }
 
-        for (let i = 0; i < currentBoard.length; i++) {
-            if (currentBoard[i] === 0 && (!restricted || expanded[i])) {
-                if (this.useRenju && toPlay === 1) {
-                    const r = Math.floor(i / this.boardSize);
-                    const c = i % this.boardSize;
-                    if (!this.fpf.isForbidden(r, c)) legalMask[i] = 1;
-                } else {
-                    legalMask[i] = 1;
-                }
+            const r = Math.floor(i / this.boardSize);
+            const c = i % this.boardSize;
+            if (this.isNearOccupied(currentBoard, r, c, 3)) {
+                legalMask[i] = 1;
             }
         }
         return legalMask;
@@ -334,21 +328,36 @@ class Gomoku {
             }
         }
 
-        const check = (r, c, dr, dc) => {
-            const color = board[r * size + c];
-            if (color === 0) return 0;
-            for (let k = 1; k < 5; k++) {
-                if (board[(r + dr * k) * size + (c + dc * k)] !== color) return 0;
-            }
-            return color;
-        };
-
+        const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
-                if (c <= size - 5 && check(r, c, 0, 1)) return check(r, c, 0, 1);
-                if (r <= size - 5 && check(r, c, 1, 0)) return check(r, c, 1, 0);
-                if (r <= size - 5 && c <= size - 5 && check(r, c, 1, 1)) return check(r, c, 1, 1);
-                if (r <= size - 5 && c >= 4 && check(r, c, 1, -1)) return check(r, c, 1, -1);
+                const stone = board[r * size + c];
+                if (stone === 0) {
+                    continue;
+                }
+                for (const [dr, dc] of dirs) {
+                    const pr = r - dr;
+                    const pc = c - dc;
+                    if (pr >= 0 && pr < size && pc >= 0 && pc < size && board[pr * size + pc] === stone) {
+                        continue;
+                    }
+
+                    let length = 1;
+                    let nr = r + dr;
+                    let nc = c + dc;
+                    while (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr * size + nc] === stone) {
+                        length++;
+                        nr += dr;
+                        nc += dc;
+                    }
+
+                    if (stone === 1 && length === 5) {
+                        return 1;
+                    }
+                    if (stone === -1 && length >= 5) {
+                        return -1;
+                    }
+                }
             }
         }
 
@@ -357,22 +366,45 @@ class Gomoku {
     }
 
     /**
-     * Encode state for NN input: 3 planes [my_stones, opp_stones, color_plane].
-     * Returns Float32Array of length 3 * boardSize * boardSize.
+     * Encode state for NN input: 4 planes [my_stones, opp_stones, black_forbidden, white_forbidden].
+     * Only one forbidden plane is populated based on toPlay.
      */
     encodeState(state, toPlay) {
         const layerSize = this.boardSize * this.boardSize;
-        const encoded = new Float32Array(3 * layerSize);
+        const encoded = new Float32Array(this.numPlanes * layerSize);
         const board = state[0];
 
         for (let j = 0; j < layerSize; j++) {
-            if (board[j] === toPlay) encoded[j] = 1;                       // plane 0: current player's stones
-            else if (board[j] === -toPlay) encoded[layerSize + j] = 1;     // plane 1: opponent's stones
+            if (board[j] === toPlay) {
+                encoded[j] = 1;
+            } else if (board[j] === -toPlay) {
+                encoded[layerSize + j] = 1;
+            }
         }
-        // plane 2: 1 if current player is Black
-        if (toPlay > 0) {
-            for (let j = 0; j < layerSize; j++) encoded[2 * layerSize + j] = 1;
+
+        if (this.useRenju) {
+            this.fpf.clear();
+            for (let i = 0; i < board.length; i++) {
+                if (board[i] !== 0) {
+                    const r = Math.floor(i / this.boardSize);
+                    const c = i % this.boardSize;
+                    this.fpf.setStone(r, c, board[i] === 1 ? C_BLACK : C_WHITE);
+                }
+            }
+
+            const forbiddenPlaneOffset = (toPlay === 1 ? 2 : 3) * layerSize;
+            for (let i = 0; i < board.length; i++) {
+                if (board[i] !== 0) {
+                    continue;
+                }
+                const r = Math.floor(i / this.boardSize);
+                const c = i % this.boardSize;
+                if (this.fpf.isForbidden(r, c)) {
+                    encoded[forbiddenPlaneOffset + i] = 1;
+                }
+            }
         }
+
         return encoded;
     }
 }
