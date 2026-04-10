@@ -87,6 +87,10 @@ async function init() {
         root_fpu_reduction_max: 0.08,
         fpu_pow: 1.0,
         fpu_loss_prop: 0.0,
+        // Dynamic Variance-Scaled cPUCT (aligned to CSkyZero_V3)
+        cpuct_utility_stdev_prior: 0.40,
+        cpuct_utility_stdev_prior_weight: 2.0,
+        cpuct_utility_stdev_scale: 0.85,
         gumbel_m: 8,
         gumbel_c_visit: 50,
         gumbel_c_scale: 1.0,

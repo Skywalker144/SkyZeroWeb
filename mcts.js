@@ -12,6 +12,7 @@ class Node {
         this.nnPolicy = null;                  // NN softmax policy (Float32Array)
         this.nnLogits = null;                  // NN masked logits (Float32Array)
         this.v = new Float64Array(3);          // Cumulative WDL sum
+        this.utilitySqSum = 0;                 // Cumulative squared utility (parent perspective)
         this.n = 0;                            // Visit count
     }
 
@@ -24,6 +25,9 @@ class Node {
         this.v[0] += value[0];
         this.v[1] += value[1];
         this.v[2] += value[2];
+        // parent-perspective utility = child_loss - child_win (aligned to C++ MCTSNode::update)
+        const u = value[2] - value[0];
+        this.utilitySqSum += u * u;
         this.n += 1;
     }
 }
@@ -65,6 +69,10 @@ class MCTS {
             root_fpu_reduction_max: 0.08,
             fpu_pow: 1.0,
             fpu_loss_prop: 0.0,
+            // Dynamic Variance-Scaled cPUCT (aligned to CSkyZero_V3)
+            cpuct_utility_stdev_prior: 0.40,
+            cpuct_utility_stdev_prior_weight: 2.0,
+            cpuct_utility_stdev_scale: 0.85,
             gumbel_m: 16,
             gumbel_c_visit: 50,
             gumbel_c_scale: 1.0,
@@ -72,7 +80,72 @@ class MCTS {
     }
 
     /**
-     * PUCT selection for non-root nodes (matches Python alphazero.py select()).
+     * Compute the stdev-based scaling factor for cPUCT at a given node.
+     * Aligned to CSkyZero_V3/alphazero.h compute_parent_utility_stdev_factor().
+     */
+    computeParentUtilityStdevFactor(node, parentUtility) {
+        const prior = this.args.cpuct_utility_stdev_prior;
+        const variancePrior = prior * prior;
+        const variancePriorWeight = this.args.cpuct_utility_stdev_prior_weight;
+
+        let parentStdev;
+        if (node.n <= 1) {
+            parentStdev = prior;
+        } else {
+            const effectiveN = node.n;
+            const utilitySqAvg = node.utilitySqSum / effectiveN;
+            const uSq = parentUtility * parentUtility;
+            const adjSqAvg = Math.max(utilitySqAvg, uSq);
+            parentStdev = Math.sqrt(Math.max(0,
+                ((uSq + variancePrior) * variancePriorWeight + adjSqAvg * effectiveN)
+                / (variancePriorWeight + effectiveN - 1)
+                - uSq
+            ));
+        }
+
+        return 1.0 + this.args.cpuct_utility_stdev_scale
+            * (parentStdev / Math.max(1e-8, prior) - 1.0);
+    }
+
+    /**
+     * Compute explore_scaling and fpuValue for a node's children.
+     * Aligned to CSkyZero_V3/alphazero.h compute_select_params().
+     * @param {Node} node
+     * @param {number} effectiveParentN - node.n (no vloss in single-threaded web)
+     * @param {number} visitedPolicyMass
+     * @returns {{exploreScaling: number, fpuValue: number}}
+     */
+    computeSelectParams(node, effectiveParentN, visitedPolicyMass) {
+        const totalChildWeight = Math.max(0, effectiveParentN - 1);
+
+        const cPuct = this.args.c_puct
+            + this.args.c_puct_log * Math.log((totalChildWeight + this.args.c_puct_base) / this.args.c_puct_base);
+
+        // Parent Q: W - L (wdl_utility)
+        let parentUtility = 0;
+        if (node.n > 0) {
+            parentUtility = node.v[0] / node.n - node.v[2] / node.n;
+        }
+
+        const stdevFactor = this.computeParentUtilityStdevFactor(node, parentUtility);
+        const exploreScaling = cPuct * Math.sqrt(totalChildWeight + 0.01) * stdevFactor;
+
+        // FPU
+        const nnUtility = node.nnValue[0] - node.nnValue[2];
+        const avgWeight = Math.min(1, Math.pow(visitedPolicyMass, this.args.fpu_pow));
+        const parentUtilityForFpu = avgWeight * parentUtility + (1 - avgWeight) * nnUtility;
+
+        const fpuReductionMax = (node.parent === null) ? this.args.root_fpu_reduction_max : this.args.fpu_reduction_max;
+        const reduction = fpuReductionMax * Math.sqrt(visitedPolicyMass);
+        let fpuValue = parentUtilityForFpu - reduction;
+        fpuValue = fpuValue + (-1.0 - fpuValue) * this.args.fpu_loss_prop;
+
+        return { exploreScaling, fpuValue };
+    }
+
+    /**
+     * PUCT selection with dynamic variance-scaled cPUCT.
+     * Aligned to CSkyZero_V3/alphazero.h MCTS::select() and alphazero_parallel.h ParallelMCTS::select().
      * Returns the child with the highest PUCT score.
      */
     select(node) {
@@ -81,33 +154,7 @@ class MCTS {
             if (child.n > 0) visitedPolicyMass += child.prior;
         }
 
-        const totalChildWeight = Math.max(0, node.n - 1);
-
-        let c_puct = this.args.c_puct;
-        c_puct += this.args.c_puct_log * Math.log((totalChildWeight + this.args.c_puct_base) / this.args.c_puct_base);
-
-        const exploreScaling = c_puct * Math.sqrt(totalChildWeight + 0.01);
-
-        // FPU - derive scalar Q from WDL: Q = W - L
-        let parentQ;
-        if (node.n > 0) {
-            parentQ = node.v[0] / node.n - node.v[2] / node.n;  // (W - L) scalar
-        } else {
-            parentQ = 0;
-        }
-        const nnUtility = node.nnValue[0] - node.nnValue[2];  // W - L scalar
-
-        const fpuPow = this.args.fpu_pow;
-        const avgWeight = Math.min(1, Math.pow(visitedPolicyMass, fpuPow));
-        let parentUtility = avgWeight * parentQ + (1 - avgWeight) * nnUtility;
-
-        const fpuReductionMax = (node.parent === null) ? this.args.root_fpu_reduction_max : this.args.fpu_reduction_max;
-        const reduction = fpuReductionMax * Math.sqrt(visitedPolicyMass);
-        let fpuValue = parentUtility - reduction;
-
-        const fpuLossProp = this.args.fpu_loss_prop;
-        const lossValue = 0.0;
-        fpuValue = fpuValue + (lossValue - fpuValue) * fpuLossProp;
+        const sp = this.computeSelectParams(node, node.n, visitedPolicyMass);
 
         let bestScore = -Infinity;
         let bestChild = null;
@@ -115,13 +162,13 @@ class MCTS {
         for (const child of node.children) {
             let qValue;
             if (child.n === 0) {
-                qValue = fpuValue;
+                qValue = sp.fpuValue;
             } else {
                 // Child's WDL is from child's perspective; parent's Q = child's L - child's W
                 qValue = child.v[2] / child.n - child.v[0] / child.n;
             }
 
-            const uValue = exploreScaling * child.prior / (1 + child.n);
+            const uValue = sp.exploreScaling * child.prior / (1 + child.n);
             const score = qValue + uValue;
 
             if (score > bestScore) {
@@ -162,16 +209,15 @@ class MCTS {
     /**
      * Backpropagate WDL value up the tree.
      * Flips [W,D,L] -> [L,D,W] at each level to switch perspective.
+     * Uses Node.update() so utilitySqSum is correctly maintained.
      */
     backpropagate(node, value) {
         let curr = node;
-        // Work with a copy so we don't mutate the original
         let w = value[0], d = value[1], l = value[2];
+        const buf = new Float64Array(3);
         while (curr !== null) {
-            curr.v[0] += w;
-            curr.v[1] += d;
-            curr.v[2] += l;
-            curr.n += 1;
+            buf[0] = w; buf[1] = d; buf[2] = l;
+            curr.update(buf);
             // Flip perspective: [W,D,L] -> [L,D,W]
             const tmp = w;
             w = l;
