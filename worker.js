@@ -93,10 +93,14 @@ async function init() {
     });
     
     try {
-        const executionProviders = ["wasm"];
+        const sessionOptions = {
+            executionProviders: ["wasm"],
+            intraOpNumThreads: 1,
+            interOpNumThreads: 1
+        };
 
         const modelBytes = await fetchModelWithProgress("model.onnx");
-        session = await ort.InferenceSession.create(modelBytes, { executionProviders });
+        session = await ort.InferenceSession.create(modelBytes, sessionOptions);
         postMessage({ type: "ready" });
     } catch (e) {
         console.error("Failed to load ONNX model:", e);
@@ -122,21 +126,43 @@ async function inference(state, toPlay) {
 
     let results;
     try {
-        const input = new ort.Tensor("float32", encoded, [1, C, H, W]);
-        results = await session.run({ input: input });
+        const inputName = session.inputNames[0];
+        const inputTensor = new ort.Tensor("float32", encoded, [1, C, H, W]);
+        const feeds = {};
+        feeds[inputName] = inputTensor;
+        results = await session.run(feeds);
     } catch (e) {
         console.error("ONNX inference failed:", e);
         postMessage({ type: "error", message: "推理失败: " + (e.message || String(e)) });
         throw e;
     }
 
-    const pLogits = results.policy_logits.data;
-    const vLogits = results.value_logits.data;
-    const oppPLogits = new Float32Array(results.opponent_policy_logits.data);
+    // Get outputs safely. Fallback to common naming if specific names are missing.
+    const pOutput = results.policy_logits || results.policy || results.P || results.pi;
+    const vOutput = results.value_logits || results.value || results.V || results.v;
+    const oppPOutput = results.opponent_policy_logits;
 
-    // Softmax value logits to WDL
-    const vProbs = mctsSoftmax(Array.from(vLogits));
-    const value = new Float64Array([vProbs[0], vProbs[1], vProbs[2]]);  // WDL [win, draw, loss]
+    if (!pOutput || !vOutput) {
+        throw new Error(`Model outputs missing. Available outputs: ${Object.keys(results).join(", ")}`);
+    }
+
+    const pLogits = pOutput.data;
+    const vLogits = vOutput.data;
+    const oppPLogits = oppPOutput ? new Float32Array(oppPOutput.data) : new Float32Array(H * W);
+
+    // Parse value logits to WDL
+    let value;
+    if (vLogits.length === 3) {
+        const vProbs = mctsSoftmax(Array.from(vLogits));
+        value = new Float64Array([vProbs[0], vProbs[1], vProbs[2]]);  // WDL [win, draw, loss]
+    } else if (vLogits.length === 1) {
+        // Assume single value in [-1, 1]
+        const v = vLogits[0];
+        const winProb = (v + 1) / 2;
+        value = new Float64Array([winProb, 0, 1 - winProb]);
+    } else {
+        throw new Error(`Unexpected value output size: ${vLogits.length}`);
+    }
 
     // Mask illegal moves and compute softmax policy
     const legalMask = game.getLegalActions(state, toPlay);

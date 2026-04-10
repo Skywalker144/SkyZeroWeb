@@ -205,7 +205,12 @@ worker.onmessage = function(e) {
         loadingOverlay.style.display = "none";
         resetGame();
     } else if (data.type === "error") {
-        loadingOverlay.innerHTML = `<p style="color:red">Error: ${data.message}</p>`;
+        if (loadingOverlay.style.display !== "none") {
+            loadingOverlay.innerHTML = `<p style="color:red">Error: ${data.message}</p>`;
+        } else {
+            setStatusText(`Error: ${data.message}`);
+            aiRunning = false;
+        }
         console.error("Worker Error:", data.message);
     } else if (data.type === "model-progress") {
         updateLoadingProgress(data);
