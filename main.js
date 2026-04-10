@@ -18,7 +18,7 @@ const boardSize = 15;
 let cellSize = 0;
 let margin = 0;
 
-let game = new Gomoku(boardSize, 2, true);
+let game = new Gomoku(boardSize, true);
 let state = game.getInitialState();
 let toPlay = 1; // 1 for Black, -1 for White
 let playerColor = -1; // 1 for Black, -1 for White
