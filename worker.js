@@ -5,12 +5,8 @@ importScripts("mcts.js");
 // v1.17 uses no dynamic import(), so importScripts works reliably in classic Workers.
 // Load WASM binary from the jsdelivr CDN to avoid Cloudflare Pages file size limits.
 ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/";
-// 如果浏览器支持 SharedArrayBuffer（需要 COOP/COEP 头），启用 WASM 多线程加速推理
-if (typeof SharedArrayBuffer !== "undefined") {
-    ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 1, 4);
-} else {
-    ort.env.wasm.numThreads = 1;
-}
+// 强制单线程：跨域 CDN 加载 WASM 时多线程 SharedArrayBuffer 在部分环境下静默挂死
+ort.env.wasm.numThreads = 1;
 
 let session = null;
 let game = null;
