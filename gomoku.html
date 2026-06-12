@@ -38,20 +38,20 @@
 </head>
 <body>
   <script>
-    // Set show-analysis class before first paint so analysis surfaces don't
-    // flash when the user has them turned off.
+    // Apply the play/analysis mode class before first paint so the analysis-only
+    // surfaces (free-board placement, sims-count label) don't flash on load.
     (function(){
       try {
-        var v = localStorage.getItem('skz_show_analysis');
-        if (v === '1') document.body.classList.add('show-analysis');
+        if (localStorage.getItem('skz_mode') === 'analysis')
+          document.body.classList.add('mode-analysis');
       } catch(e) {}
     })();
     // Apply search-disabled before first paint to avoid the sims input
     // flashing on then collapsing when the toggle was previously off.
     (function(){
       try {
-        var v = localStorage.getItem('skz_search_enabled');
-        if (v === '0') document.body.classList.add('search-disabled');
+        if (localStorage.getItem('skz_search_enabled') === '0')
+          document.body.classList.add('search-disabled');
       } catch(e) {}
     })();
   </script>
@@ -67,27 +67,90 @@
   </div>
 
   <div class="app">
-    <!-- Header -->
+    <!-- Top toolbar: brand · status · mode/side segments · actions · settings · lang/theme -->
     <header class="topbar">
-      <div class="brand">
-        <a class="brand-title" href="/" data-i18n-title="back_home" title="返回首页"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · Gomoku</span></a>
-        <label class="toggle brand-toggle" data-i18n-title="analysis_mode_label" data-i18n-aria="analysis_mode_label"
-               aria-label="Analysis mode" title="Analysis mode">
-          <span class="toggle-text" data-i18n="analysis_mode_label">分析模式</span>
-          <input type="checkbox" id="show_analysis_input">
-          <span class="track"></span>
-        </label>
-        <script>
-          // Sync checkbox state with persisted preference before first paint
-          // so the switch doesn't briefly render unchecked when analysis was on.
-          try {
-            if (localStorage.getItem('skz_show_analysis') === '1') {
-              document.getElementById('show_analysis_input').checked = true;
-            }
-          } catch (_) {}
-        </script>
+      <a class="brand-title" href="/" data-i18n-title="back_home" title="返回首页"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · Gomoku</span></a>
+
+      <div class="status-pill" id="status_pill" data-variant="idle">
+        <span class="dot"></span>
+        <span id="status" data-i18n="status_idle">空闲</span>
       </div>
-      <div class="topbar-actions">
+
+      <div class="tb-sep"></div>
+
+      <div class="tb-group">
+        <span class="tb-label" data-i18n="tb_label_mode">模式</span>
+        <div class="seg-row" id="mode_seg" role="group" data-i18n-aria="tb_label_mode" aria-label="模式">
+          <button class="seg-btn" id="mode_play" aria-pressed="true" data-i18n="mode_play">对弈</button>
+          <button class="seg-btn" id="mode_analysis" aria-pressed="false" data-i18n="mode_analysis">分析</button>
+        </div>
+      </div>
+
+      <div class="tb-group" id="side_row">
+        <span class="tb-label" data-i18n="tb_label_side">执子</span>
+        <div class="seg-row">
+          <button class="seg-btn" id="side_black" aria-pressed="true">
+            <span class="seg-stone black"></span><span data-i18n="side_black">黑棋</span>
+          </button>
+          <button class="seg-btn" id="side_white" aria-pressed="false">
+            <span class="seg-stone white"></span><span data-i18n="side_white">白棋</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="tb-actions">
+        <button class="btn primary" id="new_btn" data-i18n="btn_new_game">新对局</button>
+        <button class="btn danger-ghost" id="undo_btn" data-i18n="btn_undo">悔棋</button>
+      </div>
+
+      <div class="topbar-right">
+        <div class="settings-wrap">
+          <button class="btn" id="settings_btn" aria-expanded="false" aria-controls="settings_pop" data-i18n="btn_settings">设置</button>
+          <div class="settings-pop hidden" id="settings_pop">
+            <div class="set-row">
+              <span class="tb-label" data-i18n="label_model">模型</span>
+              <select id="model_select" class="num tb-select"></select>
+            </div>
+            <div class="set-row">
+              <span class="tb-label" data-i18n="label_rule">规则</span>
+              <div class="seg-row">
+                <button class="seg-btn" id="rule_freestyle" data-rule="freestyle" aria-pressed="true"  data-i18n="rule_freestyle">无禁手</button>
+                <button class="seg-btn" id="rule_renju"     data-rule="renju"     aria-pressed="false" data-i18n="rule_renju">连珠</button>
+              </div>
+            </div>
+            <div class="set-row">
+              <span class="tb-label" data-i18n="label_board_size">棋盘大小</span>
+              <div class="size-control">
+                <input type="range" id="size_input" min="9" max="19" step="1" value="15" data-i18n-aria="label_board_size" aria-label="棋盘大小">
+                <span class="size-value" id="size_value">15</span>
+              </div>
+            </div>
+            <div class="set-row">
+              <div class="set-row-head">
+                <span class="tb-label" data-i18n="settings_group_search">搜索</span>
+                <label class="toggle" data-i18n-aria="aria_search_toggle" aria-label="切换搜索">
+                  <input type="checkbox" id="search_enable_input" checked aria-controls="sims_wrapper">
+                  <span class="track"></span>
+                </label>
+              </div>
+              <span class="set-hint" data-i18n="label_search_hint">(关闭则 AI 直接凭直觉落子)</span>
+              <div class="settings-row" id="sims_wrapper">
+                <span class="settings-label">
+                  <span class="label-sims-simple"   data-i18n="label_sims_depth">思考深度</span>
+                  <span class="label-sims-analysis" data-i18n="label_sims_count">模拟次数</span>
+                </span>
+                <input class="num" type="number" id="sims_input" min="0" step="1" value="32">
+              </div>
+            </div>
+            <div class="set-row">
+              <button class="btn btn--full" id="edit_btn">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 1.5l3 3-9 9H2.5v-3z"/></svg>
+                <span data-i18n="btn_edit_position">编辑棋形</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="seg-row compact" id="lang_seg" role="group" data-i18n-aria-group="aria_lang" aria-label="切换语言">
           <button class="seg-btn" data-lang="zh" aria-pressed="true">中</button>
           <button class="seg-btn" data-lang="en" aria-pressed="false">EN</button>
@@ -115,78 +178,20 @@
     </header>
 
     <div class="main">
-      <!-- Left column: status pill + unified settings card -->
-      <aside class="side-col" id="left_col">
-        <div class="card status-card">
-          <div class="status-pill" id="status_pill" data-variant="idle">
-            <span class="dot"></span>
-            <span id="status">空闲</span>
-          </div>
-        </div>
-
-        <div class="card settings-card">
+      <!-- Left column: win-rate stacked-area chart over moves -->
+      <aside class="winrate-col" id="winrate_col">
+        <div class="card">
           <div class="card-body">
-            <div class="settings-group">
-              <div class="settings-group-title">
-                <span data-i18n="settings_group_game">对局</span>
-                <button class="btn btn--mini" id="edit_btn">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 1.5l3 3-9 9H2.5v-3z"/></svg>
-                  <span data-i18n="btn_edit_position">编辑棋形</span>
-                </button>
-              </div>
-
-              <div class="settings-row">
-                <span class="settings-label" data-i18n="label_model">模型</span>
-                <select id="model_select" class="settings-control settings-control--select"></select>
-              </div>
-
-              <div class="settings-row">
-                <span class="settings-label" data-i18n="label_human_side">我方执子</span>
-                <div class="seg-row settings-control">
-                  <button class="seg-btn" id="side_black" aria-pressed="true">
-                    <span class="seg-stone black"></span><span data-i18n="side_black">黑棋</span>
-                  </button>
-                  <button class="seg-btn" id="side_white" aria-pressed="false">
-                    <span class="seg-stone white"></span><span data-i18n="side_white">白棋</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <span class="settings-label" data-i18n="label_rule">规则</span>
-                <div class="seg-row settings-control">
-                  <button class="seg-btn" id="rule_freestyle" data-rule="freestyle" aria-pressed="true"  data-i18n="rule_freestyle">无禁手</button>
-                  <button class="seg-btn" id="rule_renju"     data-rule="renju"     aria-pressed="false" data-i18n="rule_renju">连珠</button>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <span class="settings-label" data-i18n="label_board_size">棋盘大小</span>
-                <div class="size-control settings-control">
-                  <input type="range" id="size_input" min="9" max="19" step="1" value="15" data-i18n-aria="label_board_size" aria-label="棋盘大小">
-                  <span class="size-value" id="size_value">15</span>
-                </div>
-              </div>
+            <div class="seg-row vc-tabs">
+              <button class="seg-btn" id="vc_tab_root" aria-pressed="true"  onclick="setValueTab('root')" data-i18n="legend_root">根</button>
+              <button class="seg-btn" id="vc_tab_nn"   aria-pressed="false" onclick="setValueTab('nn')"   data-i18n="legend_nn">网络</button>
             </div>
-
-            <div class="settings-group">
-              <div class="settings-group-title">
-                <span data-i18n="settings_group_search">搜索</span>
-                <span class="settings-group-hint" data-i18n="label_search_hint">(关闭则 AI 直接凭直觉落子)</span>
-                <label class="toggle" data-i18n-aria="aria_search_toggle" aria-label="切换搜索">
-                  <input type="checkbox" id="search_enable_input" checked aria-controls="sims_wrapper">
-                  <span class="track"></span>
-                </label>
-              </div>
-
-              <div class="settings-row" id="sims_wrapper">
-                <span class="settings-label">
-                  <span class="label-sims-simple"   data-i18n="label_sims_depth">思考深度</span>
-                  <span class="label-sims-analysis" data-i18n="label_sims_count">模拟次数</span>
-                </span>
-                <input class="num settings-control settings-control--num" type="number" id="sims_input" min="0" step="1" value="32">
-              </div>
+            <div class="vc-legend">
+              <span><span class="sw blk"></span><span data-i18n="legend_black_win">黑胜</span> <b id="vc_w_black">—</b></span>
+              <span><span class="sw drw"></span><span data-i18n="legend_draw">平局</span> <b id="vc_w_draw">—</b></span>
+              <span><span class="sw wht"></span><span data-i18n="legend_white_win">白胜</span> <b id="vc_w_white">—</b></span>
             </div>
+            <canvas id="value_chart"></canvas>
           </div>
         </div>
       </aside>
@@ -195,10 +200,6 @@
       <section class="board-col">
         <div class="card board-card">
           <canvas id="board"></canvas>
-        </div>
-        <div class="board-actions" id="play_actions">
-          <button class="btn primary" id="new_btn" data-i18n="btn_new_game">新对局</button>
-          <button class="btn danger-ghost" id="undo_btn" data-i18n="btn_undo">悔棋</button>
         </div>
         <div class="board-actions edit-toolbar" id="edit_toolbar">
           <div class="seg-row edit-tools" id="edit_tool_seg" role="group" data-i18n-aria="aria_edit_tool" aria-label="编辑工具">
@@ -222,98 +223,83 @@
         </div>
       </section>
 
-      <!-- Right column: value estimates + (in analysis mode) 6 heatmaps -->
-      <aside class="side-col" id="right_col">
-        <div class="card">
-          <div class="card-body">
-            <div class="card-title-row">
-              <div class="card-title" data-i18n="label_value_estimates">胜率估计</div>
-              <span class="wdl-wl wdl-wl--header" id="wdl_root_wl">—</span>
+      <!-- Right column: candidate move list + collapsible heatmap drawer -->
+      <aside class="analysis-col" id="right_col">
+        <div class="card cand-card">
+          <div class="card-body cand-body">
+            <div class="card-title cand-head">
+              <span data-i18n="cand_title">候选着法</span>
+              <span class="cand-legend" data-i18n="cand_legend">胜率 · 访问</span>
             </div>
-            <div class="wdl-row">
-              <span class="wdl-label" data-i18n="legend_root">根</span>
-              <div class="wdl-bar" id="wdl_root_bar">
-                <span class="seg w" style="width:0"></span>
-                <span class="seg d" style="width:0"></span>
-                <span class="seg l" style="width:0"></span>
-              </div>
-              <div class="wdl-detail" id="wdl_root_detail"></div>
-            </div>
-            <div class="wdl-row wdl-row--nn">
-              <span class="wdl-label" data-i18n="legend_nn">网络</span>
-              <div class="wdl-bar" id="wdl_nn_bar">
-                <span class="seg w" style="width:0"></span>
-                <span class="seg d" style="width:0"></span>
-                <span class="seg l" style="width:0"></span>
-              </div>
-              <div class="wdl-detail" id="wdl_nn_detail">
-                <span class="wdl-wl" id="wdl_nn_wl">—</span>
-              </div>
-            </div>
-            <div class="value-chart-wrap">
-              <div class="value-chart-legend">
-                <span class="vc-item"><span class="vc-swatch" style="background:#0969da;"></span><span data-i18n="legend_root">根</span></span>
-                <span class="vc-item"><span class="vc-swatch" style="background:#cf222e;"></span><span data-i18n="legend_nn">网络</span></span>
-                <span class="vc-axis" data-i18n="legend_axis">胜率 · 0…100%</span>
-              </div>
-              <canvas id="value_chart"></canvas>
+            <div class="cand-list" id="cand_list">
+              <div class="cand-empty" data-i18n="cand_empty">暂无分析</div>
             </div>
           </div>
         </div>
-        <div class="grids">
-          <div class="card grid-card">
-            <div class="grid-title"><span class="grid-title-text" data-i18n="heat_improved_policy">改进策略</span>
-              <span class="grid-title-actions">
-                <button class="pin-btn" data-target="h_mcts_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                <button class="expand-btn" data-target="h_mcts_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-              </span>
+
+        <div class="card drawer" id="heat_drawer">
+          <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="false" aria-controls="heat_drawer_body">
+            <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+            <span data-i18n="heat_drawer_title">NN 热力图</span>
+            <span class="drawer-count">6</span>
+          </button>
+          <div class="drawer-body hidden" id="heat_drawer_body">
+            <div class="grids">
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_improved_policy">改进策略</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_mcts_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_mcts_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_mcts_policy"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_visits_dist">访问分布</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_mcts_visits" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_mcts_visits" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_mcts_visits"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_policy">网络策略</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_nn_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_nn_policy"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_opp_policy">对手策略</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_nn_opp_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_opp_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_nn_opp_policy"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_futurepos_8">未来落点 +8</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_nn_futurepos_8" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_futurepos_8" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_nn_futurepos_8"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_futurepos_32">未来落点 +32</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_nn_futurepos_32" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_futurepos_32" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_nn_futurepos_32"></canvas>
+              </div>
             </div>
-            <canvas class="heat" id="h_mcts_policy"></canvas>
-          </div>
-          <div class="card grid-card">
-            <div class="grid-title"><span class="grid-title-text" data-i18n="heat_visits_dist">访问分布</span>
-              <span class="grid-title-actions">
-                <button class="pin-btn" data-target="h_mcts_visits" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                <button class="expand-btn" data-target="h_mcts_visits" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-              </span>
-            </div>
-            <canvas class="heat" id="h_mcts_visits"></canvas>
-          </div>
-          <div class="card grid-card">
-            <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_policy">网络策略</span>
-              <span class="grid-title-actions">
-                <button class="pin-btn" data-target="h_nn_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                <button class="expand-btn" data-target="h_nn_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-              </span>
-            </div>
-            <canvas class="heat" id="h_nn_policy"></canvas>
-          </div>
-          <div class="card grid-card">
-            <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_opp_policy">对手策略</span>
-              <span class="grid-title-actions">
-                <button class="pin-btn" data-target="h_nn_opp_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                <button class="expand-btn" data-target="h_nn_opp_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-              </span>
-            </div>
-            <canvas class="heat" id="h_nn_opp_policy"></canvas>
-          </div>
-          <div class="card grid-card">
-            <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_futurepos_8">未来落点 +8</span>
-              <span class="grid-title-actions">
-                <button class="pin-btn" data-target="h_nn_futurepos_8" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                <button class="expand-btn" data-target="h_nn_futurepos_8" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-              </span>
-            </div>
-            <canvas class="heat" id="h_nn_futurepos_8"></canvas>
-          </div>
-          <div class="card grid-card">
-            <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_futurepos_32">未来落点 +32</span>
-              <span class="grid-title-actions">
-                <button class="pin-btn" data-target="h_nn_futurepos_32" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                <button class="expand-btn" data-target="h_nn_futurepos_32" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-              </span>
-            </div>
-            <canvas class="heat" id="h_nn_futurepos_32"></canvas>
           </div>
         </div>
       </aside>
