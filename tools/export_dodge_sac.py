@@ -2,7 +2,7 @@
 """Export a trained SAC (continuous) Channel-Dodge actor to dodge-policy.js.
 
 The Channel-Dodge autopilot. SAC's actor is a SquashedGaussianActor — a ReLU MLP
-``271 -> 256 -> 256 -> 4`` (trained in ../DodgeSAC) whose
+``271 -> 256 -> 256 -> 4`` (trained in ../SkyZero/DodgeSAC) whose
 first 2 outputs are the Gaussian mean (the last 2 are log-std, inference-irrelevant).
 Greedy action = ``tanh(mean)`` clamped to the unit disk, which the JS in
 channel-dodge.html does when ``DODGE_POLICY.continuous`` is set.
@@ -12,7 +12,7 @@ Packed float32 blob layout (little-endian, the order the JS reads):
     net.2.weight [256,256], net.2.bias [256],
     net.4.weight [4,256]  , net.4.bias [4]
 
-    python tools/export_dodge_sac.py --ckpt ../DodgeSAC/runs/sac_gpu_smooth/best.pt \
+    python tools/export_dodge_sac.py --ckpt ../SkyZero/DodgeSAC/runs/sac_gpu_smooth/best.pt \
         --version sac_gpu_smooth
 """
 
