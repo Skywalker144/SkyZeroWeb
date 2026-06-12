@@ -9,7 +9,7 @@ but no server, no C++ engine — everything runs client-side.
 ### Local dev
 
 ```bash
-cd /home/sky/RL/SkyZero/SkyZeroWeb
+cd /home/sky/RL/SkyZeroWeb
 python3 -m http.server 8000
 # Open http://localhost:8000
 ```
@@ -70,7 +70,7 @@ browser. Export a checkpoint with the dedicated script (uses the SkyZero_2048
 
 ```bash
 /home/sky/miniconda3/envs/pytorch/bin/python tools/export_onnx_2048.py \
-    --ckpt ../SkyZero_2048/data2048_td/nets/b3c64/scripted_iter_000051.pt \
+    --ckpt ../SkyZero/SkyZero_2048/data2048_td/nets/b3c64/scripted_iter_000051.pt \
     --net  b3c64 --out models/2048.onnx
 ```
 
