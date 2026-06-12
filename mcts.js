@@ -383,6 +383,21 @@ class MCTS {
         }
         return policy;
     }
+
+    // Per-move win rate (root player's view, in [0,1]) from each root child's
+    // mean value — a sibling to getMCTSPolicy, used by the candidate-move list's
+    // win% column. Cells without a visited child stay NaN ("no data").
+    getMCTSWinrate(root) {
+        const wr = new Float32Array(this.game.boardSize * this.game.boardSize).fill(NaN);
+        for (const child of root.children) {
+            if (child.n > 0) {
+                // child.v is cumulative WDL in the child's (opponent's) frame;
+                // the parent-perspective utility is v[2]-v[0] (L-W), as in update().
+                wr[child.actionTaken] = ((child.v[2] - child.v[0]) / child.n + 1) / 2;
+            }
+        }
+        return wr;
+    }
 }
 
 if (typeof module !== "undefined" && module.exports) {
