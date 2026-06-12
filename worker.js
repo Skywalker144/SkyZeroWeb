@@ -179,7 +179,7 @@ function applyMove(action, nextState, nextToPlay, ply) {
     root = new Node(nextState, nextToPlay);
 }
 
-async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchId) {
+async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchId, analyze) {
     currentPly = ply;
     if (gumbelM != null) mcts.args.gumbel_m = gumbelM;
     if (!root) root = new Node(state, toPlay);
@@ -243,14 +243,68 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         }
     };
 
-    const { improvedPolicy, gumbelAction, vMix } =
-        await mcts.gumbelSequentialHalving(root, sims, simulateOne);
+    let improvedPolicy, gumbelAction, vMix, phases;
+    if (analyze) {
+        // Plain PUCT search (no Gumbel, no Dirichlet noise) — the analysis board.
+        for (let i = 0; i < sims; i++) {
+            let node = root;
+            while (node.isExpanded()) {
+                const nx = mcts.select(node);
+                if (!nx) break;
+                node = nx;
+            }
+            const winner = game.getWinner(node.state, node.actionTaken, -node.toPlay);
+            let value;
+            if (winner !== null) {
+                const result = winner * node.toPlay;
+                if      (result === 1)  value = new Float64Array([1, 0, 0]);
+                else if (result === -1) value = new Float64Array([0, 0, 1]);
+                else                    value = new Float64Array([0, 1, 0]);
+            } else {
+                const inf = await inference(node.state, node.toPlay);
+                if (latestSearchId !== gen) return;
+                mcts.expand(node, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
+                value = inf.wdl;
+            }
+            mcts.backpropagate(node, value);
+            totalSims++;
+            const now = performance.now();
+            if (now - lastProgress > 60) {
+                lastProgress = now;
+                postMessage({ type: "progress", progress: Math.min(100, (totalSims / Math.max(1, sims)) * 100), searchId: externalSearchId });
+            }
+        }
+        if (latestSearchId !== gen) return;
+        // Improved policy = the visit distribution; root value = its mean WDL
+        // (root.toPlay's frame, same convention as Gumbel's vMix).
+        improvedPolicy = mcts.getMCTSPolicy(root);
+        vMix = root.n > 0
+            ? new Float64Array([root.v[0] / root.n, root.v[1] / root.n, root.v[2] / root.n])
+            : new Float64Array(nnValueWDL);
+        gumbelAction = -1;
+        let maxN = -1;
+        for (const ch of root.children) if (ch.n > maxN) { maxN = ch.n; gumbelAction = ch.actionTaken; }
+        phases = [];
+    } else {
+        const res = await mcts.gumbelSequentialHalving(root, sims, simulateOne);
+        if (latestSearchId !== gen) return;
+        improvedPolicy = res.improvedPolicy;
+        gumbelAction = res.gumbelAction;
+        vMix = res.vMix;
+        phases = root._gumbelPhases || [];
+    }
 
-    if (latestSearchId !== gen) return;
     postMessage({ type: "progress", progress: 100, searchId: externalSearchId });
 
     // Visit distribution N(s,a)/sum — matches V5 cpp label "MCTS Visits (N(s,a)/sum)".
     const visitDist = mcts.getMCTSPolicy(root);
+    // Per-move win rate (root player's view) for the candidate list. NaN where
+    // unvisited; structured clone preserves NaN so main.js can tell "no data".
+    const winrateDist = mcts.getMCTSWinrate(root);
+    // Cumulative root visits across tree-reuse chunks — the analysis ponder's
+    // depth so far. main.js drives the continuous search off this.
+    let rootVisits = 0;
+    for (const ch of root.children) rootVisits += ch.n;
 
     postMessage({
         type: "result",
@@ -260,12 +314,14 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         nnValueWDL,                           // [W, D, L] root NN
         mctsPolicy:    Array.from(improvedPolicy),  // V5 "MCTS Strategy (improved policy)"
         mctsVisits:    Array.from(visitDist),       // V5 "MCTS Visits (N(s,a)/sum)"
+        mctsWinrate:   Array.from(winrateDist),     // per-move win rate for the candidate list
         nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),  // V5 "NN Strategy"
         nnOppPolicy:   Array.from(oppPolicy),
         nnFuturepos8:  Array.from(future8),
         nnFuturepos32: Array.from(future32),
-        gumbelPhases:  root._gumbelPhases || [],
+        gumbelPhases:  phases,
         iterations:    totalSims,
+        searchSims:    rootVisits,   // cumulative root visits (analysis ponder depth)
     });
 }
 
@@ -282,7 +338,7 @@ onmessage = async (e) => {
         } else if (data.type === "search") {
             latestSearchId++;
             const gen = latestSearchId;
-            await runSearch(data.state, data.toPlay, data.ply, data.sims, data.gumbel_m, gen, data.searchId);
+            await runSearch(data.state, data.toPlay, data.ply, data.sims, data.gumbel_m, gen, data.searchId, data.analyze);
         } else if (data.type === "swap-model") {
             latestSearchId++;
             session = null;
