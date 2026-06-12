@@ -10,7 +10,7 @@ is already in raw 2048 points.
 
 Usage:
     python tools/export_onnx_2048.py \\
-        --ckpt ../SkyZero_2048/data2048_td/nets/b3c64/scripted_iter_000007.pt \\
+        --ckpt ../SkyZero/SkyZero_2048/data2048_td/nets/b3c64/scripted_iter_000007.pt \\
         --net b3c64 --out models/2048.onnx
 
 `--net b3c64` parses to blocks=3, channels=64; all other Config fields (value
