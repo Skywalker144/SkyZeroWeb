@@ -170,14 +170,46 @@
     .board-card { padding: 6px; }
   }
 
-  /* ---------- Top bar ---------- */
+  /* ---------- Top toolbar ---------- */
   .topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 4px 0 12px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 14px;
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 8px 14px; padding: 8px 14px; margin-bottom: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-xs);
   }
-  .brand { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; min-width: 0; }
+  .tb-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .tb-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--fg-subtle); white-space: nowrap;
+  }
+  .tb-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
+  .tb-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 auto; }
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  /* Settings popover (model / rule / size / search / setup) */
+  .settings-wrap { position: relative; }
+  .settings-pop {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 500;
+    width: 300px; padding: 14px 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .set-row { display: flex; flex-direction: column; gap: 6px; }
+  .set-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .set-hint { font-size: 10.5px; color: var(--fg-muted); margin-top: -2px; }
+  .tb-select {
+    width: 100%; height: 32px; padding: 0 8px;
+    background: var(--surface); color: var(--fg);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: var(--font-mono); font-size: 12.5px; cursor: pointer;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .tb-select:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .btn--full { width: 100%; }
   .brand-title {
     font-size: 25px; font-weight: 600; letter-spacing: -0.01em;
     color: var(--fg); text-decoration: none;
@@ -187,9 +219,6 @@
      <div> brand on the landing page is a non-link and is unaffected. */
   a.brand-title { transition: color 0.15s ease; }
   a.brand-title:hover { color: var(--accent); }
-  .brand-toggle { padding: 0; gap: 8px; color: var(--fg-muted); }
-  .brand-toggle .toggle-text { font-weight: 500; }
-  .brand-toggle:hover { color: var(--fg); }
 
   /* SkyZero brand wordmark: Jost geometric, neutral "Sky" + rainbow "Zero".
      Gradient = 120deg (red upper-left -> violet lower-right), red held to 15%,
@@ -223,7 +252,6 @@
   html[data-theme-mode="light"] .icon-btn .sun-icon,
   html[data-theme-mode="dark"]  .icon-btn .moon-icon,
   html[data-theme-mode="auto"]  .icon-btn .auto-icon { display: inline-block; }
-  .topbar-actions { display: flex; align-items: center; gap: 8px; }
   .seg-row.compact {
     display: flex; gap: 0;
     border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -245,38 +273,35 @@
   }
   .seg-row.compact .seg-btn svg { width: 14px; height: 14px; display: block; }
 
-  /* ---------- Layout ---------- */
+  /* ---------- Main: win-rate chart · board · candidates + heatmaps ---------- */
   .main {
     display: grid;
-    grid-template-columns: 310px minmax(0, auto) minmax(0, auto);
-    gap: 20px;
-    align-items: start;
-    justify-content: center;
-    margin-bottom: 0;
+    grid-template-columns: 320px minmax(0, 1fr) 340px;
+    gap: 16px; align-items: start;
   }
-  @media (max-width: 1399px) {
+  @media (max-width: 1180px) {
     .main { grid-template-columns: 1fr; }
+    .board-col { order: -1; }
   }
   .board-col {
     display: flex; flex-direction: column; align-items: center; gap: 12px;
     min-width: 0;
   }
-  .side-col {
-    display: flex; flex-direction: column; gap: 8px;
-    min-width: 0;
+  /* Left column: the win-rate-over-moves chart fills the board's height. */
+  .winrate-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .winrate-col .card { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .winrate-col .card-body {
+    display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+    padding: 10px 14px; gap: 8px;
   }
-  @media (min-width: 1400px) {
-    /* Side cols may exceed viewport in analysis mode (left col gains the value
-       card; right col gains the heatmap grid). main.js#updateSideColMaxHeight
-       sets an inline max-height from the column's measured top, so a fixed
-       reserve here would only matter as a fallback if JS doesn't run. */
-    .side-col {
-      overflow-y: auto;
-    }
+  /* Right column: candidate list (fills) + collapsible heatmap drawer.
+     Its height is pinned to the board (syncBoardSize), so expanding the drawer
+     shrinks the candidate list rather than stretching the page. */
+  .analysis-col {
+    display: flex; flex-direction: column; gap: 12px;
+    min-width: 0; min-height: 0; overflow-y: auto;
   }
   .seg-row { display: flex; gap: 8px; }
-  .side-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .side-row .seg-row { flex: 1; }
   .seg-btn {
     flex: 1; height: 36px; font-size: 13px; font-weight: 500;
     background: var(--surface); color: var(--fg);
@@ -316,7 +341,6 @@
   /* Edit-position mode: swap the standard play actions for the edit toolbar.
      Toolbar holds a 3-way tool palette (black / white / erase) plus the
      done & cancel buttons, all on one row (wraps on narrow viewports). */
-  body.editing #play_actions { display: none; }
   body:not(.editing) .edit-toolbar { display: none; }
   .edit-toolbar { flex-wrap: wrap; }
   .edit-toolbar .edit-tools {
@@ -347,10 +371,13 @@
     width: 14px; height: 14px;
     display: block; flex-shrink: 0;
   }
-  /* While editing, lock down settings (model / side / rule / size / search):
-     changing those mid-edit would either reset the board or desync the
-     worker. The user must commit or cancel first. */
-  body.editing .settings-card {
+  /* While editing, lock the toolbar controls (mode / side / actions / settings):
+     changing those mid-edit would reset the board or desync the worker. The
+     user must commit or cancel first. */
+  body.editing #mode_seg,
+  body.editing #side_row,
+  body.editing .tb-actions,
+  body.editing .settings-wrap {
     pointer-events: none;
     opacity: 0.55;
   }
@@ -377,26 +404,17 @@
     font-size: 11px; font-weight: 400; letter-spacing: 0;
     text-transform: none; color: var(--fg-muted);
   }
-  /* Header row that hosts the card title plus the prominent root win% on
-     the right (see #wdl_root_wl in the value-estimates card). */
-  .card-title-row {
-    display: flex; align-items: baseline; justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 4px;
-  }
-  .card-title-row .card-title { margin: 0; }
-  .wdl-wl--header { line-height: 1; letter-spacing: 0; }
-
-  /* ---------- Status pill ---------- */
-  .status-card { padding: 6px 12px; text-align: center; }
+  /* ---------- Status pill (in the toolbar) ---------- */
   .status-pill {
-    display: inline-flex; align-items: center; gap: 10px;
+    display: inline-flex; align-items: center; gap: 8px;
     padding: 4px 12px 4px 10px;
     border-radius: 999px;
-    font-size: 13px; font-weight: 500;
+    font-size: 12.5px; font-weight: 500;
     background: var(--surface-2); color: var(--fg);
     border: 1px solid var(--border);
+    max-width: 220px; overflow: hidden;
   }
+  .status-pill #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .status-pill .dot {
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
     background: var(--fg-subtle);
@@ -439,15 +457,6 @@
   .btn.danger-ghost { color: var(--fg-muted); }
   .btn.danger-ghost:hover { color: var(--danger); border-color: var(--danger); }
   .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  /* Compact button for inline placement inside settings group titles, where
-     vertical budget is dictated by the 14px title text. Reset uppercase /
-     letter-spacing inherited from the title. */
-  .btn--mini {
-    height: 22px; padding: 0 8px; font-size: 11.5px;
-    gap: 4px; border-radius: 6px;
-    text-transform: none; letter-spacing: 0;
-  }
-  .settings-group-title .btn--mini { margin-left: auto; }
 
   /* ---------- Toggle ---------- */
   .toggle {
@@ -504,59 +513,16 @@
     height: 1px; background: var(--border); margin: 4px 0;
   }
 
-  /* ---------- Settings card (left column) ---------- */
-  .settings-card .card-body { padding: 4px 14px 10px; }
-  .settings-group + .settings-group {
-    margin-top: 4px;
-    padding-top: 4px;
-    border-top: 1px solid var(--border);
-  }
-  .settings-group-title {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-    font-size: 14px; font-weight: 600;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--fg);
-    padding: 6px 0 2px;
-  }
-  .settings-group-title .toggle { padding: 0; margin-left: auto; }
-  .settings-group-hint {
-    font-size: 10.5px; font-weight: 400; letter-spacing: 0;
-    text-transform: none; color: var(--fg-muted);
-  }
+  /* ---------- Settings popover rows ---------- */
   .settings-row {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; min-height: 36px; padding: 4px 0;
-  }
-  .settings-row + .settings-row {
-    border-top: 1px solid var(--surface-2);
+    gap: 12px; min-height: 36px;
   }
   .settings-label {
     flex: 0 0 88px;
     font-size: 13px; color: var(--fg-muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .settings-control {
-    display: inline-flex; align-items: center; justify-content: flex-end;
-  }
-  .settings-row .seg-row.settings-control { flex: 1; gap: 6px; }
-  .settings-row .seg-row.settings-control .seg-btn { flex: 1; height: 32px; font-size: 12.5px; }
-  .settings-control--select {
-    flex: 1; min-width: 0; max-width: 100%;
-    height: 32px; padding: 0 8px;
-    background: var(--surface); color: var(--fg);
-    border: 1px solid var(--border); border-radius: var(--radius-sm);
-    font-family: var(--font-mono); font-size: 12.5px;
-    cursor: pointer;
-    transition: border-color 0.12s, box-shadow 0.12s;
-  }
-  .settings-control--select:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
-  }
-  .settings-control--num { width: 96px; height: 32px; }
-  .settings-row .toggle.settings-control { flex: 0 0 auto; padding: 0; }
-
   .size-control {
     flex: 1; min-width: 0;
     display: flex; align-items: center; gap: 10px;
@@ -574,87 +540,26 @@
     min-width: 20px; text-align: right;
   }
 
-  /* ---------- WDL ---------- */
-  /* Row 1: label + bar inline (label hides in simple mode and the bar fills
-     the row). Row 2: W/D/L breakdown wraps below via flex: 1 1 100%. */
-  .wdl-row {
-    display: flex;
-    flex-flow: row wrap;
-    align-items: center;
-    gap: 4px 8px;
-    padding: 1px 0;
-  }
-  .wdl-label {
-    flex: 0 0 36px;
-    font-family: var(--font-mono);
-    font-size: 12px; color: var(--fg-muted);
-    text-transform: uppercase; letter-spacing: 0.04em;
-  }
-  .wdl-bar {
-    display: flex; height: 8px;
-    flex: 1 1 0; min-width: 0;
-    background: var(--surface-2);
-    border-radius: 999px; overflow: hidden;
-  }
-  .wdl-bar .seg { height: 100%; transition: width 0.2s ease-out; }
-  .wdl-bar .seg.w { background: var(--success); }
-  .wdl-bar .seg.d { background: var(--fg-subtle); opacity: 0.45; }
-  .wdl-bar .seg.l { background: var(--danger); }
-  @media (prefers-reduced-motion: reduce) {
-    .wdl-bar .seg { transition: none; }
-  }
-  .wdl-wl {
-    font-family: var(--font-mono);
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--fg);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.05;
-  }
-  .wdl-wl.pos { color: var(--success); }
-  .wdl-wl.neg { color: var(--danger); }
-  .wdl-empty { color: var(--fg-subtle); font-size: 12px; padding: 8px 0; text-align: center; }
-  /* Wraps to its own line under the bar (flex: 1 1 100%) and centers the
-     small W/D/L breakdown horizontally. */
-  .wdl-detail {
-    flex: 1 1 100%;
-    margin-top: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-  }
-  .wdl-breakdown {
-    display: flex; gap: 10px;
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: 11.5px; color: var(--fg-muted);
-    min-height: 16px;
-  }
-  .wdl-breakdown .k { color: var(--fg-subtle); }
-  .value-chart-wrap {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    min-height: 125px;
-  }
-  .value-chart-legend {
-    display: flex; align-items: center; gap: 12px;
+  /* ---------- Win-rate stacked-area chart (left column) ---------- */
+  .vc-tabs .seg-btn { height: 30px; font-size: 12.5px; }
+  .vc-legend {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
     font-size: 11px; color: var(--fg-muted);
     font-family: var(--font-mono);
-    margin-bottom: 6px;
   }
-  .vc-item { display: inline-flex; align-items: center; gap: 5px; }
-  .vc-swatch { width: 10px; height: 2px; border-radius: 1px; display: inline-block; }
-  .vc-axis { margin-left: auto; color: var(--fg-subtle); font-size: 10.5px; }
-  #value_chart { display: block; width: 100%; height: 125px; min-height: 105px; }
-  /* Value chart is empty until the user plays a few moves; keep it compact
-     on phones so it doesn't dominate the (stacked) left column. */
-  @media (max-width: 720px) {
-    .value-chart-wrap { min-height: 110px; }
-    #value_chart { height: 90px; min-height: 80px; }
+  .vc-legend .sw {
+    width: 10px; height: 10px; border-radius: 3px;
+    display: inline-block; vertical-align: middle; margin-right: 5px;
+  }
+  .vc-legend .sw.blk { background: var(--stone-black-1); }
+  .vc-legend .sw.drw { background: var(--fg-subtle); }
+  .vc-legend .sw.wht { background: var(--stone-white-0); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .vc-legend b { color: var(--fg); font-weight: 600; }
+  /* Desktop: the column height is pinned to the board (syncBoardSize), so the
+     chart fills via flex. Single-column: give it an explicit height range. */
+  #value_chart { display: block; width: 100%; flex: 1 1 auto; min-height: 0; }
+  @media (max-width: 1180px) {
+    #value_chart { min-height: 150px; max-height: 220px; }
   }
   /* ---------- Board ---------- */
   .board-card {
@@ -665,18 +570,63 @@
     background: var(--board-bg); border-radius: var(--radius-sm);
     display: block; cursor: crosshair;
   }
-  /* ---------- Heat grid ---------- */
+  /* ---------- Candidate move list (right column) ---------- */
   #right_col { min-width: 0; }
+  .cand-card { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+  .cand-body { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; padding: 12px 14px; }
+  .cand-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; margin-bottom: 8px;
+  }
+  .cand-legend {
+    font-size: 10.5px; color: var(--fg-subtle); font-family: var(--font-mono);
+    text-transform: none; letter-spacing: 0; font-weight: 500;
+  }
+  .cand-list {
+    display: flex; flex-direction: column; gap: 2px;
+    overflow-y: auto; min-height: 0; flex: 1 1 auto;
+  }
+  .cand-empty { color: var(--fg-subtle); font-size: 12px; text-align: center; padding: 18px 0; }
+  .cand-row {
+    display: grid; grid-template-columns: 16px 42px 40px minmax(0,1fr) 46px;
+    align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: var(--radius-sm); cursor: pointer;
+    font-family: var(--font-mono); font-size: 12.5px;
+    border: 1px solid transparent;
+  }
+  .cand-row:hover { background: var(--surface-2); border-color: var(--border); }
+  .cand-row.best { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .cand-rank { font-weight: 600; color: var(--fg-muted); text-align: center; }
+  .cand-row.best .cand-rank { color: var(--accent); }
+  .cand-coord { color: var(--fg-muted); }
+  .cand-wr { font-weight: 600; color: var(--fg); text-align: right; }
+  .cand-track { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .cand-track > span { display: block; height: 100%; background: var(--fg-subtle); }
+  .cand-row.best .cand-track > span { background: var(--accent); }
+  .cand-visits { color: var(--fg-subtle); text-align: right; font-size: 11.5px; }
+
+  /* ---------- Heatmap drawer (collapsed by default) ---------- */
+  .drawer { overflow: hidden; flex: 0 0 auto; }
+  .drawer-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; background: transparent; border: none; cursor: pointer;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--fg-subtle); font-family: var(--font-sans);
+  }
+  .drawer-toggle:hover { color: var(--fg); }
+  .drawer-toggle .chev { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; }
+  .drawer-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+  .drawer-count { margin-left: auto; color: var(--fg-subtle); font-weight: 500; }
+  .drawer-body { padding: 0 12px 12px; }
+  @media (prefers-reduced-motion: reduce) { .drawer-toggle .chev { transition: none; } }
+
+  /* ---------- Heat grid (inside drawer) ---------- */
   .grids {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    height: 100%;
+    gap: 10px;
   }
-  @media (max-width: 1399px) {
-    .grids { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; }
-  }
-  @media (max-width: 720px) {
+  .drawer .grid-card { height: 168px; }
+  @media (max-width: 520px) {
     .grids { grid-template-columns: 1fr; }
   }
   .grid-card {
@@ -824,56 +774,17 @@
                transition: width 0.15s linear; }
 .loader-pct { font-family: var(--font-mono); font-size: 9px; color: var(--fg-muted); }
 
-  /* ---------- Show-analysis toggle ---------- */
-  /* Default state (no body.show-analysis): hide the heatmap grid, the
-     network WDL row + detail, the value-chart legend, and the "根" WDL
-     label (with only the root bar present, the card title alone is enough
-     to caption it). Right column itself stays visible to host the
-     value-estimates card to the right of the board. Toggle wiring lives
-     in main.js (setShowAnalysis). */
-  body:not(.show-analysis) .grids,
-  body:not(.show-analysis) .wdl-row--nn,
-  body:not(.show-analysis) .value-chart-legend,
-  body:not(.show-analysis) .wdl-label {
-    display: none;
-  }
-  /* Analysis mode: drop the big +X% on both the title row and the network
-     row — only the small W/D/L breakdown stays visible. */
-  body.show-analysis .wdl-wl { display: none; }
-  /* Sims label swaps between modes: "思考深度" in simple, "模拟次数" in
+  /* ---------- Play / Analysis mode ---------- */
+  /* Both modes show the full analysis surfaces (win-rate chart, candidate
+     list, heatmaps); the toggle only changes interaction (play-vs-AI vs a
+     free-placement board the engine continuously analyzes). Mode wiring is
+     in main.js (setMode). */
+  /* Analysis mode drives both colors itself, so the human-side picker is
+     meaningless and hidden. */
+  body.mode-analysis #side_row { display: none; }
+  /* Sims label swaps between modes: "思考深度" in play, "模拟次数" in
      analysis. Both spans live in the markup and CSS shows one at a time. */
-  body:not(.show-analysis) .label-sims-analysis,
-  body.show-analysis        .label-sims-simple {
+  body:not(.mode-analysis) .label-sims-analysis,
+  body.mode-analysis        .label-sims-simple {
     display: none;
-  }
-  /* Simple mode on desktop: right column hosts only the value-estimates
-     card and should mirror the left controls column's width (350px), not
-     the full board width that syncBoardSize otherwise sets in inline JS.
-     The card and inner value chart flex-grow so the card's total height
-     matches the left controls column (set by syncBoardSize). */
-  @media (min-width: 1400px) {
-    body:not(.show-analysis) #right_col {
-      width: 350px;
-    }
-    body:not(.show-analysis) #right_col > .card {
-      flex: 1 1 auto;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    body:not(.show-analysis) #right_col > .card > .card-body {
-      flex: 1 1 auto;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    body:not(.show-analysis) #right_col .value-chart-wrap {
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-    body:not(.show-analysis) #right_col #value_chart {
-      flex: 1 1 auto;
-      height: auto;
-      min-height: 0;
-    }
   }
