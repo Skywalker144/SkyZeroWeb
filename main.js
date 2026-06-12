@@ -79,200 +79,100 @@ try {
     else if (mql.addListener) mql.addListener(onSysChange);
 } catch (_) {}
 
-// Show-analysis toggle (heatmaps + network WDL + "nn" line on value chart).
-// State persisted in localStorage("skz_show_analysis") as "1" / "0".
-// A pre-paint inline script in gomoku.html applies body.show-analysis before
-// first paint to avoid flashing the analysis surfaces on load.
-//
-// Simple mode: value-estimates card sits in the right column (default HTML
-// position) so it mirrors the left controls column around the board.
-// Analysis mode: card moves down into the left column so the right column
-// can dedicate its full board-matching width to the 2x3 heatmap grid.
-function getShowAnalysis() {
-    try { return localStorage.getItem("skz_show_analysis") === "1"; }
-    catch (_) { return false; }
+// Play / Analysis mode (port of V7.5's 对弈 / 分析 toggle). Both modes show the
+// full analysis surfaces; the toggle changes interaction only:
+//   play     — human vs AI; the side picker chooses the human's color.
+//   analysis — a free-placement board (both colors, alternating) the engine
+//              re-analyzes after every stone; no human side, AI never plays.
+// Persisted in localStorage("skz_mode"); a pre-paint inline script in
+// gomoku.html applies body.mode-analysis before first paint.
+let currentMode = (function () {
+    try { return localStorage.getItem("skz_mode") === "analysis" ? "analysis" : "play"; }
+    catch (_) { return "play"; }
+})();
+function updateModeButtons() {
+    const p = document.getElementById("mode_play");
+    const a = document.getElementById("mode_analysis");
+    if (p) p.setAttribute("aria-pressed", currentMode === "play" ? "true" : "false");
+    if (a) a.setAttribute("aria-pressed", currentMode === "analysis" ? "true" : "false");
 }
-function moveValueCard(toAnalysisMode) {
-    const card = document.querySelector('[data-i18n="label_value_estimates"]')?.closest(".card");
-    if (!card) return;
-    const left = document.getElementById("left_col");
-    const right = document.getElementById("right_col");
-    if (!left || !right) return;
-    if (toAnalysisMode) {
-        if (card.parentElement !== left) left.appendChild(card);
-    } else {
-        if (card.parentElement !== right) right.insertBefore(card, right.firstElementChild);
-    }
-}
-function setShowAnalysis(on) {
-    document.body.classList.toggle("show-analysis", !!on);
-    moveValueCard(!!on);
-    try { localStorage.setItem("skz_show_analysis", on ? "1" : "0"); } catch (_) {}
-    const input = document.getElementById("show_analysis_input");
-    if (input) input.checked = !!on;
+function setMode(m) {
+    if (m !== "play" && m !== "analysis") return;
+    if (currentMode === m || editMode) return;
+    currentMode = m;
+    document.body.classList.toggle("mode-analysis", m === "analysis");
+    try { localStorage.setItem("skz_mode", m); } catch (_) {}
+    updateModeButtons();
+    searchId++;            // abort any in-flight search
+    aiThinking = false;
     if (typeof syncBoardSize === "function") syncBoardSize();
-    if (typeof drawValueChart === "function") drawValueChart();
-    // Pinned overlay only applies inside analysis mode.
-    if (typeof boardOverlayHeatId !== "undefined") {
-        boardOverlayHeatId = on ? (pinnedHeatId || null) : null;
-        if (typeof draw === "function") draw();
-    }
+    if (!boardState) return;   // pre-bootstrap; newGame() will settle it
+    if (!gameOver) triggerAISearch();   // ponder / play for the new mode
+    else renderCandidates();
 }
 document.addEventListener("DOMContentLoaded", () => {
-    const input = document.getElementById("show_analysis_input");
-    if (!input) return;
-    setShowAnalysis(getShowAnalysis());
-    input.addEventListener("change", () => setShowAnalysis(input.checked));
+    updateModeButtons();
+    const p = document.getElementById("mode_play");
+    const a = document.getElementById("mode_analysis");
+    if (p) p.addEventListener("click", () => setMode("play"));
+    if (a) a.addEventListener("click", () => setMode("analysis"));
 });
 
-// Drives sizing of right-column to match left-column height (port from play_web.py).
-const leftCol = document.getElementById("left_col");
-const rightCol = document.getElementById("right_col");
+// --- Board sizing --------------------------------------------------------
+// The three-column grid (320 · 1fr · 340) is fixed in CSS, so JS only fits the
+// square board canvas into the centre column's width and the viewport height.
 const boardCard = document.querySelector(".board-card");
-// There are two .board-actions rows: the play actions (new/undo/edit) and the
-// edit toolbar; CSS hides whichever isn't current. Use Math.max so syncBoardSize
-// reserves the right vertical budget regardless of which mode is active.
-function actionsHeight() {
-    const a = document.getElementById("play_actions");
-    const b = document.getElementById("edit_toolbar");
-    return Math.max(a ? a.offsetHeight : 0, b ? b.offsetHeight : 0);
-}
 const mainEl = document.querySelector(".main");
-
 const topbarEl = document.querySelector(".topbar");
 const appEl = document.querySelector(".app");
 const boardColEl = document.querySelector(".board-col");
 
-// Pin each side column to the actual remaining viewport so a 1-2px scrollbar
-// from sub-pixel rounding doesn't appear. Run before syncBoardSize's right-col
-// mirroring so the measured leftCol.offsetHeight is already constrained.
-function updateSideColMaxHeight() {
-    const cols = [leftCol, rightCol].filter(Boolean);
-    if (window.matchMedia("(max-width: 1399px)").matches) {
-        cols.forEach(el => { el.style.maxHeight = ""; });
-        return;
-    }
-    cols.forEach(el => { el.style.maxHeight = ""; });
-    cols.forEach(el => {
-        let top = 0;
-        for (let cur = el; cur; cur = cur.offsetParent) top += cur.offsetTop;
-        el.style.maxHeight = (window.innerHeight - top - 4) + "px";
-    });
-}
-
 function syncBoardSize() {
-    updateSideColMaxHeight();
-    if (window.matchMedia("(max-width: 1399px)").matches) {
-        rightCol.style.height = "";
-        rightCol.style.width = "";
-        // Stacked layout — fit board to the column's available width so it never
-        // overflows the viewport on phones / narrow tablets. Cap at 560 so it
-        // doesn't grow unreasonably large in tablet portrait. Use a compact
-        // margin since labels are hidden in this mode (see draw()).
-        const cardCS = getComputedStyle(boardCard);
-        const cardPadX = parseFloat(cardCS.paddingLeft) + parseFloat(cardCS.paddingRight);
-        const cardBorderX = parseFloat(cardCS.borderLeftWidth) + parseFloat(cardCS.borderRightWidth);
-        const availW = Math.max(0, mainEl.clientWidth - cardPadX - cardBorderX);
-        const target = Math.min(560, Math.floor(availW));
-        const newMargin = MARGIN_COMPACT;
-        const cell = Math.max(12, Math.floor((target - 2 * newMargin) / (N - 1)));
-        const logical = newMargin * 2 + cell * (N - 1);
-        if (logical !== BOARD_LOGICAL || newMargin !== MARGIN) {
-            MARGIN = newMargin;
-            CELL = cell;
-            BOARD_LOGICAL = logical;
-            setupCanvas(cv, BOARD_LOGICAL, BOARD_LOGICAL);
-            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-            if (typeof draw === "function") draw();
-        }
-        return;
-    }
-    // Desktop: restore the wider margin used for coordinate labels. The
-    // recompute below will pick this up via the cv.width !== ... check.
-    if (MARGIN !== MARGIN_DESKTOP) MARGIN = MARGIN_DESKTOP;
+    const compact = window.matchMedia("(max-width: 1180px)").matches;
+    MARGIN = compact ? MARGIN_COMPACT : MARGIN_DESKTOP;
+
     const cardCS = getComputedStyle(boardCard);
     const cardPadX = parseFloat(cardCS.paddingLeft) + parseFloat(cardCS.paddingRight);
     const cardPadY = parseFloat(cardCS.paddingTop)  + parseFloat(cardCS.paddingBottom);
-    const legendH = 0;
-    const mainCS = getComputedStyle(mainEl);
-    const gap = parseFloat(mainCS.columnGap || mainCS.gap) || 20;
-    const remaining = mainEl.clientWidth - leftCol.offsetWidth - 2 * gap;
-    // Analysis mode: right col equals board width (heatmaps take the same
-    // span as the board), so board gets half of the remaining space.
-    // Simple mode: right col is a fixed 350px (mirroring the left col), so
-    // the board fills everything else. Keep this constant in sync with the
-    // CSS rule `body:not(.show-analysis) #right_col { width: 350px; }`.
-    const SIMPLE_RIGHT_COL_PX = 350;
-    const isSimple = !document.body.classList.contains("show-analysis");
+    const cardBorderX = parseFloat(cardCS.borderLeftWidth) + parseFloat(cardCS.borderRightWidth);
+    const cardBorderY = parseFloat(cardCS.borderTopWidth)  + parseFloat(cardCS.borderBottomWidth);
+    const availW = Math.max(0, boardColEl.clientWidth - cardPadX - cardBorderX);
 
-    // Heat-grid geometry (analysis mode only). Right col holds a 2x3 grid of
-    // square heat canvases; we want zero horizontal whitespace inside each
-    // card. Cells are square-heat with cellH = cellW + delta where
-    //   delta = heatPadY + titleH - heatPadX.
-    // Right col height = board card height = B + boardPadY, so cellH is fixed
-    // by B, giving cellW and right-col width. Solving the horizontal budget
-    // (board card + right col = remaining) for B yields the formula below.
-    let gridGap = 12, heatCardDelta = 30;
-    if (!isSimple) {
-        const grids = rightCol.querySelector(".grids");
-        if (grids) {
-            const gcs = getComputedStyle(grids);
-            gridGap = parseFloat(gcs.rowGap || gcs.gap) || 12;
-            const sample = grids.querySelector(".grid-card");
-            if (sample) {
-                const ccs = getComputedStyle(sample);
-                const hPadX = parseFloat(ccs.paddingLeft) + parseFloat(ccs.paddingRight);
-                const hPadY = parseFloat(ccs.paddingTop)  + parseFloat(ccs.paddingBottom);
-                const t = sample.querySelector(".grid-title");
-                let titleH = 0;
-                if (t) {
-                    const tcs = getComputedStyle(t);
-                    titleH = t.offsetHeight + parseFloat(tcs.marginTop || 0) + parseFloat(tcs.marginBottom || 0);
-                }
-                heatCardDelta = hPadY + titleH - hPadX;
-            }
-        }
-    }
-    const sizeByWidth = isSimple
-        ? Math.floor(remaining - SIMPLE_RIGHT_COL_PX - cardPadX)
-        : Math.floor((3 * remaining - 3 * cardPadX - 2 * cardPadY + 6 * heatCardDelta + gridGap) / 5);
-
-    // Cap by viewport height so board + action buttons stay fully visible.
+    // Vertical budget: viewport minus app padding, toolbar, card chrome and
+    // (while editing) the edit toolbar that sits under the board.
     const topbarCS = getComputedStyle(topbarEl);
     const topbarH = topbarEl.offsetHeight + parseFloat(topbarCS.marginBottom || 0);
     const appCS = getComputedStyle(appEl);
     const appPadY = parseFloat(appCS.paddingTop) + parseFloat(appCS.paddingBottom);
-    const mainMb = parseFloat(mainCS.marginBottom || 0);
     const colCS = getComputedStyle(boardColEl);
     const colGap = parseFloat(colCS.rowGap || colCS.gap) || 0;
-    const actionsH = actionsHeight();
-    const reserved = appPadY + topbarH + mainMb + cardPadY + legendH + colGap + actionsH;
-    const sizeByViewport = window.innerHeight - reserved;
+    const editTb = document.getElementById("edit_toolbar");
+    const editH = (document.body.classList.contains("editing") && editTb)
+        ? editTb.offsetHeight + colGap : 0;
+    const reserved = appPadY + topbarH + cardPadY + cardBorderY + editH + 12;
+    const availH = window.innerHeight - reserved;
 
-    let size = Math.max(280, Math.min(sizeByWidth, sizeByViewport));
-    CELL = Math.max(20, Math.floor((size - 2 * MARGIN) / (N - 1)));
+    const cap = compact ? 560 : 720;
+    const size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
+    const minCell = compact ? 12 : 18;
+    CELL = Math.max(minCell, Math.floor((size - 2 * MARGIN) / (N - 1)));
     BOARD_LOGICAL = MARGIN * 2 + CELL * (N - 1);
-    const need = cv.width !== Math.round(BOARD_LOGICAL * DPR);
-    if (need) setupCanvas(cv, BOARD_LOGICAL, BOARD_LOGICAL);
-    if (document.body.classList.contains("show-analysis")) {
-        rightCol.style.height = boardCard.offsetHeight + "px";
-        // Width follows the heat-grid geometry (square heat with no horizontal
-        // whitespace) rather than mirroring the board card width.
-        const rightH = boardCard.offsetHeight;
-        const cellH = (rightH - 2 * gridGap) / 3;
-        const cellW = Math.max(60, cellH - heatCardDelta);
-        rightCol.style.width = Math.floor(2 * cellW + gridGap) + "px";
-    } else {
-        // Simple mode: right column hosts only the value-estimates card.
-        // Width is constrained by CSS to mirror the left controls column;
-        // height matches the left controls column so the value chart fills
-        // the freed vertical space (CSS makes the card + chart flex-grow).
-        rightCol.style.height = leftCol.offsetHeight + "px";
-        rightCol.style.width  = "";
+    if (cv.width !== Math.round(BOARD_LOGICAL * DPR)) {
+        setupCanvas(cv, BOARD_LOGICAL, BOARD_LOGICAL);
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        if (typeof draw === "function") draw();
     }
-    if (need && typeof draw === "function") draw();
+    // Pin the side columns to the board's height: the win-rate chart fills it,
+    // and the analysis panel scrolls internally so expanding the heatmap drawer
+    // shrinks the candidate list instead of stretching the page.
+    const colH = compact ? "" : boardCard.offsetHeight + "px";
+    const wcol = document.getElementById("winrate_col");
+    const acol = document.getElementById("right_col");
+    if (wcol) wcol.style.height = colH;
+    if (acol) acol.style.height = colH;
 }
-new ResizeObserver(syncBoardSize).observe(leftCol);
+new ResizeObserver(syncBoardSize).observe(mainEl);
+new ResizeObserver(syncBoardSize).observe(topbarEl);
 window.addEventListener("resize", syncBoardSize);
 
 // Module-level game-display state. Updated by handlers in Task 24.
@@ -280,6 +180,7 @@ let state = null;        // { board: 2D N×N int, last_move: [r,c]|null, board_s
 let showGumbel = false;
 let gumbelPhases = null; // last search's gumbel phases [[r,c]...] per phase
 let boardOverlayHeatId = null; // heat canvas id currently mirrored on the board
+let hoverCand = null;          // {r,c} candidate row under the pointer → board ring
 
 // Run once synchronously so the first paint is already correctly sized,
 // instead of flashing the 560px default on small viewports. Must run after
@@ -391,6 +292,52 @@ function draw() {
     }
 
     if (boardOverlayHeatId) drawBoardHeatOverlay(boardOverlayHeatId);
+    else drawCandidateOverlay();
+}
+
+// Lizzie-style candidate discs on the board (shown when no heatmap is pinned):
+// best move blue, others fade gray→green by visit share; big win%, small visit
+// count. Mirrors V7.5's board overlay. Data: computeCandidates() below.
+function drawCandidateOverlay() {
+    if (!state) return;
+    const cands = computeCandidates();
+    if (cands.length === 0) return;
+    const candR     = Math.max(7, Math.round(CELL * 0.40));
+    const wrFontPx  = Math.max(9, Math.round(CELL * 0.30));
+    const visFontPx = Math.max(7, Math.round(CELL * 0.21));
+    for (const o of cands) {
+        const x = MARGIN + o.c * CELL, y = MARGIN + o.r * CELL;
+        const col = candColor(o.frac, o.best);
+        ctx.globalAlpha = o.best ? 0.92 : (0.45 + 0.45 * o.frac);
+        ctx.beginPath(); ctx.arc(x, y, candR, 0, Math.PI * 2);
+        ctx.fillStyle = col.fill; ctx.fill();
+        ctx.globalAlpha = 1;
+        if (o.best) {
+            ctx.beginPath(); ctx.arc(x, y, candR, 0, Math.PI * 2);
+            ctx.lineWidth = 2; ctx.strokeStyle = "#1d4ed8"; ctx.stroke(); ctx.lineWidth = 1;
+        }
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillStyle = col.text;
+        const hasWr = o.wr != null, hasVis = o.vf > 0;
+        if (hasWr && hasVis) {
+            ctx.font = `bold ${wrFontPx}px ${MONO_FONT}`;
+            ctx.fillText(Math.round(o.wr * 100), x, y - wrFontPx * 0.42);
+            ctx.font = `${visFontPx}px ${MONO_FONT}`;
+            ctx.globalAlpha = 0.85;
+            ctx.fillText(fmtVisits(o.vf), x, y + visFontPx * 0.75);
+            ctx.globalAlpha = 1;
+        } else {
+            ctx.font = `bold ${wrFontPx}px ${MONO_FONT}`;
+            ctx.fillText(hasWr ? Math.round(o.wr * 100) : fmtVisits(o.vf), x, y);
+        }
+    }
+    // Hover highlight driven by the candidate list on the right.
+    if (hoverCand && cands.some(o => o.r === hoverCand.r && o.c === hoverCand.c)) {
+        const x = MARGIN + hoverCand.c * CELL, y = MARGIN + hoverCand.r * CELL;
+        ctx.beginPath(); ctx.arc(x, y, candR + 2, 0, Math.PI * 2);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = cssVar("--accent") || "#0969da";
+        ctx.stroke(); ctx.lineWidth = 1;
+    }
 }
 
 // Tint cells centered on intersections; skip labels on occupied cells so
@@ -496,8 +443,7 @@ function setPinnedHeatId(id) {
         else localStorage.removeItem("skz_pinned_heat");
     } catch (_) {}
     syncPinButtonsUI();
-    boardOverlayHeatId = document.body.classList.contains("show-analysis")
-        ? pinnedHeatId : null;
+    boardOverlayHeatId = pinnedHeatId;
     draw();
 }
 
@@ -533,7 +479,6 @@ for (const id of Object.keys(heatCtxs)) {
     const card = c.parentElement;
     card.addEventListener("mouseenter", () => {
         if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-        if (!document.body.classList.contains("show-analysis")) return;
         if (expandedSourceId !== null) return;
         boardOverlayHeatId = id;
         draw();
@@ -552,9 +497,8 @@ for (const id of Object.keys(heatCtxs)) {
         });
     }
 }
-// Apply persisted pinned overlay on first load (analysis mode is set on
-// <body> by the pre-paint inline script before main.js runs).
-if (pinnedHeatId && document.body.classList.contains("show-analysis")) {
+// Apply persisted pinned overlay on first load.
+if (pinnedHeatId) {
     boardOverlayHeatId = pinnedHeatId;
     draw();
 }
@@ -711,147 +655,246 @@ function resizeValueChart() {
 }
 new ResizeObserver(resizeValueChart).observe(vcCanvas);
 
-let valueHistory = [];   // [{step, root, nn}]
+// valueHistory keeps one Black-frame WDL per ply for each evaluation:
+//   [{step, root:{w,d,l}|null, nn:{w,d,l}|null}]   w = Black win, l = White win.
+let valueHistory = [];
+let valueTab = "root";    // which evaluation the chart shows: "root" | "nn"
+let lastRootWDL = null;   // current ply's root/nn value, already in Black's frame
+let lastNNWDL = null;
 
 function stoneCount(board2d) {
     let n = 0;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (board2d[r][c]) n++;
     return n;
 }
-function normWL(v) {
+// Re-express a side-to-move {w,d,l} in Black's frame given the searcher's side
+// (persp: +1 = Black to move, -1 = White to move). Returns normalized {w,d,l}.
+function wdlToBlack(v, persp) {
     if (!v) return null;
     const s = v.w + v.d + v.l;
-    if (s > 1e-4) return (v.w - v.l) / s;
-    return v.wl;
+    if (s <= 1e-4) return null;
+    const w = v.w / s, d = v.d / s, l = v.l / s;
+    return persp === -1 ? { w: l, d, l: w } : { w, d, l };
 }
-function recordValues(rootValueWDL, nnValueWDL, board2d) {
+// Append the current ply's Black-frame root/nn WDL (one point per stone count).
+function recordValues(rootBlack, nnBlack, board2d) {
     if (!board2d) return;
     const step = stoneCount(board2d);
-    const rw = normWL(rootValueWDL);
-    const nw = normWL(nnValueWDL);
     while (valueHistory.length && valueHistory[valueHistory.length - 1].step > step) {
         valueHistory.pop();
     }
     const last = valueHistory[valueHistory.length - 1];
-    if (rw == null && nw == null) {
+    if (!rootBlack && !nnBlack) {
+        // No fresh eval (e.g. after undo): carry the last point forward so the
+        // chart keeps one point per ply.
         if (last && step > last.step) valueHistory.push({ step, root: last.root, nn: last.nn });
         return;
     }
     if (last && last.step === step) {
-        if (rw != null) last.root = rw;
-        if (nw != null) last.nn = nw;
+        if (rootBlack) last.root = rootBlack;
+        if (nnBlack) last.nn = nnBlack;
     } else if (!last || step > last.step) {
-        valueHistory.push({ step, root: rw, nn: nw });
+        valueHistory.push({ step, root: rootBlack, nn: nnBlack });
     }
 }
+
+// Stacked area over moves for the active tab: white (bottom) / draw / black (top).
 function drawValueChart() {
     clearLogical(vctx);
     const W = vctx._logicalW, H = vctx._logicalH;
-    const padL = 22, padR = 6, padT = 6, padB = 14;
+    const padL = 26, padR = 6, padT = 6, padB = 14;
     const innerW = W - padL - padR, innerH = H - padT - padB;
-    const grid = cssVar("--heat-grid") || "#e5e7eb";
-    const muted = cssVar("--fg-muted") || "#59636e";
-    const subtle = cssVar("--fg-subtle") || "#8b949e";
     const axis = cssVar("--border") || "#d8dee4";
+    const grid = cssVar("--heat-grid") || "#e5e7eb";
+    const subtle = cssVar("--fg-subtle") || "#8b949e";
+    const muted = cssVar("--fg-muted") || "#59636e";
+    const yOf = (f) => padT + (1 - f) * innerH;
     vctx.strokeStyle = grid; vctx.lineWidth = 1;
-    for (const wr of [0, 0.5, 1]) {
-        const y = padT + (1 - wr) * innerH + 0.5;
+    for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+        const y = yOf(f) + 0.5;
         vctx.beginPath(); vctx.moveTo(padL, y); vctx.lineTo(W - padR, y); vctx.stroke();
     }
-    vctx.fillStyle = subtle;
-    vctx.font = `10px ${MONO_FONT}`;
+    vctx.fillStyle = subtle; vctx.font = `10px ${MONO_FONT}`;
     vctx.textAlign = "right"; vctx.textBaseline = "middle";
-    for (const wr of [1, 0.5, 0]) {
-        const y = padT + (1 - wr) * innerH;
-        vctx.fillText((wr * 100).toFixed(0) + "%", padL - 4, y);
-    }
+    for (const f of [1, 0.5, 0]) vctx.fillText(Math.round(f * 100) + "%", padL - 4, yOf(f));
     vctx.strokeStyle = axis;
     vctx.beginPath();
     vctx.moveTo(padL + 0.5, padT); vctx.lineTo(padL + 0.5, H - padB);
     vctx.lineTo(W - padR, H - padB); vctx.stroke();
-    if (valueHistory.length === 0) {
-        vctx.fillStyle = subtle;
-        vctx.font = `11px ${MONO_FONT}`;
+
+    const pts = valueHistory.filter(p => p[valueTab]).map(p => ({ step: p.step, ...p[valueTab] }));
+    if (pts.length === 0) {
+        vctx.fillStyle = subtle; vctx.font = `11px ${MONO_FONT}`;
         vctx.textAlign = "center"; vctx.textBaseline = "middle";
         vctx.fillText(t("chart_no_data"), padL + innerW / 2, padT + innerH / 2);
         return;
     }
-    const maxStep = Math.max(1, valueHistory[valueHistory.length - 1].step);
-    const xOf = (s) => padL + (s / maxStep) * innerW;
-    // valueHistory stores v in [-1, +1] (= (w-l)/(w+d+l)); display as win rate.
-    const wrOf = (v) => (v + 1) / 2;
-    const yOf = (wr) => padT + (1 - wr) * innerH;
-    vctx.fillStyle = muted;
-    vctx.textAlign = "center"; vctx.textBaseline = "top";
-    vctx.fillText("0", xOf(0), H - padB + 2);
-    vctx.fillText(String(maxStep), xOf(maxStep), H - padB + 2);
-    function plot(key, color) {
-        const pts = valueHistory.filter(p => p[key] != null);
-        if (pts.length === 0) return;
-        vctx.strokeStyle = color; vctx.lineWidth = 1.5;
-        vctx.beginPath();
-        pts.forEach((p, i) => {
-            const x = xOf(p.step), y = yOf(wrOf(p[key]));
-            if (i === 0) vctx.moveTo(x, y); else vctx.lineTo(x, y);
-        });
-        vctx.stroke();
+    const n = pts.length;
+    // x = data-point index, so the first eval sits at the left edge.
+    const xAt = (i) => n <= 1 ? padL : padL + (i / (n - 1)) * innerW;
+    vctx.fillStyle = muted; vctx.textAlign = "center"; vctx.textBaseline = "top";
+    vctx.fillText(String(pts[0].step), xAt(0), H - padB + 2);
+    if (n > 1) vctx.fillText(String(pts[n - 1].step), xAt(n - 1), H - padB + 2);
+
+    // Fill one stacked band between two cumulative-fraction accessors.
+    function band(lowerFn, upperFn, color) {
         vctx.fillStyle = color;
-        for (const p of pts) {
-            vctx.beginPath();
-            vctx.arc(xOf(p.step), yOf(wrOf(p[key])), 2, 0, Math.PI * 2);
-            vctx.fill();
-        }
+        vctx.beginPath();
+        pts.forEach((p, i) => { const x = xAt(i), y = yOf(upperFn(p)); i === 0 ? vctx.moveTo(x, y) : vctx.lineTo(x, y); });
+        for (let i = n - 1; i >= 0; i--) vctx.lineTo(xAt(i), yOf(lowerFn(pts[i])));
+        vctx.closePath(); vctx.fill();
     }
-    plot("root", "#0969da");
-    if (document.body.classList.contains("show-analysis")) {
-        plot("nn", "#cf222e");
+    const colBlk = cssVar("--stone-black-1") || "#000";
+    const colWht = cssVar("--stone-white-0") || "#fff";
+    const colDrw = cssVar("--fg-subtle") || "#8b949e";
+    vctx.globalAlpha = 0.18;
+    band(() => 0,        p => p.l,       colWht);  // white win — bottom
+    band(p => p.l,       p => p.l + p.d, colDrw);  // draw — middle
+    band(p => p.l + p.d, () => 1,        colBlk);  // black win — top
+    vctx.globalAlpha = 1;
+    // The two band boundaries (white/draw and draw/black).
+    function line(fn) {
+        vctx.beginPath();
+        pts.forEach((p, i) => { const x = xAt(i), y = yOf(fn(p)); i === 0 ? vctx.moveTo(x, y) : vctx.lineTo(x, y); });
+        vctx.stroke();
     }
+    vctx.strokeStyle = muted; vctx.lineWidth = 1.5;
+    line(p => p.l);
+    line(p => p.l + p.d);
 }
 
-// --- WDL bars ---
-let lastRootWDL = null;
-let lastNNWDL = null;
-function normalizeWDL(v) {
+// --- Win-rate legend + tabs (active tab, current ply, Black's frame) ---
+function normalizeVal(v) {
     if (!v) return null;
     const s = v.w + v.d + v.l;
-    if (s > 1e-4) return { w: v.w / s * 100, d: v.d / s * 100, l: v.l / s * 100,
-                           wl: (v.w - v.l) / s };
-    return { w: v.w, d: v.d, l: v.l, wl: v.wl };
+    if (s > 1e-4) return { w: v.w / s * 100, d: v.d / s * 100, l: v.l / s * 100 };
+    return { w: v.w * 100, d: v.d * 100, l: v.l * 100 };
 }
-function renderWDL(prefix, vWDL) {
-    if (prefix === "root") lastRootWDL = vWDL || null;
-    else if (prefix === "nn") lastNNWDL = vWDL || null;
-    const bar = document.getElementById("wdl_" + prefix + "_bar");
-    const wlEl = document.getElementById("wdl_" + prefix + "_wl");
-    const det = document.getElementById("wdl_" + prefix + "_detail");
-    const n = normalizeWDL(vWDL);
-    const segs = bar.querySelectorAll(".seg");
-    let bk = det.querySelector(".wdl-breakdown");
-    if (!bk) {
-        bk = document.createElement("div");
-        bk.className = "wdl-breakdown";
-        det.appendChild(bk);
+function renderWinLegend(v) {
+    const bEl = document.getElementById("vc_w_black");
+    const dEl = document.getElementById("vc_w_draw");
+    const wEl = document.getElementById("vc_w_white");
+    if (!bEl || !dEl || !wEl) return;
+    const n = normalizeVal(v);
+    if (!n) { bEl.textContent = dEl.textContent = wEl.textContent = t("wdl_dash"); return; }
+    bEl.textContent = n.w.toFixed(1) + "%";   // black win
+    dEl.textContent = n.d.toFixed(1) + "%";   // draw
+    wEl.textContent = n.l.toFixed(1) + "%";   // white win
+}
+function renderValuePanel() {
+    renderWinLegend(valueTab === "root" ? lastRootWDL : lastNNWDL);
+    drawValueChart();
+}
+function setValueTab(tab) {
+    if (tab !== "root" && tab !== "nn") return;
+    valueTab = tab;
+    const r = document.getElementById("vc_tab_root");
+    const nEl = document.getElementById("vc_tab_nn");
+    if (r) r.setAttribute("aria-pressed", tab === "root" ? "true" : "false");
+    if (nEl) nEl.setAttribute("aria-pressed", tab === "nn" ? "true" : "false");
+    renderValuePanel();
+}
+// Set the current ply's root/nn values (already in Black's frame) + repaint.
+function setCurrentValues(rootBlack, nnBlack) {
+    lastRootWDL = rootBlack || null;
+    lastNNWDL = nnBlack || null;
+    renderValuePanel();
+}
+
+// --- Candidate move list (right column) ----------------------------------
+const candListEl = document.getElementById("cand_list");
+let candSig = "";
+const MAX_CANDS = 12;
+let searchSimsTotal = 0;        // cumulative root visits reported by the worker
+const ANALYSIS_CHUNK = 96;      // PUCT sims per continuous-ponder chunk
+const ANALYSIS_CAP_MIN = 2000;  // analysis ponders at least this deep ("模拟次数" can raise it)
+function colLetter(c) { return String.fromCharCode(65 + c); }
+// Board notation: columns A.. left→right, rows N..1 top→bottom (H8 = center of 15).
+function coordLabel(r, c) { return colLetter(c) + (N - r); }
+// Rank the side-to-move's candidates from the engine's visit distribution
+// (mcts_visits) and per-move win rate (mcts_winrate, side-to-move view ∈ [0,1]).
+// Sorted by visits desc; capped at MAX_CANDS.
+function computeCandidates() {
+    if (!state || !state.board) return [];
+    const vis = state.mcts_visits, wrG = state.mcts_winrate;
+    if (!vis && !wrG) return [];
+    const out = [];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        if (state.board[r][c] !== 0) continue;
+        const vf = (vis && vis[r]) ? (vis[r][c] || 0) : 0;
+        const wRaw = (wrG && wrG[r]) ? wrG[r][c] : null;
+        const wr = (wRaw != null && Number.isFinite(wRaw)) ? wRaw : null;
+        if (vf > 0 || (wr != null && wr > 0)) out.push({ r, c, vf, wr });
     }
-    if (!n) {
-        segs[0].style.width = "0";
-        segs[1].style.width = "100%";
-        segs[2].style.width = "0";
-        wlEl.textContent = t("wdl_dash");
-        wlEl.classList.remove("pos", "neg");
-        bk.innerHTML = "";
+    if (out.length === 0) return [];
+    out.sort((a, b) => (b.vf - a.vf) || ((b.wr ?? -1) - (a.wr ?? -1)));
+    const maxV = out[0].vf || 0;
+    out.forEach((o, i) => { o.frac = maxV > 0 ? o.vf / maxV : 1; o.best = (i === 0); });
+    return out.slice(0, MAX_CANDS);
+}
+// Total root visits → turns a visit fraction back into a count for display.
+// A ponder turn (analysis board / the human's turn) uses the worker-reported
+// cumulative depth; the AI's move-search uses its configured sims.
+function totalVisits() {
+    if (isPonderTurn() && searchSimsTotal > 0) return searchSimsTotal;
+    if (!document.getElementById("search_enable_input")?.checked) return 0;
+    const s = parseInt(document.getElementById("sims_input").value, 10);
+    return (Number.isFinite(s) && s > 0) ? s : 0;
+}
+function fmtVisits(vf) {
+    const tot = totalVisits();
+    if (tot > 0) {
+        const n = Math.round(vf * tot);
+        return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n);
+    }
+    return Math.round(vf * 100) + "%";
+}
+// Visit-rank color: best move blue, others lerp gray → green by visit share.
+function candColor(frac, best) {
+    if (best) return { fill: "#2b7fff", text: "#ffffff" };
+    const g0 = [156, 163, 175], g1 = [34, 165, 89];   // gray → green
+    const tt = Math.max(0, Math.min(1, frac));
+    const c = g0.map((a, i) => Math.round(a + (g1[i] - a) * tt));
+    return { fill: `rgb(${c[0]},${c[1]},${c[2]})`, text: tt > 0.45 ? "#ffffff" : "#1f2328" };
+}
+function renderCandidates() {
+    const cands = state ? computeCandidates() : [];
+    // Only rebuild when the data changed, so a row's :hover stays put.
+    const sig = cands.map(o =>
+        o.r + "," + o.c + ":" + Math.round((o.wr ?? -1) * 1000) + ":" + Math.round(o.vf * 1000)).join("|");
+    if (sig === candSig) return;
+    candSig = sig;
+    if (cands.length === 0) {
+        candListEl.innerHTML = '<div class="cand-empty">' + t("cand_empty") + "</div>";
         return;
     }
-    segs[0].style.width = n.w.toFixed(2) + "%";
-    segs[1].style.width = n.d.toFixed(2) + "%";
-    segs[2].style.width = n.l.toFixed(2) + "%";
-    wlEl.textContent = n.w.toFixed(0) + "%";
-    wlEl.classList.toggle("pos", n.w > 50);
-    wlEl.classList.toggle("neg", n.w < 50);
-    bk.innerHTML =
-        '<span><span class="k">' + t("wdl_w") + '</span> ' + n.w.toFixed(1) + "%</span>" +
-        '<span><span class="k">' + t("wdl_d") + '</span> ' + n.d.toFixed(1) + "%</span>" +
-        '<span><span class="k">' + t("wdl_l") + '</span> ' + n.l.toFixed(1) + "%</span>";
+    candListEl.innerHTML = cands.map((o, i) => {
+        const rank = String.fromCharCode(65 + i);            // A, B, C, …
+        const wr = o.wr != null ? Math.round(o.wr * 100) + "%" : t("wdl_dash");
+        const barW = o.wr != null ? Math.round(o.wr * 100) : 0;
+        return '<div class="cand-row' + (o.best ? " best" : "") +
+               '" data-r="' + o.r + '" data-c="' + o.c + '">' +
+               '<span class="cand-rank">' + rank + "</span>" +
+               '<span class="cand-coord">' + coordLabel(o.r, o.c) + "</span>" +
+               '<span class="cand-wr">' + wr + "</span>" +
+               '<span class="cand-track"><span style="width:' + barW + '%"></span></span>' +
+               '<span class="cand-visits">' + fmtVisits(o.vf) + "</span>" +
+               "</div>";
+    }).join("");
 }
+candListEl.addEventListener("mouseover", (ev) => {
+    const row = ev.target.closest(".cand-row"); if (!row) return;
+    hoverCand = { r: +row.dataset.r, c: +row.dataset.c };
+    draw();
+});
+candListEl.addEventListener("mouseout", (ev) => {
+    if (!ev.target.closest(".cand-row")) return;
+    if (hoverCand) { hoverCand = null; draw(); }
+});
+candListEl.addEventListener("click", (ev) => {
+    const row = ev.target.closest(".cand-row"); if (!row) return;
+    playCandidate(+row.dataset.r, +row.dataset.c);
+});
 
 // --- Model dropdown (loads from models/manifest.json) ---
 let manifest = { default: null, models: [] };
@@ -1003,6 +1046,7 @@ function publishStateForDrawing(extras = {}) {
         // Heat data (set by handleResult; null otherwise — drawHeat handles nulls).
         mcts_policy:    extras.mcts_policy    || null,
         mcts_visits:    extras.mcts_visits    || null,
+        mcts_winrate:   extras.mcts_winrate   || null,
         nn_policy:      extras.nn_policy      || null,
         nn_opp_policy:  extras.nn_opp_policy  || null,
         nn_futurepos_8: extras.nn_futurepos_8 || null,
@@ -1024,6 +1068,7 @@ function drawAll() {
     draw();
     drawValueChart();
     repaintAllHeatmaps();
+    renderCandidates();
 }
 
 // Convert flat Float32Array(N*N) → 2D N×N for heatmap render.
@@ -1046,28 +1091,45 @@ function newGame() {
     history = [];
     valueHistory = [];
     gumbelPhases = null;
-    renderWDL("root", null);
-    renderWDL("nn", null);
+    setCurrentValues(null, null);
+    candSig = "";
+    searchSimsTotal = 0;
     publishStateForDrawing();
     drawAll();
     worker.postMessage({ type: "reset", boardSize: N, ply: 0, rule: currentRule });
-    if (humanSide === toPlay) {
-        setStatus("status_your_turn", "active");
-    } else {
-        triggerAISearch();
-    }
+    // The engine ponders the human's opening (or analysis board); on the AI's
+    // opening (human plays white) it searches and plays.
+    triggerAISearch();
+}
+
+// True when the engine should *analyze* (continuously ponder) the side-to-move
+// rather than pick a move for it: always on the analysis board, and on the
+// human's turn in play mode — so the player sees live analysis of their own
+// position (like V7.5). Only the AI's turn in play mode is a move-search.
+function isPonderTurn() {
+    if (gameOver || !boardState) return false;
+    return currentMode === "analysis" || toPlay === humanSide;
 }
 
 function triggerAISearch() {
     if (gameOver) return;
     aiThinking = true;
     searchId++;
-    setStatus("status_ai_thinking", "thinking");
+    const ponder = isPonderTurn();
+    if (ponder && currentMode === "analysis") setStatus("status_analyzing_n", "thinking", searchSimsTotal);
+    else if (ponder) setStatus("status_your_turn", "active");   // play mode: human's turn, analysis runs quietly
+    else setStatus("status_ai_thinking", "thinking");
     const searchOn = !!document.getElementById("search_enable_input")?.checked;
     let sims = 0;
     if (searchOn) {
-        const simsRaw = parseInt(document.getElementById("sims_input").value, 10);
-        sims = (Number.isFinite(simsRaw) && simsRaw >= 0) ? simsRaw : 32;
+        if (ponder && currentMode === "analysis") {
+            sims = ANALYSIS_CHUNK;   // analysis-mode ponder deepens in fixed-size chunks
+        } else {
+            // Play mode uses the configured simulation count for BOTH the human-turn
+            // analysis and the AI's move-search — the budget tracks the setting.
+            const simsRaw = parseInt(document.getElementById("sims_input").value, 10);
+            sims = (Number.isFinite(simsRaw) && simsRaw >= 0) ? simsRaw : 32;
+        }
     }
     worker.postMessage({
         type: "search",
@@ -1077,6 +1139,8 @@ function triggerAISearch() {
         sims: sims,
         gumbel_m: 16,
         searchId: searchId,
+        // Ponder turns use plain PUCT (like V7.5); the AI's move-search uses Gumbel.
+        analyze: ponder,
     });
 }
 
@@ -1105,7 +1169,10 @@ function applyMoveLocal(action) {
         else                    key = "status_draw";
         setStatus(key, "done");
     }
-    publishStateForDrawing(state || {});
+    // Clear the previous position's analysis overlay (candidate discs / heatmaps)
+    // right away so the new position paints clean instead of freezing on stale
+    // data until the next search result lands.
+    publishStateForDrawing();
     drawAll();
     worker.postMessage({
         type: "move",
@@ -1117,19 +1184,44 @@ function applyMoveLocal(action) {
     return { winner, movedBy };
 }
 
-// --- Board click (human move) ---
+// Analysis mode: place the side-to-move's stone on an empty cell, then
+// re-analyze the new position (the result handler won't play a move back).
+function placeAnalysisStone(idx) {
+    if (!boardState || boardState[idx] !== 0) return;
+    searchSimsTotal = 0;
+    const { winner } = applyMoveLocal(idx);
+    if (winner === null) triggerAISearch();
+}
+// Play a move from the candidate list, honoring the current mode.
+function playCandidate(r, c) {
+    if (editMode || gameOver || !boardState) return;
+    const idx = r * N + c;
+    if (boardState[idx] !== 0) return;
+    if (currentMode === "analysis") { placeAnalysisStone(idx); return; }
+    if (toPlay !== humanSide) return;   // AI's turn; the human-turn ponder stays clickable
+    const legal = game.getLegalActions(boardState, toPlay);
+    if (!legal[idx]) return;
+    const { winner } = applyMoveLocal(idx);
+    if (winner === null) triggerAISearch();
+}
+
+// --- Board click ---
 cv.addEventListener("click", (ev) => {
     if (editMode) { handleEditClick(ev); return; }
-    if (gameOver || aiThinking) return;
-    if (toPlay !== humanSide) return;
+    if (gameOver) return;
     const rect = cv.getBoundingClientRect();
     const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
     const c = Math.round((x - MARGIN) / CELL), r = Math.round((y - MARGIN) / CELL);
     if (r < 0 || r >= N || c < 0 || c >= N) return;
-    if (boardState[r * N + c] !== 0) return;
+    const idx = r * N + c;
+    if (boardState[idx] !== 0) return;
+    // Analysis mode: free placement (both colors) the engine re-analyzes.
+    if (currentMode === "analysis") { placeAnalysisStone(idx); return; }
+    // Play mode: only the human's turn, only legal cells.
+    if (toPlay !== humanSide) return;   // AI's turn; the human-turn ponder stays clickable
     const legal = game.getLegalActions(boardState, toPlay);
-    if (!legal[r * N + c]) return;   // Renju forbidden for black, etc.
-    const { winner } = applyMoveLocal(r * N + c);
+    if (!legal[idx]) return;   // Renju forbidden for black, etc.
+    const { winner } = applyMoveLocal(idx);
     if (winner === null) triggerAISearch();
 });
 
@@ -1201,35 +1293,53 @@ worker.onmessage = (e) => {
     if (data.type === "result") {
         if (data.searchId !== searchId) return;
         aiThinking = false;
-        // Update gumbel overlay + heatmaps.
+        searchSimsTotal = data.searchSims || 0;
+        // Update gumbel overlay + heatmaps + candidate data.
         gumbelPhases = data.gumbelPhases;
         publishStateForDrawing({
             mcts_policy:    flatToGrid(data.mctsPolicy),
             mcts_visits:    flatToGrid(data.mctsVisits),
+            mcts_winrate:   flatToGrid(data.mctsWinrate),
             nn_policy:      flatToGrid(data.nnPolicy),
             nn_opp_policy:  flatToGrid(data.nnOppPolicy),
             nn_futurepos_8: flatToGrid(data.nnFuturepos8),
             nn_futurepos_32:flatToGrid(data.nnFuturepos32),
         });
-        // WDL update.
-        const rootWDL = data.rootValueWDL ? { w: data.rootValueWDL[0], d: data.rootValueWDL[1],
-                                              l: data.rootValueWDL[2],
-                                              wl: data.rootValueWDL[0] - data.rootValueWDL[2] } : null;
-        const nnWDL   = data.nnValueWDL   ? { w: data.nnValueWDL[0], d: data.nnValueWDL[1],
-                                              l: data.nnValueWDL[2],
-                                              wl: data.nnValueWDL[0] - data.nnValueWDL[2] } : null;
-        renderWDL("root", rootWDL);
-        renderWDL("nn",   nnWDL);
-        recordValues(rootWDL, nnWDL, state.board);
+        // Values are from the searched side-to-move (= toPlay here, before any
+        // move is applied). Convert to Black's frame for the chart + legend.
+        const persp = toPlay;
+        const rootRaw = data.rootValueWDL ? { w: data.rootValueWDL[0], d: data.rootValueWDL[1], l: data.rootValueWDL[2] } : null;
+        const nnRaw   = data.nnValueWDL   ? { w: data.nnValueWDL[0],   d: data.nnValueWDL[1],   l: data.nnValueWDL[2]   } : null;
+        const rootBlack = wdlToBlack(rootRaw, persp);
+        const nnBlack   = wdlToBlack(nnRaw, persp);
+        setCurrentValues(rootBlack, nnBlack);
+        recordValues(rootBlack, nnBlack, state.board);
         drawAll();
 
-        // AI plays its chosen move.
-        const { winner } = applyMoveLocal(data.gumbelAction);
-        if (winner === null && humanSide !== toPlay) {
-            // AI vs AI? Should not happen in normal play. Stop.
-        } else if (winner === null) {
-            setStatus("status_your_turn", "active");
+        // Was this a ponder (analysis board, or the human's turn in play mode) or
+        // the AI's move-search? At result time toPlay is the searched side.
+        const wasPonder = currentMode === "analysis" || toPlay === humanSide;
+        if (wasPonder) {
+            if (currentMode === "analysis") {
+                // Analysis mode keeps deepening ("一直算") by reusing the tree, up to a
+                // memory-bounded floor (the configured sim count can raise it).
+                const searchOn = !!document.getElementById("search_enable_input")?.checked;
+                const simsRaw = parseInt(document.getElementById("sims_input").value, 10);
+                const cap = Math.max(Number.isFinite(simsRaw) ? simsRaw : 0, ANALYSIS_CAP_MIN);
+                const ponderOn = !gameOver && searchOn && searchSimsTotal < cap;
+                setStatus(ponderOn ? "status_analyzing_n" : "status_analysis_ready_n",
+                          ponderOn ? "thinking" : "info", searchSimsTotal);
+                if (ponderOn) triggerAISearch();   // next chunk goes deeper (tree reuse)
+            } else {
+                // Play mode, human's turn: a single analysis at the configured sim count
+                // (no continuous deepening), so the budget matches the setting.
+                setStatus("status_your_turn", "active");
+            }
+            return;
         }
+        // Play mode, AI's turn: play the chosen move, then ponder the human's reply.
+        const { winner } = applyMoveLocal(data.gumbelAction);
+        if (winner === null) triggerAISearch();
     }
 };
 
@@ -1243,24 +1353,36 @@ function setSearchEnabled(on) {
     if (cb) cb.checked = !!on;
     try { localStorage.setItem("skz_search_enabled", on ? "1" : "0"); } catch (_) {}
 }
+// In analysis, a settled ponder resumes when the user re-enables search or
+// raises the sims target. (A still-running ponder picks up the new cap itself,
+// since the cap is recomputed from sims_input on every chunk.)
+function maybeResumeAnalysis() {
+    const searchOn = !!document.getElementById("search_enable_input")?.checked;
+    if (searchOn && !editMode && !aiThinking && isPonderTurn()) {
+        triggerAISearch();
+    }
+}
 (function initSearchToggle() {
     const cb = document.getElementById("search_enable_input");
     if (!cb) return;
     let saved = null;
     try { saved = localStorage.getItem("skz_search_enabled"); } catch (_) {}
     setSearchEnabled(saved === "0" ? false : true);
-    cb.addEventListener("change", () => setSearchEnabled(cb.checked));
+    cb.addEventListener("change", () => { setSearchEnabled(cb.checked); maybeResumeAnalysis(); });
 })();
+document.getElementById("sims_input")?.addEventListener("change", maybeResumeAnalysis);
 
 // --- Buttons ---
 document.getElementById("new_btn").addEventListener("click", newGame);
 
 document.getElementById("undo_btn").addEventListener("click", () => {
     if (history.length === 0) return;
-    // Undo enough plies so the next move is the human's.
-    let target = history.length;
-    if (toPlay !== humanSide) target = Math.max(0, target - 1);
-    else                      target = Math.max(0, target - 2);
+    // Analysis mode: undo a single placement. Play mode: undo back to the
+    // human's turn (one ply if the AI is to move, otherwise the pair).
+    let target = (currentMode === "analysis")
+        ? history.length - 1
+        : (toPlay !== humanSide ? history.length - 1 : history.length - 2);
+    target = Math.max(0, target);
     if (target === history.length) return;
     let restoredRootWDL = null, restoredNNWDL = null;
     while (history.length > target) {
@@ -1279,16 +1401,13 @@ document.getElementById("undo_btn").addEventListener("click", () => {
     while (valueHistory.length && valueHistory[valueHistory.length - 1].step > stoneCount(board1Dto2D(boardState))) {
         valueHistory.pop();
     }
-    renderWDL("root", restoredRootWDL);
-    renderWDL("nn", restoredNNWDL);
+    setCurrentValues(restoredRootWDL, restoredNNWDL);
+    candSig = "";
+    searchSimsTotal = 0;
     publishStateForDrawing();
     drawAll();
     worker.postMessage({ type: "reset", boardSize: N, ply, rule: currentRule });
-    if (toPlay === humanSide) {
-        setStatus("status_your_turn", "active");
-    } else {
-        triggerAISearch();
-    }
+    if (!gameOver) triggerAISearch();   // ponder the human's turn / search the AI's
 });
 
 // --- Edit-position mode ---
@@ -1325,6 +1444,10 @@ function setEditTool(tool) {
 
 function enterEditMode() {
     if (editMode) return;
+    // Close the settings popover the edit button lives in.
+    const pop = document.getElementById("settings_pop");
+    if (pop) pop.classList.add("hidden");
+    document.getElementById("settings_btn")?.setAttribute("aria-expanded", "false");
     editMode = true;
     editSnapshot = snapshotForEdit();
     editUndoStack = [];
@@ -1354,8 +1477,8 @@ function exitEditMode(commit) {
         gumbelPhases = s.gumbelPhases;
         history = s.history.slice();
         valueHistory = s.valueHistory.slice();
-        renderWDL("root", s.lastRootWDL);
-        renderWDL("nn", s.lastNNWDL);
+        setCurrentValues(s.lastRootWDL, s.lastNNWDL);
+        candSig = "";
         editMode = false;
         editSnapshot = null;
         editUndoStack = [];
@@ -1392,8 +1515,8 @@ function exitEditMode(commit) {
     history = [];
     valueHistory = [];
     gumbelPhases = null;
-    renderWDL("root", null);
-    renderWDL("nn", null);
+    setCurrentValues(null, null);
+    candSig = "";
     gameOver = false;
 
     // If the setup is already a finished position (5-in-a-row), surface that.
@@ -1462,9 +1585,8 @@ function setSide(side) {
     if (!boardState) return;            // pre-bootstrap: nothing else to do
     searchId++;                          // abort any in-flight search
     aiThinking = false;
-    if (gameOver) return;
-    if (toPlay === humanSide) setStatus("status_your_turn", "active");
-    else triggerAISearch();
+    searchSimsTotal = 0;
+    if (!gameOver) triggerAISearch();   // ponder the human's turn / search the AI's
 }
 document.getElementById("side_black").addEventListener("click", () => setSide(1));
 document.getElementById("side_white").addEventListener("click", () => setSide(-1));
@@ -1625,11 +1747,45 @@ registerI18nCallback(() => {
         document.getElementById("heat_modal_title").textContent =
             titleEl ? titleEl.textContent : t("heatmap_default_title");
     }
-    if (typeof drawValueChart === "function") drawValueChart();
-    renderWDL("root", lastRootWDL);
-    renderWDL("nn",   lastNNWDL);
+    renderValuePanel();
+    candSig = ""; renderCandidates();
     renderSizeConfirmBody();
 });
+
+// --- Settings popover (model / rule / size / search / setup) ---
+(function initSettingsPopover() {
+    const btn = document.getElementById("settings_btn");
+    const pop = document.getElementById("settings_pop");
+    if (!btn || !pop) return;
+    function setOpen(open) {
+        pop.classList.toggle("hidden", !open);
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        setOpen(pop.classList.contains("hidden"));
+    });
+    pop.addEventListener("click", (ev) => ev.stopPropagation());
+    document.addEventListener("click", () => setOpen(false));
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") setOpen(false); });
+})();
+
+// --- Heatmap drawer (collapsed by default; canvases measure 0 while hidden) ---
+(function initHeatDrawer() {
+    const btn = document.getElementById("heat_drawer_btn");
+    const body = document.getElementById("heat_drawer_body");
+    if (!btn || !body) return;
+    btn.addEventListener("click", () => {
+        const open = body.classList.toggle("hidden") === false;
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) {
+            for (const id of Object.keys(heatCtxs)) {
+                fitHeatCanvas(id);
+                drawHeatById(id, state ? state[HEAT_GRID_KEYS[id]] : null);
+            }
+        }
+    });
+})();
 
 // --- Bootstrap on load ---
 (async function bootstrap() {
