@@ -185,6 +185,10 @@
   .tb-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
   .tb-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 auto; }
   .topbar-right { display: flex; align-items: center; gap: 8px; }
+  /* index/2048/dodge headers: right-aligned lang+theme toggles. Lives here (not
+     via .topbar justify-content, which the gomoku toolbar repurposed). Used via
+     HTML only — was once wrongly dropped as an "orphaned" rule. */
+  .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   /* Settings popover (model / rule / size / search / setup) */
   .settings-wrap { position: relative; }
   .settings-pop {
@@ -581,6 +585,22 @@
   .cand-legend {
     font-size: 10.5px; color: var(--fg-subtle); font-family: var(--font-mono);
     text-transform: none; letter-spacing: 0; font-weight: 500;
+  }
+  /* "Analyze my move" switch: sits right after the title, pushing the legend to
+     the far right. Play-mode only — analysis mode always analyzes. */
+  .cand-toggle { padding: 0; margin-right: auto; align-self: center; }
+  .mode-analysis .cand-toggle { display: none; }
+  /* Centered call-to-action shown in the (empty) list when the switch is off. */
+  .cand-analyze-btn {
+    margin: auto; display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--accent); font-family: var(--font-sans);
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  .cand-analyze-btn:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
   .cand-list {
     display: flex; flex-direction: column; gap: 2px;
