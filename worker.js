@@ -271,7 +271,19 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
             const now = performance.now();
             if (now - lastProgress > 60) {
                 lastProgress = now;
-                postMessage({ type: "progress", progress: Math.min(100, (totalSims / Math.max(1, sims)) * 100), searchId: externalSearchId });
+                // Stream a partial candidate snapshot (visits / win rate / cumulative
+                // root depth) so the UI fills in the per-move list live, instead of
+                // only when the whole PUCT analysis finishes.
+                let liveVisits = 0;
+                for (const ch of root.children) liveVisits += ch.n;
+                postMessage({
+                    type: "progress",
+                    progress: Math.min(100, (totalSims / Math.max(1, sims)) * 100),
+                    searchId: externalSearchId,
+                    mctsVisits:  Array.from(mcts.getMCTSPolicy(root)),
+                    mctsWinrate: Array.from(mcts.getMCTSWinrate(root)),
+                    searchSims:  liveVisits,
+                });
             }
         }
         if (latestSearchId !== gen) return;
