@@ -107,9 +107,46 @@ function setMode(m) {
     aiThinking = false;
     if (typeof syncBoardSize === "function") syncBoardSize();
     if (!boardState) return;   // pre-bootstrap; newGame() will settle it
+    candSig = "";              // mode change flips the candidate list ↔ analyze button
     if (!gameOver) triggerAISearch();   // ponder / play for the new mode
-    else renderCandidates();
+    renderCandidates();        // settle the list/button for the new mode
 }
+
+// "Analyze my move" (play mode only): whether the engine ponders the human's own
+// turn — filling the candidate list with live win% / visits — or sits idle until
+// the human plays. Off by default for a distraction-free game; the header toggle
+// or the centered "开启本步分析" button flips it on. Analysis mode ignores it (it
+// always analyzes). Persisted in localStorage("skz_analyze_my_turn").
+let analyzeMyTurn = (function () {
+    try { return localStorage.getItem("skz_analyze_my_turn") === "1"; }
+    catch (_) { return false; }
+})();
+function setAnalyzeMyTurn(on) {
+    analyzeMyTurn = !!on;
+    const cb = document.getElementById("analyze_turn_input");
+    if (cb) cb.checked = analyzeMyTurn;
+    try { localStorage.setItem("skz_analyze_my_turn", analyzeMyTurn ? "1" : "0"); } catch (_) {}
+    candSig = "";   // flip the list ↔ analyze button
+    if (analyzeMyTurn) {
+        // Turned on: analyze the current position now if it's your turn,
+        // otherwise the setting just takes effect on your next turn.
+        if (!editMode && !aiThinking && !gameOver && isPonderTurn()) triggerAISearch();
+        else renderCandidates();
+    } else if (currentMode !== "analysis" && toPlay === humanSide) {
+        // Turned off on your turn: abort the in-flight ponder and clear the
+        // analysis back to the "开启本步分析" button.
+        searchId++;
+        aiThinking = false;
+        searchSimsTotal = 0;
+        if (state) { state.mcts_visits = null; state.mcts_winrate = null; }
+        if (!gameOver) setStatus("status_your_turn", "active");
+        renderCandidates();
+        draw();
+    } else {
+        renderCandidates();   // off during the AI's turn: just refresh the toggle
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     updateModeButtons();
     const p = document.getElementById("mode_play");
@@ -420,15 +457,11 @@ const HEAT_GRID_KEYS = {
 };
 const SIGNED_HEAT_IDS = new Set(["h_nn_futurepos_8", "h_nn_futurepos_32"]);
 
-// Pinned heatmap (radio: at most one). When set, the board mirrors it
-// persistently; hover still previews other heatmaps temporarily and falls
-// back to the pinned id on mouseleave.
-let pinnedHeatId = (function() {
-    try {
-        const v = localStorage.getItem("skz_pinned_heat");
-        return v && HEAT_GRID_KEYS[v] ? v : null;
-    } catch (_) { return null; }
-})();
+// Pinned heatmap (radio: at most one). When set, the board mirrors it for the
+// rest of the session; hover still previews other heatmaps temporarily and
+// falls back to the pinned id on mouseleave. Not persisted across loads: every
+// load starts with no board overlay (pinning is opt-in, off by default).
+let pinnedHeatId = null;
 function syncPinButtonsUI() {
     for (const btn of document.querySelectorAll(".pin-btn")) {
         const on = btn.dataset.target === pinnedHeatId;
@@ -438,10 +471,6 @@ function syncPinButtonsUI() {
 }
 function setPinnedHeatId(id) {
     pinnedHeatId = (id && HEAT_GRID_KEYS[id]) ? id : null;
-    try {
-        if (pinnedHeatId) localStorage.setItem("skz_pinned_heat", pinnedHeatId);
-        else localStorage.removeItem("skz_pinned_heat");
-    } catch (_) {}
     syncPinButtonsUI();
     boardOverlayHeatId = pinnedHeatId;
     draw();
@@ -496,11 +525,6 @@ for (const id of Object.keys(heatCtxs)) {
             setPinnedHeatId(pinnedHeatId === id ? null : id);
         });
     }
-}
-// Apply persisted pinned overlay on first load.
-if (pinnedHeatId) {
-    boardOverlayHeatId = pinnedHeatId;
-    draw();
 }
 syncPinButtonsUI();
 
@@ -857,15 +881,26 @@ function candColor(frac, best) {
     const c = g0.map((a, i) => Math.round(a + (g1[i] - a) * tt));
     return { fill: `rgb(${c[0]},${c[1]},${c[2]})`, text: tt > 0.45 ? "#ffffff" : "#1f2328" };
 }
+// The centered "开启本步分析" button replaces the empty list exactly when the
+// engine is idling on your move because per-move analysis is switched off.
+function shouldShowAnalyzeButton() {
+    return currentMode === "play" && !editMode && !gameOver && !!boardState
+        && toPlay === humanSide && !analyzeMyTurn;
+}
 function renderCandidates() {
     const cands = state ? computeCandidates() : [];
+    const showBtn = cands.length === 0 && shouldShowAnalyzeButton();
     // Only rebuild when the data changed, so a row's :hover stays put.
-    const sig = cands.map(o =>
+    const sig = (showBtn ? "BTN|" : "") + cands.map(o =>
         o.r + "," + o.c + ":" + Math.round((o.wr ?? -1) * 1000) + ":" + Math.round(o.vf * 1000)).join("|");
     if (sig === candSig) return;
     candSig = sig;
     if (cands.length === 0) {
-        candListEl.innerHTML = '<div class="cand-empty">' + t("cand_empty") + "</div>";
+        candListEl.innerHTML = showBtn
+            ? '<button type="button" class="cand-analyze-btn" id="cand_analyze_btn">' +
+              '<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M4.5 3l8 5-8 5z"/></svg>' +
+              t("cand_analyze_on") + "</button>"
+            : '<div class="cand-empty">' + t("cand_empty") + "</div>";
         return;
     }
     candListEl.innerHTML = cands.map((o, i) => {
@@ -892,6 +927,7 @@ candListEl.addEventListener("mouseout", (ev) => {
     if (hoverCand) { hoverCand = null; draw(); }
 });
 candListEl.addEventListener("click", (ev) => {
+    if (ev.target.closest("#cand_analyze_btn")) { setAnalyzeMyTurn(true); return; }
     const row = ev.target.closest(".cand-row"); if (!row) return;
     playCandidate(+row.dataset.r, +row.dataset.c);
 });
@@ -1081,6 +1117,20 @@ function flatToGrid(flat) {
     return g;
 }
 
+// Live (mid-search) candidate refresh. The worker streams partial visit / win-rate
+// snapshots during a PUCT analysis; here we patch just the candidate fields of
+// `state` and repaint the list + board overlay, so the per-move win% and sim
+// counts fill in as it thinks. Heatmaps and the win-rate chart stay untouched —
+// those still update only on the final `result`.
+function applyLiveCandidates(visitsFlat, winrateFlat, rootVisits) {
+    if (!state) return;
+    state.mcts_visits  = flatToGrid(visitsFlat);
+    state.mcts_winrate = winrateFlat ? flatToGrid(winrateFlat) : state.mcts_winrate;
+    if (rootVisits > 0) searchSimsTotal = rootVisits;
+    renderCandidates();
+    draw();
+}
+
 function newGame() {
     game = new Gomoku(N, currentRule);
     boardState = game.getInitialState();
@@ -1102,17 +1152,26 @@ function newGame() {
     triggerAISearch();
 }
 
-// True when the engine should *analyze* (continuously ponder) the side-to-move
-// rather than pick a move for it: always on the analysis board, and on the
-// human's turn in play mode — so the player sees live analysis of their own
-// position (like V7.5). Only the AI's turn in play mode is a move-search.
+// True when the engine should *analyze* (ponder) the side-to-move rather than
+// pick a move for it: always on the analysis board, and on the human's turn in
+// play mode *when "analyze my move" is on* — so the player sees live analysis of
+// their own position. Only the AI's turn in play mode is a move-search.
 function isPonderTurn() {
     if (gameOver || !boardState) return false;
-    return currentMode === "analysis" || toPlay === humanSide;
+    if (currentMode === "analysis") return true;
+    return toPlay === humanSide && analyzeMyTurn;
 }
 
 function triggerAISearch() {
     if (gameOver) return;
+    // Play mode, your turn, per-move analysis off: don't ponder and don't move
+    // for you — just wait. The candidate area shows the "开启本步分析" button.
+    if (currentMode !== "analysis" && toPlay === humanSide && !analyzeMyTurn) {
+        aiThinking = false;
+        setStatus("status_your_turn", "active");
+        renderCandidates();
+        return;
+    }
     aiThinking = true;
     searchId++;
     const ponder = isPonderTurn();
@@ -1287,7 +1346,10 @@ worker.onmessage = (e) => {
     }
     if (data.type === "progress") {
         if (data.searchId !== searchId) return;
-        // Could update a progress bar here; for now status pill stays "thinking".
+        // Mid-search snapshot: refresh the candidate list / board overlay live as
+        // the analysis deepens. (Gumbel move-search progress carries no candidate
+        // data, so this no-ops there — the AI's deliberation isn't revealed.)
+        if (data.mctsVisits) applyLiveCandidates(data.mctsVisits, data.mctsWinrate, data.searchSims);
         return;
     }
     if (data.type === "result") {
@@ -1369,6 +1431,12 @@ function maybeResumeAnalysis() {
     try { saved = localStorage.getItem("skz_search_enabled"); } catch (_) {}
     setSearchEnabled(saved === "0" ? false : true);
     cb.addEventListener("change", () => { setSearchEnabled(cb.checked); maybeResumeAnalysis(); });
+})();
+(function initAnalyzeToggle() {
+    const cb = document.getElementById("analyze_turn_input");
+    if (!cb) return;
+    cb.checked = analyzeMyTurn;
+    cb.addEventListener("change", () => setAnalyzeMyTurn(cb.checked));
 })();
 document.getElementById("sims_input")?.addEventListener("change", maybeResumeAnalysis);
 
