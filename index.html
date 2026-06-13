@@ -89,6 +89,12 @@
       font-size: 11px; color: var(--fg-subtle); padding: 0 20px 28px;
       text-align: center;
     }
+    /* Phone: lang/theme are the landing page's only header controls and they're
+       hidden on phones (see style.css), so drop the whole now-empty bar and let
+       the hero + cards sit at the top. */
+    @media (max-width: 720px) {
+      .topbar { display: none; }
+    }
   </style>
 </head>
 <body>
