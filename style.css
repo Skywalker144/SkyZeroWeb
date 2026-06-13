@@ -170,6 +170,48 @@
     .board-card { padding: 6px; }
   }
 
+  /* ---------- Mobile topbar (≤720px) ----------
+     Desktop layout is untouched. Phones drop the language/theme toggles
+     entirely (system theme + default language are used instead); that frees
+     enough width to keep the brand suffix. The gomoku toolbar — which packs far
+     more controls — is also reflowed from a chaotic flex-wrap into three tidy
+     rows. The reorder/hide rules target gomoku-only classes (.tb-group/.tb-sep/
+     .tb-actions/.topbar-right), so the 2048/dodge headers stay a single brand
+     row. */
+  @media (max-width: 720px) {
+    .brand-title { font-size: 18px; }
+    #lang_seg, #theme_seg { display: none; }
+
+    /* 2048 & dodge: the right side is now empty (toggles hidden), so center the
+       lone brand. .brand wraps the title only on those two pages — gomoku uses a
+       bare .brand-title and the landing bar is hidden — so this stays scoped.
+       The .topbar prefix is needed: the desktop `.topbar-actions { display:flex }`
+       rule sits later in the file and would otherwise win the source-order tie. */
+    .topbar .topbar-actions { display: none; }
+    .topbar .brand { margin-inline: auto; }
+
+    /* divider + "模式"/"执子" labels: redundant once the segments stand alone */
+    .topbar .tb-sep,
+    .topbar .tb-label { display: none; }
+
+    /* Three rows:  1) brand · status ............ [设置]
+                    2) [对弈|分析]   [黑棋|白棋]
+                    3) [新对局] [悔棋]
+       The settings button is all that's left in .topbar-right; margin-left:auto
+       parks it at the right end of row 1 (so its popover anchors flush to the
+       screen edge), while width:100% on .tb-actions drops the action buttons to
+       their own final row. */
+    .topbar .topbar-right { order: 1; margin-left: auto; }
+    .topbar .tb-group     { order: 2; flex: 1 1 auto; min-width: 0; }
+    .topbar .tb-group .seg-row { width: 100%; }
+    .topbar .tb-actions   { order: 3; width: 100%; margin: 0; }
+    .topbar .tb-actions .btn { flex: 1; }
+
+    /* Keep the settings popover inside narrow viewports (it was running off the
+       left edge before the toolbar reflow parked the button flush right). */
+    .settings-pop { width: min(300px, calc(100vw - 32px)); }
+  }
+
   /* ---------- Top toolbar ---------- */
   .topbar {
     display: flex; align-items: center; flex-wrap: wrap;
