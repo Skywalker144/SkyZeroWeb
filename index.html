@@ -60,8 +60,11 @@
       letter-spacing: 0.01em;
     }
     .landing-grid {
-      display: grid; gap: 18px; width: 100%; max-width: 780px;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      display: grid; gap: 18px; width: 100%; max-width: 520px;
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (max-width: 560px) {
+      .landing-grid { grid-template-columns: 1fr; max-width: 280px; }
     }
     .game-card {
       display: flex; flex-direction: column; align-items: center; gap: 14px;
@@ -193,6 +196,26 @@
           <div class="game-name" id="card_dodge_name">躲避</div>
           <div class="game-desc" id="card_dodge_desc">操控人物躲避四面弹幕</div>
         </a>
+
+        <a class="game-card" href="mcts-tree.html">
+          <div class="game-icon">
+            <svg viewBox="0 0 100 100" width="88" height="88" aria-hidden="true">
+              <g stroke="var(--board-line)" stroke-width="2.4" fill="none">
+                <line x1="50" y1="24" x2="26" y2="56"/><line x1="50" y1="24" x2="50" y2="56"/>
+                <line x1="50" y1="24" x2="74" y2="56"/>
+                <line x1="26" y1="56" x2="17" y2="84"/><line x1="26" y1="56" x2="35" y2="84"/>
+              </g>
+              <circle cx="50" cy="24" r="9" fill="#4493f8"/>
+              <circle cx="26" cy="56" r="8" fill="#1a7f37"/>
+              <circle cx="50" cy="56" r="8" fill="#9a6700"/>
+              <circle cx="74" cy="56" r="8" fill="#cf222e"/>
+              <circle cx="17" cy="84" r="6" fill="#6e7781"/>
+              <circle cx="35" cy="84" r="6" fill="#6e7781"/>
+            </svg>
+          </div>
+          <div class="game-name" id="card_tree_name">搜索树可视化</div>
+          <div class="game-desc" id="card_tree_desc">AlphaZero MCTS 逐步展开</div>
+        </a>
       </div>
     </div>
 
@@ -209,6 +232,8 @@
         hero_title: '选择一个游戏',
         gomoku_name: '五子棋',
         gomoku_desc: '和 SkyZero 对弈',
+        tree_name: '搜索树可视化',
+        tree_desc: 'AlphaZero MCTS 逐步展开',
         g2048_name: '2048',
         g2048_desc: '经典数字合并益智游戏',
         dodge_name: '躲避',
@@ -222,6 +247,8 @@
         hero_title: 'Choose a game',
         gomoku_name: 'Gomoku',
         gomoku_desc: 'Play against SkyZero',
+        tree_name: 'Search Tree',
+        tree_desc: 'Watch AlphaZero MCTS expand',
         g2048_name: '2048',
         g2048_desc: 'The classic tile-merging puzzle',
         dodge_name: 'Dodge',
@@ -242,6 +269,8 @@
       document.getElementById('hero_title').textContent = s.hero_title;
       document.getElementById('card_gomoku_name').textContent = s.gomoku_name;
       document.getElementById('card_gomoku_desc').textContent = s.gomoku_desc;
+      document.getElementById('card_tree_name').textContent = s.tree_name;
+      document.getElementById('card_tree_desc').textContent = s.tree_desc;
       document.getElementById('card_2048_name').textContent = s.g2048_name;
       document.getElementById('card_2048_desc').textContent = s.g2048_desc;
       document.getElementById('card_dodge_name').textContent = s.dodge_name;
