@@ -207,7 +207,12 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
     }
 
     let totalSims = 0;
-    let lastProgress = performance.now();
+    const searchStart = performance.now();
+    let lastProgress = searchStart;
+    // Pure node-search throughput for this chunk (sims / wall-time), reported to
+    // the UI. searchStart is taken after root (re)inference, so it measures the
+    // simulation loop's speed, not the per-chunk inference overhead.
+    const npsNow = (now) => Math.round(totalSims / Math.max(0.001, (now - searchStart) / 1000));
 
     const simulateOne = async (action) => {
         const child = root.children.find(c => c.actionTaken === action);
@@ -283,6 +288,7 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
                     mctsVisits:  Array.from(mcts.getMCTSPolicy(root)),
                     mctsWinrate: Array.from(mcts.getMCTSWinrate(root)),
                     searchSims:  liveVisits,
+                    nps:         npsNow(now),
                 });
             }
         }
@@ -334,6 +340,7 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         gumbelPhases:  phases,
         iterations:    totalSims,
         searchSims:    rootVisits,   // cumulative root visits (analysis ponder depth)
+        nps:           npsNow(performance.now()),
     });
 }
 
