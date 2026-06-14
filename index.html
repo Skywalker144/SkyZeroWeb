@@ -37,9 +37,17 @@
   <link rel="stylesheet" href="style.css">
   <script defer src="/leaderboard.js?v=20260605b"></script>
   <style>
+    /* Landing page fills the viewport so the hero + cards + footer fit on one
+       screen without scrolling. Spacing uses vh-based clamps: tall monitors stay
+       airy, short laptops compress to fit. (.app is global but this <style> only
+       loads on the landing page, so the rule is effectively scoped here.) */
+    .app {
+      min-height: 100dvh; display: flex; flex-direction: column;
+    }
     .landing-main {
       flex: 1; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 64px; padding: 40px 20px 64px;
+      justify-content: center; gap: clamp(20px, 4.5vh, 56px);
+      padding: clamp(16px, 4vh, 40px) 20px clamp(16px, 3.5vh, 48px);
       text-align: center;
     }
     .landing-hero {
@@ -67,8 +75,9 @@
       .landing-grid { grid-template-columns: 1fr; max-width: 280px; }
     }
     .game-card {
-      display: flex; flex-direction: column; align-items: center; gap: 14px;
-      padding: 32px 24px; text-decoration: none;
+      display: flex; flex-direction: column; align-items: center;
+      gap: clamp(10px, 1.6vh, 14px);
+      padding: clamp(18px, 3vh, 32px) 24px; text-decoration: none;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-lg); color: var(--fg);
       transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
@@ -78,8 +87,10 @@
       box-shadow: 0 8px 24px rgba(27,31,36,0.10);
     }
     .game-card .game-icon {
-      width: 88px; height: 88px; display: grid; place-items: center;
+      width: clamp(64px, 9vh, 88px); height: clamp(64px, 9vh, 88px);
+      display: grid; place-items: center;
     }
+    .game-card .game-icon svg { width: 100%; height: 100%; }
     .game-card .game-name {
       font-size: 20px; font-weight: 600; letter-spacing: -0.01em;
     }
@@ -89,7 +100,8 @@
     /* Gomoku icon board */
     .ico-board { background: var(--board-bg); border-radius: 8px; padding: 10px; }
     .landing-footer {
-      font-size: 11px; color: var(--fg-subtle); padding: 0 20px 28px;
+      font-size: 11px; color: var(--fg-subtle);
+      padding: 0 20px clamp(12px, 2.5vh, 28px);
       text-align: center;
     }
     /* Phone: lang/theme are the landing page's only header controls and they're
