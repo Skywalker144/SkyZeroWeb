@@ -830,6 +830,7 @@ const candListEl = document.getElementById("cand_list");
 let candSig = "";
 const MAX_CANDS = 12;
 let searchSimsTotal = 0;        // cumulative root visits reported by the worker
+let searchNps = 0;              // nodes/sims per second from the latest search chunk
 const ANALYSIS_CHUNK = 96;      // PUCT sims per continuous-ponder chunk
 const ANALYSIS_CAP_MIN = 2000;  // analysis ponders at least this deep ("模拟次数" can raise it)
 function colLetter(c) { return String.fromCharCode(65 + c); }
@@ -1175,7 +1176,7 @@ function triggerAISearch() {
     aiThinking = true;
     searchId++;
     const ponder = isPonderTurn();
-    if (ponder && currentMode === "analysis") setStatus("status_analyzing_n", "thinking", searchSimsTotal);
+    if (ponder && currentMode === "analysis") setStatus("status_analyzing_n", "thinking", searchSimsTotal, searchNps);
     else if (ponder) setStatus("status_your_turn", "active");   // play mode: human's turn, analysis runs quietly
     else setStatus("status_ai_thinking", "thinking");
     const searchOn = !!document.getElementById("search_enable_input")?.checked;
@@ -1349,13 +1350,20 @@ worker.onmessage = (e) => {
         // Mid-search snapshot: refresh the candidate list / board overlay live as
         // the analysis deepens. (Gumbel move-search progress carries no candidate
         // data, so this no-ops there — the AI's deliberation isn't revealed.)
+        if (Number.isFinite(data.nps)) searchNps = data.nps;
         if (data.mctsVisits) applyLiveCandidates(data.mctsVisits, data.mctsWinrate, data.searchSims);
+        // Refresh the status line live so the sim count + node rate tick during a
+        // chunk, not just when it finishes. Only the analysis board shows this;
+        // the play-mode human-turn ponder runs quietly under "your turn".
+        if (currentMode === "analysis" && aiThinking)
+            setStatus("status_analyzing_n", "thinking", searchSimsTotal, searchNps);
         return;
     }
     if (data.type === "result") {
         if (data.searchId !== searchId) return;
         aiThinking = false;
         searchSimsTotal = data.searchSims || 0;
+        if (Number.isFinite(data.nps)) searchNps = data.nps;
         // Update gumbel overlay + heatmaps + candidate data.
         gumbelPhases = data.gumbelPhases;
         publishStateForDrawing({
@@ -1390,7 +1398,7 @@ worker.onmessage = (e) => {
                 const cap = Math.max(Number.isFinite(simsRaw) ? simsRaw : 0, ANALYSIS_CAP_MIN);
                 const ponderOn = !gameOver && searchOn && searchSimsTotal < cap;
                 setStatus(ponderOn ? "status_analyzing_n" : "status_analysis_ready_n",
-                          ponderOn ? "thinking" : "info", searchSimsTotal);
+                          ponderOn ? "thinking" : "info", searchSimsTotal, searchNps);
                 if (ponderOn) triggerAISearch();   // next chunk goes deeper (tree reuse)
             } else {
                 // Play mode, human's turn: a single analysis at the configured sim count
