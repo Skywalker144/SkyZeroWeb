@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkyZero · 搜索树可视化</title>
+<link rel="preload" href="fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Jost-SemiBold.woff2"  as="font" type="font/woff2" crossorigin>
+<script>
+  // Set theme before first paint to avoid flash. Honors the site-wide skz_theme
+  // preference (auto/light/dark) chosen on the other pages. Tri-state.
+  (function(){
+    try {
+      var saved = localStorage.getItem('skz_theme');
+      var mode = (saved === 'light' || saved === 'dark') ? saved : 'auto';
+      var resolved = (mode === 'auto')
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : mode;
+      document.documentElement.dataset.theme = resolved;
+      document.documentElement.dataset.themeMode = mode;
+    } catch(e) {
+      document.documentElement.dataset.theme = 'light';
+      document.documentElement.dataset.themeMode = 'auto';
+    }
+  })();
+</script>
+<link rel="stylesheet" href="style.css">
+<style>
+  /* Page-local: the full-viewport tree layout + the gold selection-path accent.
+     Everything else (colors, fonts, .btn / .seg-row / brand) comes from style.css. */
+  :root { --path:#d29922; }
+  html[data-theme="dark"] { --path:#e3b341; }
+
+  body { height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+  .appbar { display:flex; align-items:center; gap:12px; padding:10px 16px;
+            background:var(--surface); border-bottom:1px solid var(--border); }
+  .appbar .brand-title { font-size:19px; }
+
+  #controls { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
+              padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); }
+  #controls label { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+                    color:var(--fg-subtle); display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+  #controls select {
+    height:32px; padding:0 8px; background:var(--surface); color:var(--fg);
+    border:1px solid var(--border); border-radius:var(--radius-sm);
+    font-family:var(--font-mono); font-size:12.5px; cursor:pointer;
+    transition:border-color .12s, box-shadow .12s;
+  }
+  #controls select:focus {
+    outline:none; border-color:var(--accent);
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  #runN { width:68px; }
+  .btn svg { width:15px; height:15px; display:block; flex-shrink:0; }
+  .btn:disabled, #controls select:disabled { opacity:.5; cursor:not-allowed; }
+  .slider input[type=range] { width:94px; accent-color:var(--accent); cursor:pointer; margin:0; }
+  .slider .size-value { text-transform:none; min-width:32px; }
+  #status { font-size:12px; color:var(--fg-muted); margin-left:auto; font-family:var(--font-mono); }
+
+  #stage { flex:1; display:flex; min-height:0; }
+  #tree { flex:1; display:block; cursor:grab;
+          background: repeating-linear-gradient(0deg, var(--surface) 0 24px, var(--surface-2) 24px 48px); }
+  #tree.dragging { cursor:grabbing; }
+  aside#detail { width:290px; border-left:1px solid var(--border); background:var(--surface);
+                 padding:12px; overflow-y:auto; font-size:13px; }
+  aside#detail h2 { font-size:13px; margin:0 0 8px; color:var(--fg-subtle); font-weight:600; }
+  #detailBoard { display:block; margin:0 auto 10px; border:1px solid var(--border); border-radius:4px; }
+  #detailTable { width:100%; border-collapse:collapse; }
+  #detailTable td { padding:3px 4px; border-bottom:1px solid var(--border); }
+  #detailTable td.k { color:var(--fg-muted); white-space:nowrap; }
+  #detailTable td.v { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
+  #detailHint { color:var(--fg-muted); font-size:12px; line-height:1.5; }
+  #legend { padding:7px 16px; border-top:1px solid var(--border); background:var(--surface);
+            font-size:11px; color:var(--fg-muted); display:flex; flex-wrap:wrap; gap:14px; }
+  #legend b { color:var(--fg); font-weight:600; }
+</style>
+</head>
+<body>
+  <header class="appbar">
+    <a class="brand-title" href="index.html" title="返回首页"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · 搜索树</span></a>
+    <div class="topbar-actions">
+      <div class="seg-row compact" id="theme_seg" role="group" aria-label="切换配色主题">
+        <button class="seg-btn" data-theme="auto" aria-pressed="true" aria-label="自动" title="自动">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="8" cy="8" r="6"></circle>
+            <path d="M8 2 a6 6 0 0 1 0 12 z" fill="currentColor" stroke="none"></path>
+          </svg>
+        </button>
+        <button class="seg-btn" data-theme="light" aria-pressed="false" aria-label="明亮" title="明亮">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="8" cy="8" r="3"></circle>
+            <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"></path>
+          </svg>
+        </button>
+        <button class="seg-btn" data-theme="dark" aria-pressed="false" aria-label="暗黑" title="暗黑">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="controls">
+    <label>模型 <select id="model"></select></label>
+    <label>规则 <select id="rule">
+      <option value="renju">连珠(禁手)</option>
+      <option value="freestyle">无禁手</option>
+      <option value="standard">标准</option>
+    </select></label>
+    <label>棋盘 <select id="size">
+      <option value="9" selected>9×9</option>
+      <option value="11">11×11</option>
+      <option value="13">13×13</option>
+      <option value="15">15×15</option>
+    </select></label>
+
+    <span class="tb-sep"></span>
+
+    <button class="btn" id="btnStep">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5 L12 8 L5 12.5 Z" fill="currentColor"/></svg>
+      <span>单步</span>
+    </button>
+    <button class="btn primary" id="btnRun">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5 L8 8 L2.5 12.5 Z M8 3.5 L13.5 8 L8 12.5 Z" fill="currentColor"/></svg>
+      <span>连跑</span>
+    </button>
+    <label>次数 <input class="num" type="number" id="runN" value="50" min="1" max="2000"></label>
+    <button class="btn" id="btnReset">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 8a6 6 0 1 0 1.8-4.3"/><path d="M2 2v3.2h3.2"/>
+      </svg>
+      <span>重置</span>
+    </button>
+
+    <span class="tb-sep"></span>
+
+    <label class="slider">top-k <input type="range" id="topk" min="1" max="12" value="6"><span class="size-value" id="topkv">6</span></label>
+    <label class="slider">top-p <input type="range" id="topp" min="0" max="0.5" step="0.01" value="0.1"><span class="size-value" id="toppv">0.10</span></label>
+
+    <span class="tb-sep"></span>
+
+    <button class="btn" id="btnFit">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 5.5V2h3.5 M14 5.5V2h-3.5 M2 10.5V14h3.5 M14 10.5V14h-3.5"/>
+      </svg>
+      <span>适配</span>
+    </button>
+    <span id="status">初始化…</span>
+  </div>
+
+  <div id="stage">
+    <canvas id="tree"></canvas>
+    <aside id="detail">
+      <h2>节点详情</h2>
+      <canvas id="detailBoard" width="200" height="200"></canvas>
+      <table id="detailTable"></table>
+      <p id="detailHint">点击任意节点查看它的局面与统计;悬停可临时高亮。<br><br>
+        <b>N</b>=访问次数 &nbsp; <b>P</b>=网络先验(policy) &nbsp; <b>Q</b>=节点均值(落子方视角效用,∈[-1,1]) &nbsp;
+        <b>U</b>=探索项 &nbsp; <b>Q+U</b>=PUCT 选择分数 &nbsp; <b>WR</b>=走子方(轮到一方)胜率。</p>
+    </aside>
+  </div>
+
+  <div id="legend">
+    <span><b>边框热度</b>:绿=走子方胜率高,红=低</span>
+    <span><b style="color:var(--path)">黄色路径</b>=最近一次模拟的 selection</span>
+    <span><b>红圈棋子</b>=该节点最后一手</span>
+    <span><b>+m</b>=被 top-k/top-p 剪掉的子节点数</span>
+    <span>滚轮缩放 · 拖拽平移</span>
+  </div>
+
+  <script src="mcts-tree.js?v=5"></script>
+</body>
+</html>
