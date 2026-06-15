@@ -207,6 +207,11 @@
     .topbar .tb-actions   { order: 3; width: 100%; margin: 0; }
     .topbar .tb-actions .btn { flex: 1; }
 
+    /* Status pill is the only variable-width item in row 1; let it shrink to
+       fill the leftover space (clipping with ellipsis) instead of wrapping the
+       brand row while the AI is thinking. */
+    .topbar .status-pill { flex: 1 1 0; min-width: 0; max-width: none; }
+
     /* Keep the settings popover inside narrow viewports (it was running off the
        left edge before the toolbar reflow parked the button flush right). */
     .settings-pop { width: min(300px, calc(100vw - 32px)); }
@@ -231,7 +236,17 @@
      via .topbar justify-content, which the gomoku toolbar repurposed). Used via
      HTML only — was once wrongly dropped as an "orphaned" rule. */
   .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-  /* Settings popover (model / rule / size / search / setup) */
+  /* Mobile-only bottom bar holding the relocated Settings control (moved here by
+     initSettingsPlacement in main.js). It spans the page width; since the bar
+     sits at the page bottom, its popover opens upward instead of down. */
+  .mobile-actionbar { display: none; }
+  @media (max-width: 720px) {
+    .mobile-actionbar { display: flex; margin-top: 12px; }
+    .mobile-actionbar .settings-wrap { width: 100%; }
+    .mobile-actionbar #settings_btn { width: 100%; }
+    .mobile-actionbar .settings-pop { top: auto; bottom: calc(100% + 8px); right: 0; }
+  }
+  /* Settings popover (model / rule / size / palette / setup) */
   .settings-wrap { position: relative; }
   .settings-pop {
     position: absolute; right: 0; top: calc(100% + 8px); z-index: 500;
@@ -242,8 +257,6 @@
     display: flex; flex-direction: column; gap: 12px;
   }
   .set-row { display: flex; flex-direction: column; gap: 6px; }
-  .set-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .set-hint { font-size: 10.5px; color: var(--fg-muted); margin-top: -2px; }
   .tb-select {
     width: 100%; height: 32px; padding: 0 8px;
     background: var(--surface); color: var(--fg);
@@ -255,6 +268,9 @@
     outline: none; border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   }
+  /* Toolbar thinking-time dropdown sizes to its content; only the settings-popover
+     selects (e.g. #model_select) need the full-width default above. */
+  #think_time_select { width: auto; }
   .btn--full { width: 100%; }
   .brand-title {
     font-size: 25px; font-weight: 600; letter-spacing: -0.01em;
@@ -561,11 +577,6 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   }
-  /* Collapse the sims input when the search toggle is off. The body class
-     is applied pre-paint from a script in index.html, and toggled at
-     runtime by the search-toggle handler in main.js. */
-  body.search-disabled #think_time_wrap { display: none; }
-
   .divider {
     height: 1px; background: var(--border); margin: 4px 0;
   }
@@ -612,6 +623,7 @@
   .board-card {
     padding: 16px;
     display: inline-flex; flex-direction: column; align-items: flex-start;
+    position: relative; /* anchor the loading overlay over the board */
   }
   #board {
     background: var(--board-bg); border-radius: var(--radius-sm);
@@ -633,6 +645,9 @@
      the far right. Play-mode only — analysis mode always analyzes. */
   .cand-toggle { padding: 0; margin-right: auto; align-self: center; }
   .mode-analysis .cand-toggle { display: none; }
+  /* Legend + "open in search tree" button, kept together at the head's far right
+     so the layout holds whether or not the analyze toggle (play-mode only) shows. */
+  .cand-head-right { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
   /* Centered call-to-action shown in the (empty) list when the switch is off. */
   .cand-analyze-btn {
     margin: auto; display: inline-flex; align-items: center; gap: 6px;
@@ -712,7 +727,7 @@
     margin: auto;
   }
 
-  .expand-btn, .pin-btn {
+  .expand-btn, .pin-btn, .cand-tree-btn {
     background: transparent; border: none; cursor: pointer;
     color: var(--fg-subtle); padding: 0;
     width: 18px; height: 18px;
@@ -721,8 +736,8 @@
     transition: background 0.12s, color 0.12s;
     flex-shrink: 0;
   }
-  .expand-btn:hover, .pin-btn:hover { background: var(--surface-2); color: var(--fg); }
-  .expand-btn svg, .pin-btn svg { width: 12px; height: 12px; display: block; }
+  .expand-btn:hover, .pin-btn:hover, .cand-tree-btn:hover { background: var(--surface-2); color: var(--fg); }
+  .expand-btn svg, .pin-btn svg, .cand-tree-btn svg { width: 12px; height: 12px; display: block; }
   .pin-btn.active { color: var(--accent); }
   .pin-btn.active:hover { color: var(--accent-hover); }
   .pin-btn.active svg circle { fill: currentColor; }
@@ -807,19 +822,23 @@
 
   .hidden { display: none !important; }
 
-/* Loading overlay (Task 23 — not in V5 since the C++ engine is local) */
+/* Loading overlay (Task 23 — not in V5 since the C++ engine is local).
+   Floats over the board card with a masked, slightly-blurred backdrop while
+   the first ONNX model downloads; the rest of the UI stays visible behind it. */
 #loading_overlay {
-    position: fixed; inset: 0; z-index: 2000;
-    background: var(--bg);
+    position: absolute; inset: 0; z-index: 30;
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    border-radius: var(--radius-lg);
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-sans);
 }
 .loader-card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--radius-lg); padding: 24px 28px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
     display: flex; flex-direction: column; align-items: center; gap: 12px;
-    min-width: 260px;
+    width: min(260px, calc(100% - 24px));
 }
 .loader-spin {
     width: 28px; height: 28px;
