@@ -46,6 +46,7 @@ let visKids = new Map(), prunedOf = new Map(), pos = new Map();
 let rootId = null, contentW = 0, contentH = 0;
 let scale = 1, offX = 0, offY = 0, dpr = window.devicePixelRatio || 1;
 let selectedId = null, hoverId = null, lastPath = null;
+let seedPos = null, pendingAutoRun = false;   // live-game position handed over from the gomoku page
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -69,12 +70,16 @@ function boot() {
         type: "init",
         modelUrl: "models/" + modelFile + "?v=" + encodeURIComponent(ver),
         boardSize: SIZE, rule: RULE,
+        seed: seedPos,
     });
 }
 
 function onMsg(e) {
     const d = e.data;
-    if (d.type === "ready") { setTree(d.tree, null); setBusy(false); fitView(); }
+    if (d.type === "ready") {
+        setTree(d.tree, null); setBusy(false); fitView();
+        if (pendingAutoRun) { pendingAutoRun = false; runSearch(); }   // "开始分析" the handed-over position
+    }
     else if (d.type === "step") { setTree(d.tree, d.trace.path); setBusy(false); }
     else if (d.type === "done") { setTree(d.tree, null); setBusy(false); }
     else if (d.type === "progress") { elStatus.textContent = `搜索中… ${d.done}/${d.total}`; }
@@ -319,8 +324,13 @@ canvas.addEventListener("wheel", e => {
 }, { passive: false });
 
 // ============================================================ controls
+function runSearch() {
+    if (busy) return;
+    setBusy(true); elStatus.textContent = "连跑中…";
+    worker.postMessage({ type: "run", n: clamp(+elRunN.value || 50, 1, 2000) });
+}
 $("btnStep").addEventListener("click", () => { if (!busy) { setBusy(true); elStatus.textContent = "模拟中…"; worker.postMessage({ type: "step" }); } });
-$("btnRun").addEventListener("click", () => { if (!busy) { setBusy(true); elStatus.textContent = "连跑中…"; worker.postMessage({ type: "run", n: clamp(+elRunN.value || 50, 1, 2000) }); } });
+$("btnRun").addEventListener("click", runSearch);
 $("btnReset").addEventListener("click", () => { if (!busy) { setBusy(true); selectedId = null; lastPath = null; worker.postMessage({ type: "reset", boardSize: SIZE, rule: RULE }); } });
 $("btnFit").addEventListener("click", fitView);
 elModel.addEventListener("change", () => { modelFile = elModel.value; selectedId = null; lastPath = null; boot(); });
@@ -382,4 +392,38 @@ async function loadModels() {
     }
 }
 
-(async () => { await loadModels(); boot(); })();
+// One-shot handover from the gomoku play page: a live position to analyze.
+// Read it, mirror the model/rule/size controls onto our toolbar, then clear the
+// key so a later reset/reload starts from the empty board again.
+function readSeedPosition() {
+    let raw = null;
+    try { raw = localStorage.getItem("skz_tree_pos"); } catch (_) { return; }
+    if (!raw) return;
+    try { localStorage.removeItem("skz_tree_pos"); } catch (_) {}
+    let p;
+    try { p = JSON.parse(raw); } catch (_) { return; }
+    if (!p || !Array.isArray(p.board)) return;
+    const size = +p.size;
+    if (!(size >= 5 && size <= 19) || p.board.length !== size * size) return;
+    SIZE = size;
+    if (p.rule === "renju" || p.rule === "freestyle" || p.rule === "standard") RULE = p.rule;
+    // The size dropdown only presets a few sizes; add this one if the live game used another.
+    if (![...elSize.options].some(o => +o.value === size)) {
+        const o = document.createElement("option");
+        o.value = String(size); o.textContent = `${size}×${size}`;
+        elSize.appendChild(o);
+    }
+    elSize.value = String(size);
+    elRule.value = RULE;
+    if (p.model && [...elModel.options].some(o => o.value === p.model)) {
+        elModel.value = p.model; modelFile = p.model;
+    }
+    seedPos = {
+        board: p.board.map(v => v | 0),
+        toPlay: p.toPlay === -1 ? -1 : 1,
+        lastMove: (typeof p.lastMove === "number" && p.lastMove >= 0) ? p.lastMove : null,
+    };
+    pendingAutoRun = true;
+}
+
+(async () => { await loadModels(); readSeedPosition(); boot(); })();
