@@ -24,7 +24,7 @@
 
 - **缓存击穿**：因为 `_headers` 给 JS 设了 `max-age=3600`，改了 `gomoku.js`/`mcts.js`/`ai2048.js` 等被 `importScripts` 加载的文件后，必须靠 URL 上的 `?v=<ts>` query 才能让浏览器和 Worker 拿到新版本（见 `worker.js` / `worker2048.js` 顶部、`main.js` 里的 cache-bust 逻辑）。换模型同理要给 `models/2048.onnx` 之类的 URL 加 cache-bust。
 - onnxruntime-web 从 **CDN** 加载，强制 **单线程 WASM**（`ort.env.wasm.numThreads = 1`，规避 SharedArrayBuffer 跨域问题）。
-- 模型来自 **SkyZero monorepo**（拆分后位于 `../SkyZero/SkyZero_V7.1/`、`../SkyZero/SkyZero_2048/`），用 `tools/export_onnx.py`（五子棋）和 `tools/export_onnx_2048.py`（2048）导出到 `models/`，再改 `models/manifest.json`（五子棋 5 档 ELO 目录）。导出步骤与所需 conda 环境见 `README.md`。
+- 模型来自 **SkyZero monorepo**：五子棋来自 `../SkyZero/SkyZero_V7.1/`，用 `tools/export_onnx.py` 导出到 `models/` 再改 `models/manifest.json`（5 档 ELO 目录）；**2048 现来自 `../SkyZero/SkyZero_2048_V2/server_models/`**（迁移前是 `../SkyZero/SkyZero_2048/`），那里是**已 traced 的 TorchScript** checkpoint（`model_iter<N>.pt`）——用 `tools/export_onnx_2048.py --ckpt <…>.pt --out models/2048.onnx --value-scale 30 --value-transform` 导出（脚本直接吃 TorchScript、无需 `--net`；`--value-scale` 对应 V2 `run.cfg` 的 `VALUE_SCALE`，V2 value 恒 h 空间故必带 `--value-transform`），再把 `2048.html` 的 `AI_MODEL_VERSION` bump 做 cache-bust。导出步骤与所需 conda 环境见 `README.md`。
 - **躲避走另一条路（不是 ONNX）**：模型来自 `../SkyZero/DodgeSAC`（同在 SkyZero 仓库内的 SAC 训练项目），用 `tools/export_dodge_sac.py --ckpt ../SkyZero/DodgeSAC/runs/<name>/best.pt --version <tag>` 把 SAC actor 权重导出成根目录的 `dodge-policy.js`（导出时带 torch-vs-打包自检，布局错了会直接报错）。重训后**重新导出**，并把 `channel-dodge.html` 里 `<script src="dodge-policy.js?v=…">` 的 `?v=` 改成新 `<tag>` 做 cache-bust（脚本会打印要粘贴的那行）。Python↔JS 一致性除导出自检外，还可用 `node` 无头跑整页游戏逻辑复核（曾用此定位手机坐标系 bug）。
 - 浏览器版相对训练版做了简化（无 8 重对称集成、无并行 MCTS 等），细节见 `README.md` 末尾「Differences from V5」。
 
