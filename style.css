@@ -193,6 +193,10 @@
     /* divider + "模式"/"执子" labels: redundant once the segments stand alone */
     .topbar .tb-sep,
     .topbar .tb-label { display: none; }
+    /* ...but the dropdown groups keep their labels — a bare "3s" / model select
+       reads as contextless without "思考时间" / "模型". */
+    .topbar #think_time_wrap .tb-label,
+    .topbar #model_wrap .tb-label { display: inline-block; }
 
     /* Three rows:  1) brand · status ............ [设置]
                     2) [对弈|分析]   [黑棋|白棋]
@@ -207,10 +211,12 @@
     .topbar .tb-actions   { order: 3; width: 100%; margin: 0; }
     .topbar .tb-actions .btn { flex: 1; }
 
-    /* Status pill is the only variable-width item in row 1; let it shrink to
-       fill the leftover space (clipping with ellipsis) instead of wrapping the
-       brand row while the AI is thinking. */
-    .topbar .status-pill { flex: 1 1 0; min-width: 0; max-width: none; }
+    /* Status text is short + fixed-width now, so the pill keeps its width on row 1
+       (settings is parked far right by topbar-right's margin-left:auto); it may
+       shrink on very narrow screens rather than wrap the brand row. It must NOT
+       grow — flex-basis:0 + grow gets starved to 0 width by that auto margin, which
+       is what collapsed the pill. */
+    .topbar .status-pill { flex: 0 1 auto; min-width: 0; }
 
     /* Keep the settings popover inside narrow viewports (it was running off the
        left edge before the toolbar reflow parked the button flush right). */
@@ -230,8 +236,10 @@
     text-transform: uppercase; color: var(--fg-subtle); white-space: nowrap;
   }
   .tb-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
-  .tb-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 auto; }
-  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .tb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Settings sits flush right; the action buttons (new/undo) pack left next to the
+     control groups rather than floating in the middle. */
+  .topbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   /* index/2048/dodge headers: right-aligned lang+theme toggles. Lives here (not
      via .topbar justify-content, which the gomoku toolbar repurposed). Used via
      HTML only — was once wrongly dropped as an "orphaned" rule. */
@@ -268,9 +276,9 @@
     outline: none; border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   }
-  /* Toolbar thinking-time dropdown sizes to its content; only the settings-popover
-     selects (e.g. #model_select) need the full-width default above. */
-  #think_time_select { width: auto; }
+  /* Both toolbar dropdowns size to their content rather than the .tb-select
+     width:100% default (which only applies to popover selects). */
+  #think_time_select, #model_select { width: auto; }
   .btn--full { width: 100%; }
   .brand-title {
     font-size: 25px; font-weight: 600; letter-spacing: -0.01em;
@@ -479,17 +487,29 @@
   }
   /* ---------- Status pill (in the toolbar) ---------- */
   .status-pill {
-    display: inline-flex; align-items: center; gap: 8px;
+    display: inline-flex; align-items: center; justify-content: center; position: relative;
     padding: 4px 12px 4px 10px;
     border-radius: 999px;
     font-size: 12.5px; font-weight: 500;
     background: var(--surface-2); color: var(--fg);
     border: 1px solid var(--border);
-    max-width: 220px; overflow: hidden;
+    /* Fixed width so swapping between statuses ("空闲" / "AI 思考中…" / …) never
+       resizes the pill and shoves the toolbar controls sideways. Sized to the
+       longest normal CN label; English is wider (see the [lang=en] override).
+       The rare edit-invalid warning still ellipsizes. Mobile overrides this with
+       flex:1 1 0 below (flex-basis:0 makes this width inert there). */
+    width: 120px; flex-shrink: 0; overflow: hidden;
   }
+  /* English labels ("Editing position", "Analysis ready") need more room than CN. */
+  html[lang="en"] .status-pill { width: 160px; }
   .status-pill #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .status-pill .dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    /* Absolutely pinned at its old spot (left padding, vertically centered) so it
+       stays put while the label centers across the full pill via justify-content.
+       Centered with margin (not transform) so the "thinking" pulse animation —
+       which animates transform:scale — doesn't clobber the vertical offset. */
+    position: absolute; left: 10px; top: 50%; margin-top: -4px;
+    width: 8px; height: 8px; border-radius: 50%;
     background: var(--fg-subtle);
   }
   .status-pill[data-variant="active"] { background: var(--success-bg); color: var(--success); border-color: transparent; }
