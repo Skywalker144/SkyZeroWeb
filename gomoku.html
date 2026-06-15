@@ -46,8 +46,8 @@
           document.body.classList.add('mode-analysis');
       } catch(e) {}
     })();
-    // Apply search-disabled before first paint to avoid the sims input
-    // flashing on then collapsing when the toggle was previously off.
+    // Apply search-disabled before first paint to avoid the thinking-time
+    // dropdown flashing on then collapsing when the toggle was previously off.
     (function(){
       try {
         if (localStorage.getItem('skz_search_enabled') === '0')
@@ -98,6 +98,18 @@
         </div>
       </div>
 
+      <div class="tb-group" id="think_time_wrap">
+        <span class="tb-label" data-i18n="tb_label_think">思考时间</span>
+        <select id="think_time_select" class="num tb-select" data-i18n-aria="aria_think_time" aria-label="思考时间">
+          <option value="500">0.5s</option>
+          <option value="1000">1s</option>
+          <option value="2000">2s</option>
+          <option value="3000">3s</option>
+          <option value="5000">5s</option>
+          <option value="10000">10s</option>
+        </select>
+      </div>
+
       <div class="tb-actions">
         <button class="btn primary" id="new_btn" data-i18n="btn_new_game">新对局</button>
         <button class="btn danger-ghost" id="undo_btn" data-i18n="btn_undo">悔棋</button>
@@ -129,17 +141,20 @@
               <div class="set-row-head">
                 <span class="tb-label" data-i18n="settings_group_search">搜索</span>
                 <label class="toggle" data-i18n-aria="aria_search_toggle" aria-label="切换搜索">
-                  <input type="checkbox" id="search_enable_input" checked aria-controls="sims_wrapper">
+                  <input type="checkbox" id="search_enable_input" checked aria-controls="think_time_wrap">
                   <span class="track"></span>
                 </label>
               </div>
               <span class="set-hint" data-i18n="label_search_hint">(关闭则 AI 直接凭直觉落子)</span>
-              <div class="settings-row" id="sims_wrapper">
-                <span class="settings-label">
-                  <span class="label-sims-simple"   data-i18n="label_sims_depth">思考深度</span>
-                  <span class="label-sims-analysis" data-i18n="label_sims_count">模拟次数</span>
-                </span>
-                <input class="num" type="number" id="sims_input" min="0" step="1" value="32">
+            </div>
+            <div class="set-row">
+              <span class="tb-label" data-i18n="label_cand_palette">候选配色</span>
+              <div class="seg-row palette-row" id="palette_seg" role="group" data-i18n-aria-group="aria_cand_palette" aria-label="候选点位配色">
+                <button class="swatch-btn" type="button" data-palette="violet" aria-pressed="true"  data-i18n-title="palette_violet" data-i18n-aria="palette_violet" title="紫罗兰" aria-label="紫罗兰"></button>
+                <button class="swatch-btn" type="button" data-palette="amber"  aria-pressed="false" data-i18n-title="palette_amber"  data-i18n-aria="palette_amber"  title="琥珀"   aria-label="琥珀"></button>
+                <button class="swatch-btn" type="button" data-palette="blue"   aria-pressed="false" data-i18n-title="palette_blue"   data-i18n-aria="palette_blue"   title="蓝青"   aria-label="蓝青"></button>
+                <button class="swatch-btn" type="button" data-palette="teal"   aria-pressed="false" data-i18n-title="palette_teal"   data-i18n-aria="palette_teal"   title="翠绿"   aria-label="翠绿"></button>
+                <button class="swatch-btn" type="button" data-palette="rose"   aria-pressed="false" data-i18n-title="palette_rose"   data-i18n-aria="palette_rose"   title="玫瑰"   aria-label="玫瑰"></button>
               </div>
             </div>
             <div class="set-row">
@@ -229,7 +244,7 @@
           <div class="card-body cand-body">
             <div class="card-title cand-head">
               <span data-i18n="cand_title">候选着法</span>
-              <label class="toggle cand-toggle" data-i18n-aria="aria_analyze_toggle" aria-label="切换本步分析">
+              <label class="toggle cand-toggle" data-i18n-aria="aria_analyze_toggle" aria-label="切换我的回合分析">
                 <input type="checkbox" id="analyze_turn_input">
                 <span class="track"></span>
               </label>
