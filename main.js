@@ -112,10 +112,10 @@ function setMode(m) {
     renderCandidates();        // settle the list/button for the new mode
 }
 
-// "Analyze my move" (play mode only): whether the engine ponders the human's own
+// "Analyze my turn" (play mode only): whether the engine ponders the human's own
 // turn — filling the candidate list with live win% / visits — or sits idle until
 // the human plays. Off by default for a distraction-free game; the header toggle
-// or the centered "开启本步分析" button flips it on. Analysis mode ignores it (it
+// or the centered "开启我的回合分析" button flips it on. Analysis mode ignores it (it
 // always analyzes). Persisted in localStorage("skz_analyze_my_turn").
 let analyzeMyTurn = (function () {
     try { return localStorage.getItem("skz_analyze_my_turn") === "1"; }
@@ -134,7 +134,7 @@ function setAnalyzeMyTurn(on) {
         else renderCandidates();
     } else if (currentMode !== "analysis" && toPlay === humanSide) {
         // Turned off on your turn: abort the in-flight ponder and clear the
-        // analysis back to the "开启本步分析" button.
+        // analysis back to the "开启我的回合分析" button.
         searchId++;
         aiThinking = false;
         searchSimsTotal = 0;
@@ -333,8 +333,9 @@ function draw() {
 }
 
 // Lizzie-style candidate discs on the board (shown when no heatmap is pinned):
-// best move blue, others fade gray→green by visit share; big win%, small visit
-// count. Mirrors V7.5's board overlay. Data: computeCandidates() below.
+// best move in the selected palette's accent, others fade along its ramp by
+// visit share; big win%, small visit count. Mirrors V7.5's board overlay.
+// Palette is user-selectable in Settings (candColor). Data: computeCandidates().
 function drawCandidateOverlay() {
     if (!state) return;
     const cands = computeCandidates();
@@ -351,7 +352,7 @@ function drawCandidateOverlay() {
         ctx.globalAlpha = 1;
         if (o.best) {
             ctx.beginPath(); ctx.arc(x, y, candR, 0, Math.PI * 2);
-            ctx.lineWidth = 2; ctx.strokeStyle = "#1d4ed8"; ctx.stroke(); ctx.lineWidth = 1;
+            ctx.lineWidth = 2; ctx.strokeStyle = col.stroke; ctx.stroke(); ctx.lineWidth = 1;
         }
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillStyle = col.text;
@@ -832,7 +833,16 @@ const MAX_CANDS = 12;
 let searchSimsTotal = 0;        // cumulative root visits reported by the worker
 let searchNps = 0;              // nodes/sims per second from the latest search chunk
 const ANALYSIS_CHUNK = 96;      // PUCT sims per continuous-ponder chunk
-const ANALYSIS_CAP_MIN = 2000;  // analysis ponders at least this deep ("模拟次数" can raise it)
+const ANALYSIS_CAP_MIN = 2000;  // analysis board deepens at least this many root visits
+// Per-move thinking time for play mode (AI move + "my-turn" analysis), in ms;
+// picked from the toolbar dropdown. Persisted in localStorage("skz_think_ms").
+const THINK_MS_OPTIONS = [500, 1000, 2000, 3000, 5000, 10000];
+let thinkMs = (function () {
+    try {
+        const v = parseInt(localStorage.getItem("skz_think_ms"), 10);
+        return THINK_MS_OPTIONS.includes(v) ? v : 3000;
+    } catch (_) { return 3000; }
+})();
 function colLetter(c) { return String.fromCharCode(65 + c); }
 // Board notation: columns A.. left→right, rows N..1 top→bottom (H8 = center of 15).
 function coordLabel(r, c) { return colLetter(c) + (N - r); }
@@ -857,14 +867,11 @@ function computeCandidates() {
     out.forEach((o, i) => { o.frac = maxV > 0 ? o.vf / maxV : 1; o.best = (i === 0); });
     return out.slice(0, MAX_CANDS);
 }
-// Total root visits → turns a visit fraction back into a count for display.
-// A ponder turn (analysis board / the human's turn) uses the worker-reported
-// cumulative depth; the AI's move-search uses its configured sims.
+// Total root visits → turns a visit fraction back into a count for display,
+// using the worker-reported cumulative root visits (0 when search is off).
 function totalVisits() {
-    if (isPonderTurn() && searchSimsTotal > 0) return searchSimsTotal;
     if (!document.getElementById("search_enable_input")?.checked) return 0;
-    const s = parseInt(document.getElementById("sims_input").value, 10);
-    return (Number.isFinite(s) && s > 0) ? s : 0;
+    return searchSimsTotal > 0 ? searchSimsTotal : 0;
 }
 function fmtVisits(vf) {
     const tot = totalVisits();
@@ -874,15 +881,41 @@ function fmtVisits(vf) {
     }
     return Math.round(vf * 100) + "%";
 }
-// Visit-rank color: best move blue, others lerp gray → green by visit share.
-function candColor(frac, best) {
-    if (best) return { fill: "#2b7fff", text: "#ffffff" };
-    const g0 = [156, 163, 175], g1 = [34, 165, 89];   // gray → green
-    const tt = Math.max(0, Math.min(1, frac));
-    const c = g0.map((a, i) => Math.round(a + (g1[i] - a) * tt));
-    return { fill: `rgb(${c[0]},${c[1]},${c[2]})`, text: tt > 0.45 ? "#ffffff" : "#1f2328" };
+// Candidate marker palette (user-selectable in Settings; default violet). Each
+// scheme: best fill + stroke, plus a low→high RGB ramp the other moves lerp
+// across by visit share. Persisted in localStorage("skz_cand_palette").
+const CAND_PALETTES = {
+    violet: { best: { fill: "#7c3aed", stroke: "#5b21b6" }, lo: [237, 233, 254], hi: [124, 58, 237] },
+    amber:  { best: { fill: "#f59e0b", stroke: "#b45309" }, lo: [253, 230, 138], hi: [217, 119, 6]  },
+    blue:   { best: { fill: "#2563eb", stroke: "#1d4ed8" }, lo: [219, 234, 254], hi: [14, 165, 233] },
+    teal:   { best: { fill: "#0d9488", stroke: "#115e59" }, lo: [204, 251, 241], hi: [13, 148, 136] },
+    rose:   { best: { fill: "#e11d48", stroke: "#9f1239" }, lo: [255, 228, 230], hi: [225, 29, 72]  },
+};
+const PALETTE_KEYS = ["violet", "amber", "blue", "teal", "rose"];
+let candPalette = (function () {
+    try {
+        const v = localStorage.getItem("skz_cand_palette");
+        return PALETTE_KEYS.includes(v) ? v : "violet";
+    } catch (_) { return "violet"; }
+})();
+// White text on dark fills, dark text on light ones (perceived luminance).
+function candTextOn(rgb) {
+    return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 150 ? "#1f2328" : "#ffffff";
 }
-// The centered "开启本步分析" button replaces the empty list exactly when the
+function hexToRgb(hex) {
+    const h = hex.replace("#", "");
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+}
+// Visit-rank color: best move gets the palette's accent (with a darker ring);
+// the others lerp the palette's low → high ramp by visit share.
+function candColor(frac, best) {
+    const pal = CAND_PALETTES[candPalette] || CAND_PALETTES.violet;
+    if (best) return { fill: pal.best.fill, stroke: pal.best.stroke, text: candTextOn(hexToRgb(pal.best.fill)) };
+    const tt = Math.max(0, Math.min(1, frac));
+    const c = pal.lo.map((a, i) => Math.round(a + (pal.hi[i] - a) * tt));
+    return { fill: `rgb(${c[0]},${c[1]},${c[2]})`, text: candTextOn(c) };
+}
+// The centered "开启我的回合分析" button replaces the empty list exactly when the
 // engine is idling on your move because per-move analysis is switched off.
 function shouldShowAnalyzeButton() {
     return currentMode === "play" && !editMode && !gameOver && !!boardState
@@ -1166,7 +1199,7 @@ function isPonderTurn() {
 function triggerAISearch() {
     if (gameOver) return;
     // Play mode, your turn, per-move analysis off: don't ponder and don't move
-    // for you — just wait. The candidate area shows the "开启本步分析" button.
+    // for you — just wait. The candidate area shows the "开启我的回合分析" button.
     if (currentMode !== "analysis" && toPlay === humanSide && !analyzeMyTurn) {
         aiThinking = false;
         setStatus("status_your_turn", "active");
@@ -1180,15 +1213,14 @@ function triggerAISearch() {
     else if (ponder) setStatus("status_your_turn", "active");   // play mode: human's turn, analysis runs quietly
     else setStatus("status_ai_thinking", "thinking");
     const searchOn = !!document.getElementById("search_enable_input")?.checked;
-    let sims = 0;
+    let sims = 0, timeMs = 0;
     if (searchOn) {
-        if (ponder && currentMode === "analysis") {
-            sims = ANALYSIS_CHUNK;   // analysis-mode ponder deepens in fixed-size chunks
+        if (currentMode === "analysis") {
+            sims = ANALYSIS_CHUNK;   // analysis board deepens in fixed-size PUCT chunks
         } else {
-            // Play mode uses the configured simulation count for BOTH the human-turn
-            // analysis and the AI's move-search — the budget tracks the setting.
-            const simsRaw = parseInt(document.getElementById("sims_input").value, 10);
-            sims = (Number.isFinite(simsRaw) && simsRaw >= 0) ? simsRaw : 32;
+            // Play mode: the AI's move-search AND the "my-turn" analysis both run
+            // anytime PUCT for the configured thinking time.
+            timeMs = thinkMs;
         }
     }
     worker.postMessage({
@@ -1197,9 +1229,11 @@ function triggerAISearch() {
         toPlay: toPlay,
         ply: ply,
         sims: sims,
+        timeMs: timeMs,
         gumbel_m: 16,
         searchId: searchId,
-        // Ponder turns use plain PUCT (like V7.5); the AI's move-search uses Gumbel.
+        // timeMs > 0 → anytime PUCT (play mode); else analyze → fixed-sims PUCT
+        // (analysis board); else Gumbel → NN policy argmax (search off).
         analyze: ponder,
     });
 }
@@ -1348,15 +1382,17 @@ worker.onmessage = (e) => {
     if (data.type === "progress") {
         if (data.searchId !== searchId) return;
         // Mid-search snapshot: refresh the candidate list / board overlay live as
-        // the analysis deepens. (Gumbel move-search progress carries no candidate
-        // data, so this no-ops there — the AI's deliberation isn't revealed.)
+        // the search deepens — including the AI's move-search in play mode, so you
+        // see per-point win% / visits as it thinks.
         if (Number.isFinite(data.nps)) searchNps = data.nps;
         if (data.mctsVisits) applyLiveCandidates(data.mctsVisits, data.mctsWinrate, data.searchSims);
-        // Refresh the status line live so the sim count + node rate tick during a
-        // chunk, not just when it finishes. Only the analysis board shows this;
-        // the play-mode human-turn ponder runs quietly under "your turn".
+        // Tick the live sim count + node rate in the status line. The analysis
+        // board and the AI's move-search both show it; the play-mode human-turn
+        // ponder stays quiet under "your turn".
         if (currentMode === "analysis" && aiThinking)
             setStatus("status_analyzing_n", "thinking", searchSimsTotal, searchNps);
+        else if (aiThinking && toPlay !== humanSide)
+            setStatus("status_ai_thinking_n", "thinking", searchSimsTotal, searchNps);
         return;
     }
     if (data.type === "result") {
@@ -1392,17 +1428,16 @@ worker.onmessage = (e) => {
         if (wasPonder) {
             if (currentMode === "analysis") {
                 // Analysis mode keeps deepening ("一直算") by reusing the tree, up to a
-                // memory-bounded floor (the configured sim count can raise it).
+                // fixed memory-bounded depth (ANALYSIS_CAP_MIN root visits).
                 const searchOn = !!document.getElementById("search_enable_input")?.checked;
-                const simsRaw = parseInt(document.getElementById("sims_input").value, 10);
-                const cap = Math.max(Number.isFinite(simsRaw) ? simsRaw : 0, ANALYSIS_CAP_MIN);
+                const cap = ANALYSIS_CAP_MIN;
                 const ponderOn = !gameOver && searchOn && searchSimsTotal < cap;
                 setStatus(ponderOn ? "status_analyzing_n" : "status_analysis_ready_n",
                           ponderOn ? "thinking" : "info", searchSimsTotal, searchNps);
                 if (ponderOn) triggerAISearch();   // next chunk goes deeper (tree reuse)
             } else {
-                // Play mode, human's turn: a single analysis at the configured sim count
-                // (no continuous deepening), so the budget matches the setting.
+                // Play mode, human's turn: a single time-budgeted analysis (no
+                // continuous deepening) — it already ran for the full thinking time.
                 setStatus("status_your_turn", "active");
             }
             return;
@@ -1416,16 +1451,14 @@ worker.onmessage = (e) => {
 // Search toggle: when off, sims=0 is sent to the worker (pure NN, policy-head
 // argmax). State persisted in localStorage("skz_search_enabled") as "1"/"0".
 // A pre-paint inline script in gomoku.html applies body.search-disabled before
-// first paint so the sims input doesn't flash before collapsing on load.
+// first paint so the thinking-time dropdown doesn't flash before collapsing.
 function setSearchEnabled(on) {
     document.body.classList.toggle("search-disabled", !on);
     const cb = document.getElementById("search_enable_input");
     if (cb) cb.checked = !!on;
     try { localStorage.setItem("skz_search_enabled", on ? "1" : "0"); } catch (_) {}
 }
-// In analysis, a settled ponder resumes when the user re-enables search or
-// raises the sims target. (A still-running ponder picks up the new cap itself,
-// since the cap is recomputed from sims_input on every chunk.)
+// In analysis, a settled ponder resumes when the user re-enables search.
 function maybeResumeAnalysis() {
     const searchOn = !!document.getElementById("search_enable_input")?.checked;
     if (searchOn && !editMode && !aiThinking && isPonderTurn()) {
@@ -1446,7 +1479,38 @@ function maybeResumeAnalysis() {
     cb.checked = analyzeMyTurn;
     cb.addEventListener("change", () => setAnalyzeMyTurn(cb.checked));
 })();
-document.getElementById("sims_input")?.addEventListener("change", maybeResumeAnalysis);
+// Candidate marker palette picker (Settings): fill each swatch with its scheme
+// color, persist the choice, and redraw the board overlay on change.
+(function initPalettePicker() {
+    const seg = document.getElementById("palette_seg");
+    if (!seg) return;
+    const btns = seg.querySelectorAll(".swatch-btn[data-palette]");
+    for (const b of btns) {
+        const pal = CAND_PALETTES[b.dataset.palette];
+        if (pal) b.style.background = pal.best.fill;
+        b.setAttribute("aria-pressed", b.dataset.palette === candPalette ? "true" : "false");
+        b.addEventListener("click", () => {
+            const key = b.dataset.palette;
+            if (!PALETTE_KEYS.includes(key) || key === candPalette) return;
+            candPalette = key;
+            try { localStorage.setItem("skz_cand_palette", key); } catch (_) {}
+            for (const o of btns) o.setAttribute("aria-pressed", o.dataset.palette === key ? "true" : "false");
+            if (typeof draw === "function") draw();
+        });
+    }
+})();
+// Thinking-time dropdown (toolbar): apply the saved value, persist on change.
+(function initThinkTime() {
+    const sel = document.getElementById("think_time_select");
+    if (!sel) return;
+    sel.value = String(thinkMs);
+    sel.addEventListener("change", () => {
+        const v = parseInt(sel.value, 10);
+        if (!THINK_MS_OPTIONS.includes(v)) return;
+        thinkMs = v;
+        try { localStorage.setItem("skz_think_ms", String(v)); } catch (_) {}
+    });
+})();
 
 // --- Buttons ---
 document.getElementById("new_btn").addEventListener("click", newGame);
