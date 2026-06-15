@@ -46,25 +46,7 @@
           document.body.classList.add('mode-analysis');
       } catch(e) {}
     })();
-    // Apply search-disabled before first paint to avoid the thinking-time
-    // dropdown flashing on then collapsing when the toggle was previously off.
-    (function(){
-      try {
-        if (localStorage.getItem('skz_search_enabled') === '0')
-          document.body.classList.add('search-disabled');
-      } catch(e) {}
-    })();
   </script>
-
-  <!-- Loading overlay shown while downloading the first ONNX model -->
-  <div id="loading_overlay">
-    <div class="loader-card">
-      <div class="loader-spin"></div>
-      <div class="loader-text" id="loading_text">正在加载模型…</div>
-      <div class="loader-bar"><div class="loader-fill" id="loading_fill"></div></div>
-      <div class="loader-pct" id="loading_pct">0%</div>
-    </div>
-  </div>
 
   <div class="app">
     <!-- Top toolbar: brand · status · mode/side segments · actions · settings · lang/theme -->
@@ -104,7 +86,7 @@
           <option value="500">0.5s</option>
           <option value="1000">1s</option>
           <option value="2000">2s</option>
-          <option value="3000">3s</option>
+          <option value="3000" selected>3s</option>
           <option value="5000">5s</option>
           <option value="10000">10s</option>
         </select>
@@ -138,16 +120,6 @@
               </div>
             </div>
             <div class="set-row">
-              <div class="set-row-head">
-                <span class="tb-label" data-i18n="settings_group_search">搜索</span>
-                <label class="toggle" data-i18n-aria="aria_search_toggle" aria-label="切换搜索">
-                  <input type="checkbox" id="search_enable_input" checked aria-controls="think_time_wrap">
-                  <span class="track"></span>
-                </label>
-              </div>
-              <span class="set-hint" data-i18n="label_search_hint">(关闭则 AI 直接凭直觉落子)</span>
-            </div>
-            <div class="set-row">
               <span class="tb-label" data-i18n="label_cand_palette">候选配色</span>
               <div class="seg-row palette-row" id="palette_seg" role="group" data-i18n-aria-group="aria_cand_palette" aria-label="候选点位配色">
                 <button class="swatch-btn" type="button" data-palette="violet" aria-pressed="true"  data-i18n-title="palette_violet" data-i18n-aria="palette_violet" title="紫罗兰" aria-label="紫罗兰"></button>
@@ -164,30 +136,6 @@
               </button>
             </div>
           </div>
-        </div>
-
-        <div class="seg-row compact" id="lang_seg" role="group" data-i18n-aria-group="aria_lang" aria-label="切换语言">
-          <button class="seg-btn" data-lang="zh" aria-pressed="true">中</button>
-          <button class="seg-btn" data-lang="en" aria-pressed="false">EN</button>
-        </div>
-        <div class="seg-row compact" id="theme_seg" role="group" data-i18n-aria-group="aria_theme" aria-label="切换配色主题">
-          <button class="seg-btn" data-theme="auto" aria-pressed="true" data-i18n-title="theme_label_auto" data-i18n-aria="theme_label_auto" aria-label="自动" title="自动">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <circle cx="8" cy="8" r="6"></circle>
-              <path d="M8 2 a6 6 0 0 1 0 12 z" fill="currentColor" stroke="none"></path>
-            </svg>
-          </button>
-          <button class="seg-btn" data-theme="light" aria-pressed="false" data-i18n-title="theme_label_light" data-i18n-aria="theme_label_light" aria-label="明亮" title="明亮">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="8" cy="8" r="3"></circle>
-              <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"></path>
-            </svg>
-          </button>
-          <button class="seg-btn" data-theme="dark" aria-pressed="false" data-i18n-title="theme_label_dark" data-i18n-aria="theme_label_dark" aria-label="暗黑" title="暗黑">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"></path>
-            </svg>
-          </button>
         </div>
       </div>
     </header>
@@ -215,6 +163,16 @@
       <section class="board-col">
         <div class="card board-card">
           <canvas id="board"></canvas>
+          <!-- Loading overlay: floats over the board with a masked backdrop
+               while the first ONNX model downloads -->
+          <div id="loading_overlay">
+            <div class="loader-card">
+              <div class="loader-spin"></div>
+              <div class="loader-text" id="loading_text">正在加载模型…</div>
+              <div class="loader-bar"><div class="loader-fill" id="loading_fill"></div></div>
+              <div class="loader-pct" id="loading_pct">0%</div>
+            </div>
+          </div>
         </div>
         <div class="board-actions edit-toolbar" id="edit_toolbar">
           <div class="seg-row edit-tools" id="edit_tool_seg" role="group" data-i18n-aria="aria_edit_tool" aria-label="编辑工具">
@@ -248,7 +206,14 @@
                 <input type="checkbox" id="analyze_turn_input">
                 <span class="track"></span>
               </label>
-              <span class="cand-legend" data-i18n="cand_legend">胜率 · 访问</span>
+              <span class="cand-head-right">
+                <span class="cand-legend" data-i18n="cand_legend">胜率 · 访问</span>
+                <button class="cand-tree-btn" id="tree_analyze_btn" type="button" data-i18n-title="tree_analyze" data-i18n-aria="tree_analyze" title="搜索树分析当前局面" aria-label="搜索树分析当前局面">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="8" cy="3" r="1.7"/><circle cx="3.5" cy="13" r="1.7"/><circle cx="12.5" cy="13" r="1.7"/><path d="M8 4.7L3.5 11.3M8 4.7l4.5 6.6"/>
+                  </svg>
+                </button>
+              </span>
             </div>
             <div class="cand-list" id="cand_list">
               <div class="cand-empty" data-i18n="cand_empty">暂无分析</div>
@@ -323,6 +288,10 @@
         </div>
       </aside>
     </div>
+
+    <!-- Mobile-only bottom bar: the Settings control is relocated here on ≤720px
+         (by initSettingsPlacement in main.js) so the top toolbar stays tidy -->
+    <div class="mobile-actionbar" id="mobile_actionbar"></div>
 
     <!-- Board-size confirm modal -->
     <div class="confirm-modal hidden" id="size_confirm_modal" role="dialog" aria-modal="true" aria-labelledby="size_confirm_title">
