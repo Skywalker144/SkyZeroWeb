@@ -23,6 +23,7 @@ let root = null;
 let boardSize = 9;
 let rule = "renju";
 let nodeIdCounter = 0;
+let seedPosition = null;   // optional {board, toPlay, lastMove} to seed the root from a live game
 
 function nid(node) {
     if (node._id == null) node._id = nodeIdCounter++;
@@ -66,7 +67,14 @@ async function inference(state, toPlay) {
 }
 
 function newRoot() {
-    root = new Node(game.getInitialState(), 1);   // empty board, black (1) to move
+    // Seed from a live game position when one was handed over (analyze-current-board
+    // from the gomoku page); otherwise start from the empty board, black to move.
+    if (seedPosition && Array.isArray(seedPosition.board) && seedPosition.board.length === boardSize * boardSize) {
+        root = new Node(Int8Array.from(seedPosition.board), seedPosition.toPlay === -1 ? -1 : 1, 0, null,
+            (typeof seedPosition.lastMove === "number" && seedPosition.lastMove >= 0) ? seedPosition.lastMove : null);
+    } else {
+        root = new Node(game.getInitialState(), 1);   // empty board, black (1) to move
+    }
 }
 
 // Expand the root up front (like worker.js) so the very first user "step" is a
@@ -160,9 +168,10 @@ function serializeTree() {
     return { nodes: out, boardSize, rule, totalSims: root.n, rootVisits: totalRootVisits };
 }
 
-async function init(modelUrl, bs, rl) {
+async function init(modelUrl, bs, rl, seed) {
     boardSize = bs || 9;
     rule = rl || "renju";
+    seedPosition = seed || null;
     nodeIdCounter = 0;
     game = new Gomoku(boardSize, rule);
     mcts = new MCTS(game, {});   // defaults = KataGo-PUCT (see mcts.js constructor)
@@ -180,6 +189,7 @@ async function init(modelUrl, bs, rl) {
 async function reset(bs, rl) {
     if (bs != null) boardSize = bs;
     if (rl != null) rule = rl;
+    seedPosition = null;   // reset always rebuilds from the empty board
     nodeIdCounter = 0;
     game = new Gomoku(boardSize, rule);
     mcts.game = game;
@@ -192,7 +202,7 @@ onmessage = async (e) => {
     const d = e.data;
     try {
         if (d.type === "init") {
-            await init(d.modelUrl, d.boardSize, d.rule);
+            await init(d.modelUrl, d.boardSize, d.rule, d.seed);
         } else if (d.type === "reset") {
             await reset(d.boardSize, d.rule);
         } else if (d.type === "step") {
