@@ -870,7 +870,6 @@ function computeCandidates() {
 // Total root visits → turns a visit fraction back into a count for display,
 // using the worker-reported cumulative root visits (0 when search is off).
 function totalVisits() {
-    if (!document.getElementById("search_enable_input")?.checked) return 0;
     return searchSimsTotal > 0 ? searchSimsTotal : 0;
 }
 function fmtVisits(vf) {
@@ -1212,16 +1211,13 @@ function triggerAISearch() {
     if (ponder && currentMode === "analysis") setStatus("status_analyzing_n", "thinking", searchSimsTotal, searchNps);
     else if (ponder) setStatus("status_your_turn", "active");   // play mode: human's turn, analysis runs quietly
     else setStatus("status_ai_thinking", "thinking");
-    const searchOn = !!document.getElementById("search_enable_input")?.checked;
     let sims = 0, timeMs = 0;
-    if (searchOn) {
-        if (currentMode === "analysis") {
-            sims = ANALYSIS_CHUNK;   // analysis board deepens in fixed-size PUCT chunks
-        } else {
-            // Play mode: the AI's move-search AND the "my-turn" analysis both run
-            // anytime PUCT for the configured thinking time.
-            timeMs = thinkMs;
-        }
+    if (currentMode === "analysis") {
+        sims = ANALYSIS_CHUNK;   // analysis board deepens in fixed-size PUCT chunks
+    } else {
+        // Play mode: the AI's move-search AND the "my-turn" analysis both run
+        // anytime PUCT for the configured thinking time.
+        timeMs = thinkMs;
     }
     worker.postMessage({
         type: "search",
@@ -1232,8 +1228,7 @@ function triggerAISearch() {
         timeMs: timeMs,
         gumbel_m: 16,
         searchId: searchId,
-        // timeMs > 0 → anytime PUCT (play mode); else analyze → fixed-sims PUCT
-        // (analysis board); else Gumbel → NN policy argmax (search off).
+        // timeMs > 0 → anytime PUCT (play mode); else fixed-sims PUCT (analysis board).
         analyze: ponder,
     });
 }
@@ -1429,9 +1424,8 @@ worker.onmessage = (e) => {
             if (currentMode === "analysis") {
                 // Analysis mode keeps deepening ("一直算") by reusing the tree, up to a
                 // fixed memory-bounded depth (ANALYSIS_CAP_MIN root visits).
-                const searchOn = !!document.getElementById("search_enable_input")?.checked;
                 const cap = ANALYSIS_CAP_MIN;
-                const ponderOn = !gameOver && searchOn && searchSimsTotal < cap;
+                const ponderOn = !gameOver && searchSimsTotal < cap;
                 setStatus(ponderOn ? "status_analyzing_n" : "status_analysis_ready_n",
                           ponderOn ? "thinking" : "info", searchSimsTotal, searchNps);
                 if (ponderOn) triggerAISearch();   // next chunk goes deeper (tree reuse)
@@ -1447,32 +1441,6 @@ worker.onmessage = (e) => {
         if (winner === null) triggerAISearch();
     }
 };
-
-// Search toggle: when off, sims=0 is sent to the worker (pure NN, policy-head
-// argmax). State persisted in localStorage("skz_search_enabled") as "1"/"0".
-// A pre-paint inline script in gomoku.html applies body.search-disabled before
-// first paint so the thinking-time dropdown doesn't flash before collapsing.
-function setSearchEnabled(on) {
-    document.body.classList.toggle("search-disabled", !on);
-    const cb = document.getElementById("search_enable_input");
-    if (cb) cb.checked = !!on;
-    try { localStorage.setItem("skz_search_enabled", on ? "1" : "0"); } catch (_) {}
-}
-// In analysis, a settled ponder resumes when the user re-enables search.
-function maybeResumeAnalysis() {
-    const searchOn = !!document.getElementById("search_enable_input")?.checked;
-    if (searchOn && !editMode && !aiThinking && isPonderTurn()) {
-        triggerAISearch();
-    }
-}
-(function initSearchToggle() {
-    const cb = document.getElementById("search_enable_input");
-    if (!cb) return;
-    let saved = null;
-    try { saved = localStorage.getItem("skz_search_enabled"); } catch (_) {}
-    setSearchEnabled(saved === "0" ? false : true);
-    cb.addEventListener("change", () => { setSearchEnabled(cb.checked); maybeResumeAnalysis(); });
-})();
 (function initAnalyzeToggle() {
     const cb = document.getElementById("analyze_turn_input");
     if (!cb) return;
@@ -1892,7 +1860,7 @@ registerI18nCallback(() => {
     renderSizeConfirmBody();
 });
 
-// --- Settings popover (model / rule / size / search / setup) ---
+// --- Settings popover (model / rule / size / palette / setup) ---
 (function initSettingsPopover() {
     const btn = document.getElementById("settings_btn");
     const pop = document.getElementById("settings_pop");
@@ -1910,6 +1878,25 @@ registerI18nCallback(() => {
     document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") setOpen(false); });
 })();
 
+// On narrow viewports the Settings control moves out of the toolbar into a
+// bottom bar (keeping the top tidy); on wide ones it returns to the toolbar.
+// The single .settings-wrap node is relocated, so the popover wiring above and
+// its element IDs stay intact.
+(function initSettingsPlacement() {
+    const wrap = document.querySelector(".settings-wrap");
+    const topHome = document.querySelector(".topbar-right");
+    const bottomHome = document.getElementById("mobile_actionbar");
+    if (!wrap || !topHome || !bottomHome) return;
+    const mq = window.matchMedia("(max-width: 720px)");
+    function place() {
+        const dest = mq.matches ? bottomHome : topHome;
+        if (wrap.parentElement !== dest) dest.appendChild(wrap);
+    }
+    place();
+    if (mq.addEventListener) mq.addEventListener("change", place);
+    else if (mq.addListener) mq.addListener(place);
+})();
+
 // --- Heatmap drawer (collapsed by default; canvases measure 0 while hidden) ---
 (function initHeatDrawer() {
     const btn = document.getElementById("heat_drawer_btn");
@@ -1924,6 +1911,29 @@ registerI18nCallback(() => {
                 drawHeatById(id, state ? state[HEAT_GRID_KEYS[id]] : null);
             }
         }
+    });
+})();
+
+// --- "Analyze in search tree" button: hand the live position to mcts-tree.html ---
+// Stashes the current board / side / settings in localStorage (a one-shot key the
+// tree page reads and clears), then navigates there to seed and auto-run the search.
+(function initTreeAnalyzeButton() {
+    const btn = document.getElementById("tree_analyze_btn");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+        if (!game || !boardState) return;
+        const size = game.boardSize;
+        const md = modelById(currentModelId);
+        const payload = {
+            board: Array.from(boardState),                 // Int8Array N*N, +1/-1/0, row-major
+            toPlay,
+            size,
+            rule: currentRule,
+            model: md ? md.file : null,                    // tree page keys its model dropdown on file
+            lastMove: lastMove ? (lastMove.r * size + lastMove.c) : null,
+        };
+        try { localStorage.setItem("skz_tree_pos", JSON.stringify(payload)); } catch (_) {}
+        location.href = "mcts-tree.html";
     });
 })();
 
