@@ -831,7 +831,6 @@ const candListEl = document.getElementById("cand_list");
 let candSig = "";
 const MAX_CANDS = 12;
 let searchSimsTotal = 0;        // cumulative root visits reported by the worker
-let searchNps = 0;              // nodes/sims per second from the latest search chunk
 const ANALYSIS_CHUNK = 96;      // PUCT sims per continuous-ponder chunk
 const ANALYSIS_CAP_MIN = 2000;  // analysis board deepens at least this many root visits
 // Per-move thinking time for play mode (AI move + "my-turn" analysis), in ms;
@@ -1208,7 +1207,7 @@ function triggerAISearch() {
     aiThinking = true;
     searchId++;
     const ponder = isPonderTurn();
-    if (ponder && currentMode === "analysis") setStatus("status_analyzing_n", "thinking", searchSimsTotal, searchNps);
+    if (ponder && currentMode === "analysis") setStatus("status_analyzing", "thinking");
     else if (ponder) setStatus("status_your_turn", "active");   // play mode: human's turn, analysis runs quietly
     else setStatus("status_ai_thinking", "thinking");
     let sims = 0, timeMs = 0;
@@ -1379,22 +1378,13 @@ worker.onmessage = (e) => {
         // Mid-search snapshot: refresh the candidate list / board overlay live as
         // the search deepens — including the AI's move-search in play mode, so you
         // see per-point win% / visits as it thinks.
-        if (Number.isFinite(data.nps)) searchNps = data.nps;
         if (data.mctsVisits) applyLiveCandidates(data.mctsVisits, data.mctsWinrate, data.searchSims);
-        // Tick the live sim count + node rate in the status line. The analysis
-        // board and the AI's move-search both show it; the play-mode human-turn
-        // ponder stays quiet under "your turn".
-        if (currentMode === "analysis" && aiThinking)
-            setStatus("status_analyzing_n", "thinking", searchSimsTotal, searchNps);
-        else if (aiThinking && toPlay !== humanSide)
-            setStatus("status_ai_thinking_n", "thinking", searchSimsTotal, searchNps);
         return;
     }
     if (data.type === "result") {
         if (data.searchId !== searchId) return;
         aiThinking = false;
         searchSimsTotal = data.searchSims || 0;
-        if (Number.isFinite(data.nps)) searchNps = data.nps;
         // Update gumbel overlay + heatmaps + candidate data.
         gumbelPhases = data.gumbelPhases;
         publishStateForDrawing({
@@ -1426,8 +1416,8 @@ worker.onmessage = (e) => {
                 // fixed memory-bounded depth (ANALYSIS_CAP_MIN root visits).
                 const cap = ANALYSIS_CAP_MIN;
                 const ponderOn = !gameOver && searchSimsTotal < cap;
-                setStatus(ponderOn ? "status_analyzing_n" : "status_analysis_ready_n",
-                          ponderOn ? "thinking" : "info", searchSimsTotal, searchNps);
+                setStatus(ponderOn ? "status_analyzing" : "status_analysis_ready",
+                          ponderOn ? "thinking" : "info");
                 if (ponderOn) triggerAISearch();   // next chunk goes deeper (tree reuse)
             } else {
                 // Play mode, human's turn: a single time-budgeted analysis (no
