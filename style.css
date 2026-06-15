@@ -367,6 +367,17 @@
     background: color-mix(in srgb, var(--accent) 16%, var(--surface));
     border-color: var(--accent);
   }
+  /* Candidate marker palette swatches (Settings); background filled by JS. */
+  .swatch-btn {
+    flex: 1; height: 30px; padding: 0; cursor: pointer; background: #888;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    transition: box-shadow 0.12s, border-color 0.12s;
+  }
+  .swatch-btn:hover { border-color: var(--border-strong); }
+  .swatch-btn[aria-pressed="true"] {
+    border-color: var(--fg);
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--fg);
+  }
   .seg-stone {
     width: 14px; height: 14px; border-radius: 50%;
     border: 1px solid var(--stone-outline);
@@ -553,22 +564,12 @@
   /* Collapse the sims input when the search toggle is off. The body class
      is applied pre-paint from a script in index.html, and toggled at
      runtime by the search-toggle handler in main.js. */
-  body.search-disabled #sims_wrapper { display: none; }
+  body.search-disabled #think_time_wrap { display: none; }
 
   .divider {
     height: 1px; background: var(--border); margin: 4px 0;
   }
 
-  /* ---------- Settings popover rows ---------- */
-  .settings-row {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; min-height: 36px;
-  }
-  .settings-label {
-    flex: 0 0 88px;
-    font-size: 13px; color: var(--fg-muted);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
   .size-control {
     flex: 1; min-width: 0;
     display: flex; align-items: center; gap: 10px;
@@ -843,10 +844,5 @@
      in main.js (setMode). */
   /* Analysis mode drives both colors itself, so the human-side picker is
      meaningless and hidden. */
-  body.mode-analysis #side_row { display: none; }
-  /* Sims label swaps between modes: "思考深度" in play, "模拟次数" in
-     analysis. Both spans live in the markup and CSS shows one at a time. */
-  body:not(.mode-analysis) .label-sims-analysis,
-  body.mode-analysis        .label-sims-simple {
-    display: none;
-  }
+  body.mode-analysis #side_row,
+  body.mode-analysis #think_time_wrap { display: none; }
