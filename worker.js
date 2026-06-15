@@ -18,6 +18,11 @@ let currentBoardSize = 15;
 let currentRule = "renju";
 let currentPly = 0;
 let latestSearchId = 0;
+// Hard cap on the root's cumulative visits for play-mode (time-budgeted) search.
+// Tree reuse accumulates visits across moves, so near the endgame the root is
+// often already well-searched — once it hits this we stop and play, instead of
+// spending the full thinking time re-deepening a settled tree.
+const SEARCH_VISIT_CAP = 2560;
 
 // --- helpers ---
 
@@ -179,7 +184,7 @@ function applyMove(action, nextState, nextToPlay, ply) {
     root = new Node(nextState, nextToPlay);
 }
 
-async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchId, analyze) {
+async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchId, analyze, timeMs) {
     currentPly = ply;
     if (gumbelM != null) mcts.args.gumbel_m = gumbelM;
     if (!root) root = new Node(state, toPlay);
@@ -249,52 +254,50 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
     };
 
     let improvedPolicy, gumbelAction, vMix, phases;
-    if (analyze) {
-        // Plain PUCT search (no Gumbel, no Dirichlet noise) — the analysis board.
-        for (let i = 0; i < sims; i++) {
-            let node = root;
-            while (node.isExpanded()) {
-                const nx = mcts.select(node);
-                if (!nx) break;
-                node = nx;
-            }
-            const winner = game.getWinner(node.state, node.actionTaken, -node.toPlay);
-            let value;
-            if (winner !== null) {
-                const result = winner * node.toPlay;
-                if      (result === 1)  value = new Float64Array([1, 0, 0]);
-                else if (result === -1) value = new Float64Array([0, 0, 1]);
-                else                    value = new Float64Array([0, 1, 0]);
-            } else {
-                const inf = await inference(node.state, node.toPlay);
-                if (latestSearchId !== gen) return;
-                mcts.expand(node, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
-                value = inf.wdl;
-            }
-            mcts.backpropagate(node, value);
-            totalSims++;
-            const now = performance.now();
-            if (now - lastProgress > 60) {
-                lastProgress = now;
-                // Stream a partial candidate snapshot (visits / win rate / cumulative
-                // root depth) so the UI fills in the per-move list live, instead of
-                // only when the whole PUCT analysis finishes.
-                let liveVisits = 0;
-                for (const ch of root.children) liveVisits += ch.n;
-                postMessage({
-                    type: "progress",
-                    progress: Math.min(100, (totalSims / Math.max(1, sims)) * 100),
-                    searchId: externalSearchId,
-                    mctsVisits:  Array.from(mcts.getMCTSPolicy(root)),
-                    mctsWinrate: Array.from(mcts.getMCTSWinrate(root)),
-                    searchSims:  liveVisits,
-                    nps:         npsNow(now),
-                });
-            }
+    // One plain-PUCT simulation from the root (no Gumbel / no Dirichlet noise).
+    // Returns false if the search was superseded mid-inference (caller bails).
+    const puctStep = async () => {
+        let node = root;
+        while (node.isExpanded()) {
+            const nx = mcts.select(node);
+            if (!nx) break;
+            node = nx;
         }
-        if (latestSearchId !== gen) return;
-        // Improved policy = the visit distribution; root value = its mean WDL
-        // (root.toPlay's frame, same convention as Gumbel's vMix).
+        const winner = game.getWinner(node.state, node.actionTaken, -node.toPlay);
+        let value;
+        if (winner !== null) {
+            const result = winner * node.toPlay;
+            if      (result === 1)  value = new Float64Array([1, 0, 0]);
+            else if (result === -1) value = new Float64Array([0, 0, 1]);
+            else                    value = new Float64Array([0, 1, 0]);
+        } else {
+            const inf = await inference(node.state, node.toPlay);
+            if (latestSearchId !== gen) return false;
+            mcts.expand(node, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
+            value = inf.wdl;
+        }
+        mcts.backpropagate(node, value);
+        totalSims++;
+        return true;
+    };
+    // Live candidate snapshot (visits / win rate / cumulative depth) streamed so
+    // the analysis UI fills in per-move data during the search, not only at the end.
+    const streamCandidates = (now, progress) => {
+        let liveVisits = 0;
+        for (const ch of root.children) liveVisits += ch.n;
+        postMessage({
+            type: "progress",
+            progress: Math.min(100, progress),
+            searchId: externalSearchId,
+            mctsVisits:  Array.from(mcts.getMCTSPolicy(root)),
+            mctsWinrate: Array.from(mcts.getMCTSWinrate(root)),
+            searchSims:  liveVisits,
+            nps:         npsNow(now),
+        });
+    };
+    // Shared root readout for both PUCT paths: improved policy = visit distribution,
+    // value = mean WDL (root.toPlay's frame), action = most-visited child.
+    const finishPuct = () => {
         improvedPolicy = mcts.getMCTSPolicy(root);
         vMix = root.n > 0
             ? new Float64Array([root.v[0] / root.n, root.v[1] / root.n, root.v[2] / root.n])
@@ -303,7 +306,43 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         let maxN = -1;
         for (const ch of root.children) if (ch.n > maxN) { maxN = ch.n; gumbelAction = ch.actionTaken; }
         phases = [];
+    };
+
+    if (timeMs > 0) {
+        // Anytime PUCT — run until the time budget elapses OR the root's cumulative
+        // visits reach SEARCH_VISIT_CAP. Play mode uses this for BOTH the AI's
+        // move-search and the "my-turn" analysis; both stream live candidates so the
+        // board shows per-point win% / visits as the search runs. Tree reuse carries
+        // visits across moves, so near the endgame the cap is often already met —
+        // then the loop runs zero steps and we play the settled tree immediately.
+        let rootVisits = 0;
+        for (const ch of root.children) rootVisits += ch.n;
+        while (performance.now() - searchStart < timeMs && rootVisits < SEARCH_VISIT_CAP) {
+            if (!await puctStep()) return;
+            rootVisits++;
+            const now = performance.now();
+            if (now - lastProgress > 60) {
+                lastProgress = now;
+                streamCandidates(now, ((now - searchStart) / timeMs) * 100);
+            }
+        }
+        if (latestSearchId !== gen) return;
+        finishPuct();
+    } else if (analyze) {
+        // Fixed-sims PUCT — the analysis board deepens in chunks (no time budget).
+        for (let i = 0; i < sims; i++) {
+            if (!await puctStep()) return;
+            const now = performance.now();
+            if (now - lastProgress > 60) {
+                lastProgress = now;
+                streamCandidates(now, (totalSims / Math.max(1, sims)) * 100);
+            }
+        }
+        if (latestSearchId !== gen) return;
+        finishPuct();
     } else {
+        // Search off (sims === 0): Gumbel collapses to the NN policy argmax — an
+        // instant intuition move with no tree search.
         const res = await mcts.gumbelSequentialHalving(root, sims, simulateOne);
         if (latestSearchId !== gen) return;
         improvedPolicy = res.improvedPolicy;
@@ -357,7 +396,7 @@ onmessage = async (e) => {
         } else if (data.type === "search") {
             latestSearchId++;
             const gen = latestSearchId;
-            await runSearch(data.state, data.toPlay, data.ply, data.sims, data.gumbel_m, gen, data.searchId, data.analyze);
+            await runSearch(data.state, data.toPlay, data.ply, data.sims, data.gumbel_m, gen, data.searchId, data.analyze, data.timeMs);
         } else if (data.type === "swap-model") {
             latestSearchId++;
             session = null;
