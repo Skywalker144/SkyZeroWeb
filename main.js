@@ -803,14 +803,52 @@ function drawValueChart() {
 
 // --- Per-game stats panel (left column, below the chart) -----------------
 // All numbers derive from valueHistory (active tab, Black's frame), the live
-// board, and moveTimes. Win-rate stats are framed from the human's side in
-// play mode, or Black in analysis; accuracy / worst-move / avg-time need a
-// defined human, so they read "—" on the analysis board.
-function fmtPct(x) { return x == null ? t("wdl_dash") : x.toFixed(1) + "%"; }
+// board, and moveTimes. Skill / worst-move / avg-time need a defined human, so
+// they are play-mode only; skill additionally persists across games (see
+// humanMoveLosses / skillWindow), the rest describe only the current game.
 function fmtDuration(ms) {
     if (ms == null) return t("wdl_dash");
     if (ms < 60000) return (ms / 1000).toFixed(1) + "s";
     return Math.floor(ms / 60000) + "m" + Math.round((ms % 60000) / 1000) + "s";
+}
+
+// Cross-game skill window: a rolling list of recent per-move win% losses kept in
+// localStorage, so 每手失分 reflects accumulated play strength rather than a
+// single high-variance game. Capped at the most recent SKILL_WINDOW moves.
+const SKILL_KEY = "skz_skill_losses";
+const SKILL_WINDOW = 200;
+function skillWindow() {
+    try {
+        const v = JSON.parse(localStorage.getItem(SKILL_KEY));
+        return Array.isArray(v) ? v.filter(x => typeof x === "number" && isFinite(x)) : [];
+    } catch (_) { return []; }
+}
+function commitSkillLosses(drops) {
+    if (!drops || !drops.length) return;
+    const w = skillWindow().concat(drops);
+    try { localStorage.setItem(SKILL_KEY, JSON.stringify(w.slice(Math.max(0, w.length - SKILL_WINDOW)))); } catch (_) {}
+}
+// This game's per-human-move win% losses (play mode only): for each human move
+// at ply k, how much win% it conceded, measured turn-to-turn from the human's
+// previous turn (k-1) to their next turn (k+1) so the opponent's punishing reply
+// is included — the same deep-ponder deltas the worst-move stat uses. Falls back
+// to the post-move eval (k) at game end. Negative deltas (apparent gains) clamp
+// to 0. Empty on the analysis board (no defined human).
+function humanMoveLosses() {
+    if (currentMode === "analysis") return [];
+    const pts = valueHistory.filter(p => p[valueTab]).map(p => ({ step: p.step, ...p[valueTab] }));
+    if (!pts.length) return [];
+    const winOf = (p) => (humanSide === 1 ? p.w : p.l) * 100;
+    const winAt = new Map(pts.map(p => [p.step, winOf(p)]));
+    const out = [];
+    for (const p of pts) {
+        const k = p.step;
+        if ((k % 2 === 1) !== (humanSide === 1)) continue;   // not the human's move
+        if (!winAt.has(k - 1)) continue;                     // no pre-move eval to compare
+        const post = winAt.has(k + 1) ? winAt.get(k + 1) : winAt.get(k);
+        out.push({ step: k, drop: Math.max(0, winAt.get(k - 1) - post) });
+    }
+    return out;
 }
 function renderGameStats() {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -832,21 +870,20 @@ function renderGameStats() {
         persp.innerHTML = `<span class="sw ${cls}"></span>${label}`;
     }
 
-    // Win% per recorded ply, in the chosen side's frame (draws are negligible
-    // at this strength, so we read the side's win component directly).
-    const pts = valueHistory.filter(p => p[valueTab]).map(p => ({ step: p.step, ...p[valueTab] }));
-    const winOf = (p) => (side === 1 ? p.w : p.l) * 100;
-    // 形势面积: the win% curve's average height, recentered so the opening reads
-    // 50% — ws[0] (the start eval) carries the first-move/side advantage, so we
-    // subtract it. Measures how you fared vs your own starting point, comparable
-    // across Black/White. Per-point clamp keeps it in [0,100].
-    if (pts.length) {
-        const ws = pts.map(winOf);
-        const base = ws[0];
-        const areaN = ws.reduce((a, w) => a + Math.max(0, Math.min(100, w - base + 50)), 0) / ws.length;
-        set("gs_area", fmtPct(areaN));
+    // Per-human-move win% losses for this game (play mode only); feeds both the
+    // cross-game skill and the worst-move stat — see humanMoveLosses().
+    const losses = humanMoveLosses();
+
+    // 每手失分 (棋力): the rolling mean win% lost per move over a window of recent
+    // human moves persisted across games (localStorage) plus this game's moves
+    // shown live, so it reads as accumulated strength rather than one noisy game.
+    // Lower = stronger. newGame() banks this game's losses into the window.
+    const all = skillWindow().concat(losses.map(l => l.drop));
+    if (all.length) {
+        const avg = all.reduce((a, b) => a + b, 0) / all.length;
+        set("gs_skill", avg >= 0.05 ? "−" + avg.toFixed(1) + "%" : "0%");
     } else {
-        set("gs_area", t("wdl_dash"));
+        set("gs_skill", t("wdl_dash"));
     }
 
     // Avg thinking time over the human's own moves (play mode only).
@@ -854,24 +891,10 @@ function renderGameStats() {
     if (!isAnalysis) for (const m of moveTimes) if (m.movedBy === humanSide) { tSum += m.ms; tN++; }
     set("gs_avgtime", tN ? fmtDuration(tSum / tN) : t("wdl_dash"));
 
-    // 最大失误: the human move after which their win% fell the most — measured on
-    // the chart from their turn before the move (k-1) to their next turn (k+1), so
-    // it captures the move AND the opponent's punishing reply, both same-depth
-    // ponder evals (a blunder whose damage only shows once the AI responds is still
-    // caught). Falls back to the post-move eval (k) if the game ended. Attributed
-    // to the move at step k that caused the fall.
+    // 最大失误: this game's single human move that conceded the most win% — the max
+    // of the same per-move losses. Attributed to the move at step k that fell.
     let worstDrop = 0, worstStep = 0;
-    if (!isAnalysis && pts.length) {
-        const winAt = new Map(pts.map(p => [p.step, winOf(p)]));
-        for (const p of pts) {
-            const k = p.step;
-            if ((k % 2 === 1) !== (humanSide === 1)) continue;   // not the human's move
-            if (!winAt.has(k - 1)) continue;                     // no pre-move eval to compare
-            const post = winAt.has(k + 1) ? winAt.get(k + 1) : winAt.get(k);
-            const drop = winAt.get(k - 1) - post;
-            if (drop > worstDrop) { worstDrop = drop; worstStep = k; }
-        }
-    }
+    for (const l of losses) if (l.drop > worstDrop) { worstDrop = l.drop; worstStep = l.step; }
     set("gs_blunder", worstDrop > 0.5
         ? t("stat_blunder_val", worstStep, "−" + Math.round(worstDrop))
         : t("wdl_dash"));
@@ -1241,6 +1264,7 @@ function applyLiveCandidates(visitsFlat, winrateFlat, rootVisits) {
 }
 
 function newGame() {
+    commitSkillLosses(humanMoveLosses().map(l => l.drop));   // bank the finished game into the skill window
     game = new Gomoku(N, currentRule);
     boardState = game.getInitialState();
     toPlay = 1;
