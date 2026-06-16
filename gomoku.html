@@ -142,9 +142,9 @@
     </header>
 
     <div class="main">
-      <!-- Left column: win-rate stacked-area chart over moves -->
+      <!-- Left column: win-rate stacked-area chart (top) + per-game stats (bottom) -->
       <aside class="winrate-col" id="winrate_col">
-        <div class="card">
+        <div class="card chart-card">
           <div class="card-body">
             <div class="seg-row vc-tabs">
               <button class="seg-btn" id="vc_tab_root" aria-pressed="true"  onclick="setValueTab('root')" data-i18n="legend_root">根</button>
@@ -156,6 +156,23 @@
               <span><span class="sw wht"></span><span data-i18n="legend_white_win">白胜</span> <b id="vc_w_white">—</b></span>
             </div>
             <canvas id="value_chart"></canvas>
+          </div>
+        </div>
+        <!-- Per-game stats, derived from the win-rate history + move clock. 形势面积
+             is framed from the human's side (play) or Black (analysis); worst-move
+             and avg-time are play-mode only. -->
+        <div class="card stats-card">
+          <div class="card-body stats-body">
+            <div class="stats-head">
+              <span data-i18n="stats_title">本局统计</span>
+              <span class="stats-persp" id="stats_persp"></span>
+            </div>
+            <div class="stats-grid">
+              <div class="stat"><span class="stat-k" data-i18n="stat_area">形势面积</span><span class="stat-v" id="gs_area">—</span></div>
+              <div class="stat"><span class="stat-k" data-i18n="stat_moves">总手数</span><span class="stat-v" id="gs_moves">0</span></div>
+              <div class="stat"><span class="stat-k" data-i18n="stat_blunder">最大失误</span><span class="stat-v" id="gs_blunder">—</span></div>
+              <div class="stat"><span class="stat-k" data-i18n="stat_avgtime">平均每手用时</span><span class="stat-v" id="gs_avgtime">—</span></div>
+            </div>
           </div>
         </div>
       </aside>
@@ -203,8 +220,9 @@
           <div class="card-body cand-body">
             <div class="card-title cand-head">
               <span data-i18n="cand_title">候选着法</span>
-              <label class="toggle cand-toggle" data-i18n-aria="aria_analyze_toggle" aria-label="切换我的回合分析">
-                <input type="checkbox" id="analyze_turn_input">
+              <label class="toggle cand-toggle" title="在棋盘上显示我方回合的分析(AI 回合始终显示)" data-i18n-title="show_on_board_aria" data-i18n-aria="show_on_board_aria" aria-label="在棋盘上显示我方回合的分析(AI 回合始终显示)">
+                <span class="cand-toggle-label" data-i18n="show_on_board">棋盘显示</span>
+                <input type="checkbox" id="show_analysis_input">
                 <span class="track"></span>
               </label>
               <span class="cand-head-right">
