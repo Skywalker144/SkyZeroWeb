@@ -173,7 +173,7 @@ function syncBoardSize() {
     const reserved = appPadY + topbarH + cardPadY + cardBorderY + editH + 12;
     const availH = window.innerHeight - reserved;
 
-    const cap = compact ? 560 : 720;
+    const cap = compact ? 560 : 900;
     const size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
     const minCell = compact ? 12 : 18;
     CELL = Math.max(minCell, Math.floor((size - 2 * MARGIN) / (N - 1)));
@@ -1999,26 +1999,32 @@ registerI18nCallback(() => {
     else if (mq.addListener) mq.addListener(place);
 })();
 
-// --- Heatmap drawer (3-state: partial (default) → full → collapsed → partial) ---
+// --- Heatmap drawer: the header toggle opens/closes the whole panel; the "more"
+//     toggle reveals the 3 extra heatmaps (the first two stay shown when open). ---
 (function initHeatDrawer() {
     const btn = document.getElementById("heat_drawer_btn");
     const body = document.getElementById("heat_drawer_body");
     const drawer = document.getElementById("heat_drawer");
-    if (!btn || !body || !drawer) return;
-    btn.addEventListener("click", () => {
-        const st = drawer.dataset.state;
-        let next;
-        if (st === "partial") next = "full";
-        else if (st === "full") next = "collapsed";
-        else next = "partial";
-        drawer.dataset.state = next;
-        btn.setAttribute("aria-expanded", next !== "collapsed" ? "true" : "false");
-        if (next !== "collapsed") {
-            for (const id of Object.keys(heatCtxs)) {
-                fitHeatCanvas(id);
-                drawHeatById(id, state ? state[HEAT_GRID_KEYS[id]] : null);
-            }
+    const moreBtn = document.getElementById("heat_more_btn");
+    if (!btn || !body || !drawer || !moreBtn) return;
+    // Newly-revealed canvases measured 0 while hidden, so fit + draw them now
+    // (synchronously, to avoid the 1-frame flash the ResizeObserver would leave).
+    const refit = () => {
+        for (const id of Object.keys(heatCtxs)) {
+            fitHeatCanvas(id);
+            drawHeatById(id, state ? state[HEAT_GRID_KEYS[id]] : null);
         }
+    };
+    btn.addEventListener("click", () => {
+        const open = body.classList.toggle("hidden") === false;
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) refit();
+    });
+    moreBtn.addEventListener("click", () => {
+        const expanded = drawer.dataset.more === "expanded";
+        drawer.dataset.more = expanded ? "collapsed" : "expanded";
+        moreBtn.setAttribute("aria-expanded", expanded ? "false" : "true");
+        if (!expanded) refit();
     });
 })();
 
