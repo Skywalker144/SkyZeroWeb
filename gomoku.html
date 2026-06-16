@@ -241,13 +241,13 @@
           </div>
         </div>
 
-        <div class="card drawer" id="heat_drawer">
-          <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="false" aria-controls="heat_drawer_body">
+        <div class="card drawer" id="heat_drawer" data-state="partial">
+          <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="true" aria-controls="heat_drawer_body">
             <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
             <span data-i18n="heat_drawer_title">NN 热力图</span>
             <span class="drawer-count">5</span>
           </button>
-          <div class="drawer-body hidden" id="heat_drawer_body">
+          <div class="drawer-body" id="heat_drawer_body">
             <div class="grids">
               <div class="card grid-card">
                 <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_policy">网络策略</span>
