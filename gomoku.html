@@ -245,18 +245,18 @@
           <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="false" aria-controls="heat_drawer_body">
             <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
             <span data-i18n="heat_drawer_title">NN 热力图</span>
-            <span class="drawer-count">6</span>
+            <span class="drawer-count">5</span>
           </button>
           <div class="drawer-body hidden" id="heat_drawer_body">
             <div class="grids">
               <div class="card grid-card">
-                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_improved_policy">改进策略</span>
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_policy">网络策略</span>
                   <span class="grid-title-actions">
-                    <button class="pin-btn" data-target="h_mcts_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                    <button class="expand-btn" data-target="h_mcts_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                    <button class="pin-btn" data-target="h_nn_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
                   </span>
                 </div>
-                <canvas class="heat" id="h_mcts_policy"></canvas>
+                <canvas class="heat" id="h_nn_policy"></canvas>
               </div>
               <div class="card grid-card">
                 <div class="grid-title"><span class="grid-title-text" data-i18n="heat_visits_dist">访问分布</span>
@@ -266,15 +266,6 @@
                   </span>
                 </div>
                 <canvas class="heat" id="h_mcts_visits"></canvas>
-              </div>
-              <div class="card grid-card">
-                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_policy">网络策略</span>
-                  <span class="grid-title-actions">
-                    <button class="pin-btn" data-target="h_nn_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                    <button class="expand-btn" data-target="h_nn_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-                  </span>
-                </div>
-                <canvas class="heat" id="h_nn_policy"></canvas>
               </div>
               <div class="card grid-card">
                 <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_opp_policy">对手策略</span>
