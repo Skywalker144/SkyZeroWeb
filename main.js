@@ -1999,15 +1999,21 @@ registerI18nCallback(() => {
     else if (mq.addListener) mq.addListener(place);
 })();
 
-// --- Heatmap drawer (collapsed by default; canvases measure 0 while hidden) ---
+// --- Heatmap drawer (3-state: partial (default) → full → collapsed → partial) ---
 (function initHeatDrawer() {
     const btn = document.getElementById("heat_drawer_btn");
     const body = document.getElementById("heat_drawer_body");
-    if (!btn || !body) return;
+    const drawer = document.getElementById("heat_drawer");
+    if (!btn || !body || !drawer) return;
     btn.addEventListener("click", () => {
-        const open = body.classList.toggle("hidden") === false;
-        btn.setAttribute("aria-expanded", open ? "true" : "false");
-        if (open) {
+        const st = drawer.dataset.state;
+        let next;
+        if (st === "partial") next = "full";
+        else if (st === "full") next = "collapsed";
+        else next = "partial";
+        drawer.dataset.state = next;
+        btn.setAttribute("aria-expanded", next !== "collapsed" ? "true" : "false");
+        if (next !== "collapsed") {
             for (const id of Object.keys(heatCtxs)) {
                 fitHeatCanvas(id);
                 drawHeatById(id, state ? state[HEAT_GRID_KEYS[id]] : null);
