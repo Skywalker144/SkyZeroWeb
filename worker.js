@@ -211,6 +211,20 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         future32 = inf.future32;
     }
 
+    // The NN-only heatmaps (network policy / opp policy / future positions) are
+    // pure root outputs — ready now, before any simulation. Push them immediately
+    // so the analysis panel fills in on the human's turn too, and survives an early
+    // abort if the player moves before this chunk finishes.
+    postMessage({
+        type: "progress",
+        progress: 0,
+        searchId: externalSearchId,
+        nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),
+        nnOppPolicy:   Array.from(oppPolicy),
+        nnFuturepos8:  Array.from(future8),
+        nnFuturepos32: Array.from(future32),
+    });
+
     let totalSims = 0;
     const searchStart = performance.now();
     let lastProgress = searchStart;
