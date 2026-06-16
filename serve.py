@@ -16,6 +16,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return local
 
 
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
+class ReuseTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+
+with ReuseTCPServer(("", PORT), Handler) as httpd:
     print(f"Serving http://localhost:{PORT}  ->  /gomoku  /2048  /channel-dodge")
     httpd.serve_forever()
