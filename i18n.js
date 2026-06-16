@@ -61,7 +61,7 @@ const I18N_STRINGS = {
         wdl_dash: "—",
         btn_new_game: "New game",
         btn_undo: "Undo",
-        heat_improved_policy: "Improved Policy",
+
         heat_visits_dist: "Visits Dist",
         heat_nn_policy: "NN Policy",
         heat_nn_opp_policy: "NN Opp Policy",
@@ -165,7 +165,7 @@ const I18N_STRINGS = {
         wdl_dash: "—",
         btn_new_game: "新对局",
         btn_undo: "悔棋",
-        heat_improved_policy: "改进策略",
+
         heat_visits_dist: "访问分布",
         heat_nn_policy: "网络策略",
         heat_nn_opp_policy: "对手策略",

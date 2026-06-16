@@ -438,19 +438,17 @@ function drawBoardHeatOverlay(canvasId) {
     ctx.restore();
 }
 
-// --- Six heatmap canvases ---
+// --- Five heatmap canvases ---
 const heatCtxs = {
-    h_mcts_policy:    setupCanvas(document.getElementById("h_mcts_policy"),    HEAT_LOGICAL, HEAT_LOGICAL, false),
-    h_mcts_visits:    setupCanvas(document.getElementById("h_mcts_visits"),    HEAT_LOGICAL, HEAT_LOGICAL, false),
     h_nn_policy:      setupCanvas(document.getElementById("h_nn_policy"),      HEAT_LOGICAL, HEAT_LOGICAL, false),
+    h_mcts_visits:    setupCanvas(document.getElementById("h_mcts_visits"),    HEAT_LOGICAL, HEAT_LOGICAL, false),
     h_nn_opp_policy:  setupCanvas(document.getElementById("h_nn_opp_policy"),  HEAT_LOGICAL, HEAT_LOGICAL, false),
     h_nn_futurepos_8: setupCanvas(document.getElementById("h_nn_futurepos_8"), HEAT_LOGICAL, HEAT_LOGICAL, false),
     h_nn_futurepos_32:setupCanvas(document.getElementById("h_nn_futurepos_32"),HEAT_LOGICAL, HEAT_LOGICAL, false),
 };
 const HEAT_GRID_KEYS = {
-    h_mcts_policy:    "mcts_policy",
-    h_mcts_visits:    "mcts_visits",
     h_nn_policy:      "nn_policy",
+    h_mcts_visits:    "mcts_visits",
     h_nn_opp_policy:  "nn_opp_policy",
     h_nn_futurepos_8: "nn_futurepos_8",
     h_nn_futurepos_32:"nn_futurepos_32",
@@ -1212,7 +1210,6 @@ function publishStateForDrawing(extras = {}) {
         last_move: lastMove ? [lastMove.r, lastMove.c] : null,
         board_size: N,
         // Heat data (set by handleResult; null otherwise — drawHeat handles nulls).
-        mcts_policy:    extras.mcts_policy    || null,
         mcts_visits:    extras.mcts_visits    || null,
         mcts_winrate:   extras.mcts_winrate   || null,
         nn_policy:      extras.nn_policy      || null,
@@ -1223,7 +1220,6 @@ function publishStateForDrawing(extras = {}) {
 }
 
 function repaintAllHeatmaps() {
-    drawHeat("h_mcts_policy",    state ? state.mcts_policy    : null);
     drawHeat("h_mcts_visits",    state ? state.mcts_visits    : null);
     drawHeat("h_nn_policy",      state ? state.nn_policy      : null);
     drawHeat("h_nn_opp_policy",  state ? state.nn_opp_policy  : null);
@@ -1497,7 +1493,6 @@ worker.onmessage = (e) => {
         // Update gumbel overlay + heatmaps + candidate data.
         gumbelPhases = data.gumbelPhases;
         publishStateForDrawing({
-            mcts_policy:    flatToGrid(data.mctsPolicy),
             mcts_visits:    flatToGrid(data.mctsVisits),
             mcts_winrate:   flatToGrid(data.mctsWinrate),
             nn_policy:      flatToGrid(data.nnPolicy),
