@@ -244,8 +244,8 @@ function draw() {
         ctx.font = `11px ${MONO_FONT}`;
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         for (let i = 0; i < N; i++) {
-            ctx.fillText(i, MARGIN + i * CELL, 12);
-            ctx.fillText(i, 10, MARGIN + i * CELL);
+            ctx.fillText(colLetter(i), MARGIN + i * CELL, 12);   // top axis: columns A,B,C…
+            ctx.fillText(N - i, 10, MARGIN + i * CELL);          // left axis: rows N…1
         }
     }
     if (!state) return;
@@ -479,16 +479,9 @@ function fitHeatCanvas(canvasId) {
     const card = c.parentElement;
     const cardCS = getComputedStyle(card);
     const padX = parseFloat(cardCS.paddingLeft) + parseFloat(cardCS.paddingRight);
-    const padY = parseFloat(cardCS.paddingTop)  + parseFloat(cardCS.paddingBottom);
-    const title = card.querySelector(".grid-title");
-    let titleH = 0;
-    if (title) {
-        const tCS = getComputedStyle(title);
-        titleH = title.offsetHeight + parseFloat(tCS.marginTop || 0) + parseFloat(tCS.marginBottom || 0);
-    }
-    const availW = card.clientWidth - padX;
-    const availH = card.clientHeight - padY - titleH;
-    const size = Math.max(60, Math.floor(Math.min(availW, availH > 0 ? availH : availW)));
+    // The heatmap fills the card's content width as a square; the card height grows
+    // to fit it (no fixed card height), so there's no leftover gap around the image.
+    const size = Math.max(60, Math.floor(card.clientWidth - padX));
     c.style.width = size + "px";
     c.style.height = size + "px";
     if (heatCtxs[canvasId]._logicalW === size) return false;
@@ -920,15 +913,6 @@ function renderValuePanel() {
     renderWinLegend(valueTab === "root" ? lastRootWDL : lastNNWDL);
     drawValueChart();
 }
-function setValueTab(tab) {
-    if (tab !== "root" && tab !== "nn") return;
-    valueTab = tab;
-    const r = document.getElementById("vc_tab_root");
-    const nEl = document.getElementById("vc_tab_nn");
-    if (r) r.setAttribute("aria-pressed", tab === "root" ? "true" : "false");
-    if (nEl) nEl.setAttribute("aria-pressed", tab === "nn" ? "true" : "false");
-    renderValuePanel();
-}
 // Set the current ply's root/nn values (already in Black's frame) + repaint.
 function setCurrentValues(rootBlack, nnBlack) {
     lastRootWDL = rootBlack || null;
@@ -1053,8 +1037,10 @@ candListEl.addEventListener("mouseover", (ev) => {
     hoverCand = { r: +row.dataset.r, c: +row.dataset.c };
     draw();
 });
-candListEl.addEventListener("mouseout", (ev) => {
-    if (!ev.target.closest(".cand-row")) return;
+candListEl.addEventListener("mouseleave", () => {
+    // mouseleave (not mouseout) fires once when the pointer truly exits the list —
+    // robust to the row DOM being rebuilt mid-hover by renderCandidates(), which
+    // would otherwise strand the board ring after the pointer left.
     if (hoverCand) { hoverCand = null; draw(); }
 });
 candListEl.addEventListener("click", (ev) => {
@@ -1255,8 +1241,27 @@ function applyLiveCandidates(visitsFlat, winrateFlat, rootVisits) {
     state.mcts_visits  = flatToGrid(visitsFlat);
     state.mcts_winrate = winrateFlat ? flatToGrid(winrateFlat) : state.mcts_winrate;
     if (rootVisits > 0) searchSimsTotal = rootVisits;
+    drawHeatById("h_mcts_visits", state.mcts_visits);   // live-update the visit-distribution heatmap
+    paintHeatModal();
     renderCandidates();
     draw();
+}
+
+// NN-only heatmaps (network/opp policy, future positions) stream in the instant
+// the worker (re)expands the root — before the search runs. Patch them into
+// `state` and repaint just those canvases so the panel populates on your turn too,
+// not only on a move's final `result`.
+function applyLiveNNHeatmaps(data) {
+    if (!state) return;
+    state.nn_policy       = flatToGrid(data.nnPolicy);
+    state.nn_opp_policy   = flatToGrid(data.nnOppPolicy);
+    state.nn_futurepos_8  = flatToGrid(data.nnFuturepos8);
+    state.nn_futurepos_32 = flatToGrid(data.nnFuturepos32);
+    drawHeatById("h_nn_policy",       state.nn_policy);
+    drawHeatById("h_nn_opp_policy",   state.nn_opp_policy);
+    drawHeatById("h_nn_futurepos_8",  state.nn_futurepos_8);
+    drawHeatById("h_nn_futurepos_32", state.nn_futurepos_32);
+    paintHeatModal();
 }
 
 function newGame() {
@@ -1480,9 +1485,10 @@ worker.onmessage = (e) => {
     }
     if (data.type === "progress") {
         if (data.searchId !== searchId) return;
-        // Mid-search snapshot: refresh the candidate list / board overlay live as
-        // the search deepens — including the AI's move-search in play mode, so you
-        // see per-point win% / visits as it thinks.
+        // Mid-search snapshot: refresh the candidate list / board overlay / heatmaps
+        // live as the search deepens — including the human's-turn ponder, so the
+        // analysis fills in on your turn too, not only after a move's final result.
+        if (data.nnPolicy) applyLiveNNHeatmaps(data);
         if (data.mctsVisits) applyLiveCandidates(data.mctsVisits, data.mctsWinrate, data.searchSims);
         return;
     }
