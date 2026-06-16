@@ -623,7 +623,6 @@
   }
 
   /* ---------- Win-rate stacked-area chart (left column) ---------- */
-  .vc-tabs .seg-btn { height: 30px; font-size: 12.5px; }
   .vc-legend {
     display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
     font-size: 11px; color: var(--fg-muted);
@@ -676,7 +675,7 @@
   }
   /* ---------- Board ---------- */
   .board-card {
-    padding: 16px;
+    padding: 10px;
     display: inline-flex; flex-direction: column; align-items: flex-start;
     position: relative; /* anchor the loading overlay over the board */
   }
@@ -686,7 +685,7 @@
   }
   /* ---------- Candidate move list (right column) ---------- */
   #right_col { min-width: 0; }
-  .cand-card { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+  .cand-card { display: flex; flex-direction: column; min-height: 160px; flex: 1 1 auto; }
   .cand-body { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; padding: 12px 14px; }
   .cand-head {
     display: flex; align-items: baseline; justify-content: space-between;
@@ -745,10 +744,11 @@
   /* Collapsed "more": hide the 3rd heatmap onward, leaving the first two. */
   .drawer[data-more="collapsed"] .grid-card:nth-child(n+3) { display: none; }
   .heat-more-toggle {
-    width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
-    margin-top: 10px; padding: 8px; background: transparent; border: none; cursor: pointer;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--fg-subtle); font-family: var(--font-sans); border-radius: var(--radius-sm);
+    display: flex; width: fit-content; margin: 4px auto 0;
+    align-items: center; justify-content: center; gap: 4px;
+    padding: 3px 10px; background: transparent; border: none; cursor: pointer;
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--fg-subtle); font-family: var(--font-sans); border-radius: 999px;
   }
   .heat-more-toggle:hover { color: var(--fg); background: var(--surface-2); }
   .heat-more-toggle .chev { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; transform: rotate(90deg); }
@@ -764,19 +764,18 @@
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
-  .drawer .grid-card { height: 168px; }
   @media (max-width: 520px) {
     .grids { grid-template-columns: 1fr; }
   }
   .grid-card {
-    padding: 12px; text-align: center;
+    padding: 10px; text-align: center;
     display: flex; flex-direction: column;
     min-height: 0;
   }
   .grid-card .grid-title {
     font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
     color: var(--fg-subtle);
-    margin-bottom: 12px; text-align: left;
+    margin-bottom: 8px; text-align: left;
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
   }
@@ -884,22 +883,21 @@
   .hidden { display: none !important; }
 
 /* Loading overlay (Task 23 — not in V5 since the C++ engine is local).
-   Floats over the board card with a masked, slightly-blurred backdrop while
-   the first ONNX model downloads; the rest of the UI stays visible behind it. */
+   No backdrop — just a centered card while the first ONNX model downloads; the
+   board stays fully visible, the transparent layer only blocks clicks meanwhile. */
 #loading_overlay {
     position: absolute; inset: 0; z-index: 30;
-    background: rgba(0, 0, 0, 0.55);
-    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    background: transparent;
     border-radius: var(--radius-lg);
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-sans);
 }
 .loader-card {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); padding: 24px 28px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    border-radius: var(--radius-lg); padding: 22px 26px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
     display: flex; flex-direction: column; align-items: center; gap: 12px;
-    width: min(260px, calc(100% - 24px));
+    width: min(248px, calc(100% - 24px));
 }
 .loader-spin {
     width: 28px; height: 28px;
