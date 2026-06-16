@@ -729,7 +729,7 @@
   .cand-row.best .cand-track > span { background: var(--accent); }
   .cand-visits { color: var(--fg-subtle); text-align: right; font-size: 11.5px; }
 
-  /* ---------- Heatmap drawer (collapsed by default) ---------- */
+  /* ---------- Heatmap drawer (first two shown; "more" reveals the rest) ---------- */
   .drawer { overflow: hidden; flex: 0 0 auto; }
   .drawer-toggle {
     width: 100%; display: flex; align-items: center; gap: 8px;
@@ -740,14 +740,24 @@
   .drawer-toggle:hover { color: var(--fg); }
   .drawer-toggle .chev { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; }
   .drawer-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
-  .drawer[data-state="collapsed"] .drawer-body { display: none; }
-  .drawer[data-state="collapsed"] .drawer-toggle .chev { transform: rotate(0deg); }
-  .drawer[data-state="partial"] .grid-card:nth-child(n+3) { display: none; }
-  .drawer[data-state="partial"] .drawer-toggle .chev,
-  .drawer[data-state="full"] .drawer-toggle .chev { transform: rotate(90deg); }
   .drawer-count { margin-left: auto; color: var(--fg-subtle); font-weight: 500; }
   .drawer-body { padding: 0 12px 12px; }
-  @media (prefers-reduced-motion: reduce) { .drawer-toggle .chev { transition: none; } }
+  /* Collapsed "more": hide the 3rd heatmap onward, leaving the first two. */
+  .drawer[data-more="collapsed"] .grid-card:nth-child(n+3) { display: none; }
+  .heat-more-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 10px; padding: 8px; background: transparent; border: none; cursor: pointer;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--fg-subtle); font-family: var(--font-sans); border-radius: var(--radius-sm);
+  }
+  .heat-more-toggle:hover { color: var(--fg); background: var(--surface-2); }
+  .heat-more-toggle .chev { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; transform: rotate(90deg); }
+  .heat-more-toggle[aria-expanded="true"] .chev { transform: rotate(-90deg); }
+  .heat-more-count { color: var(--fg-subtle); font-weight: 500; }
+  .drawer[data-more="collapsed"] .more-hide { display: none; }
+  .drawer[data-more="expanded"] .more-show,
+  .drawer[data-more="expanded"] .heat-more-count { display: none; }
+  @media (prefers-reduced-motion: reduce) { .drawer-toggle .chev, .heat-more-toggle .chev { transition: none; } }
 
   /* ---------- Heat grid (inside drawer) ---------- */
   .grids {
