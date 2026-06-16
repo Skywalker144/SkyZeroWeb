@@ -158,9 +158,10 @@
             <canvas id="value_chart"></canvas>
           </div>
         </div>
-        <!-- Per-game stats, derived from the win-rate history + move clock. 形势面积
-             is framed from the human's side (play) or Black (analysis); worst-move
-             and avg-time are play-mode only. -->
+        <!-- Per-game stats, derived from the win-rate history + move clock.
+             每手失分 (skill) is a rolling cross-game mean of per-move win% loss
+             kept in localStorage; worst-move and avg-time are this game, play
+             mode only. -->
         <div class="card stats-card">
           <div class="card-body stats-body">
             <div class="stats-head">
@@ -168,7 +169,7 @@
               <span class="stats-persp" id="stats_persp"></span>
             </div>
             <div class="stats-grid">
-              <div class="stat"><span class="stat-k" data-i18n="stat_area">形势面积</span><span class="stat-v" id="gs_area">—</span></div>
+              <div class="stat"><span class="stat-k" data-i18n="stat_skill">每手失分</span><span class="stat-v" id="gs_skill">—</span></div>
               <div class="stat"><span class="stat-k" data-i18n="stat_moves">总手数</span><span class="stat-v" id="gs_moves">0</span></div>
               <div class="stat"><span class="stat-k" data-i18n="stat_blunder">最大失误</span><span class="stat-v" id="gs_blunder">—</span></div>
               <div class="stat"><span class="stat-k" data-i18n="stat_avgtime">平均每手用时</span><span class="stat-v" id="gs_avgtime">—</span></div>
