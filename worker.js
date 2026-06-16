@@ -253,7 +253,7 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         }
     };
 
-    let improvedPolicy, gumbelAction, vMix, phases;
+    let gumbelAction, vMix, phases;
     // One plain-PUCT simulation from the root (no Gumbel / no Dirichlet noise).
     // Returns false if the search was superseded mid-inference (caller bails).
     const puctStep = async () => {
@@ -295,10 +295,9 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
             nps:         npsNow(now),
         });
     };
-    // Shared root readout for both PUCT paths: improved policy = visit distribution,
-    // value = mean WDL (root.toPlay's frame), action = most-visited child.
+    // Shared root readout for both PUCT paths: value = mean WDL
+    // (root.toPlay's frame), action = most-visited child.
     const finishPuct = () => {
-        improvedPolicy = mcts.getMCTSPolicy(root);
         vMix = root.n > 0
             ? new Float64Array([root.v[0] / root.n, root.v[1] / root.n, root.v[2] / root.n])
             : new Float64Array(nnValueWDL);
@@ -345,7 +344,6 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         // instant intuition move with no tree search.
         const res = await mcts.gumbelSequentialHalving(root, sims, simulateOne);
         if (latestSearchId !== gen) return;
-        improvedPolicy = res.improvedPolicy;
         gumbelAction = res.gumbelAction;
         vMix = res.vMix;
         phases = root._gumbelPhases || [];
@@ -369,7 +367,6 @@ async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchI
         gumbelAction,
         rootValueWDL: vMix,                   // [W, D, L] from vMix
         nnValueWDL,                           // [W, D, L] root NN
-        mctsPolicy:    Array.from(improvedPolicy),  // V5 "MCTS Strategy (improved policy)"
         mctsVisits:    Array.from(visitDist),       // V5 "MCTS Visits (N(s,a)/sum)"
         mctsWinrate:   Array.from(winrateDist),     // per-move win rate for the candidate list
         nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),  // V5 "NN Strategy"
