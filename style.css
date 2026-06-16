@@ -708,6 +708,7 @@
   .cand-list {
     display: flex; flex-direction: column; gap: 2px;
     overflow-y: auto; min-height: 0; flex: 1 1 auto;
+    scrollbar-gutter: stable;
   }
   .cand-empty { color: var(--fg-subtle); font-size: 12px; text-align: center; padding: 18px 0; }
   .cand-row {
@@ -739,6 +740,11 @@
   .drawer-toggle:hover { color: var(--fg); }
   .drawer-toggle .chev { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; }
   .drawer-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+  .drawer[data-state="collapsed"] .drawer-body { display: none; }
+  .drawer[data-state="collapsed"] .drawer-toggle .chev { transform: rotate(0deg); }
+  .drawer[data-state="partial"] .grid-card:nth-child(n+3) { display: none; }
+  .drawer[data-state="partial"] .drawer-toggle .chev,
+  .drawer[data-state="full"] .drawer-toggle .chev { transform: rotate(90deg); }
   .drawer-count { margin-left: auto; color: var(--fg-subtle); font-weight: 500; }
   .drawer-body { padding: 0 12px 12px; }
   @media (prefers-reduced-motion: reduce) { .drawer-toggle .chev { transition: none; } }
