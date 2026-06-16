@@ -107,44 +107,28 @@ function setMode(m) {
     aiThinking = false;
     if (typeof syncBoardSize === "function") syncBoardSize();
     if (!boardState) return;   // pre-bootstrap; newGame() will settle it
-    candSig = "";              // mode change flips the candidate list ↔ analyze button
+    candSig = "";              // force the candidate list to rebuild for the new mode
     if (!gameOver) triggerAISearch();   // ponder / play for the new mode
-    renderCandidates();        // settle the list/button for the new mode
+    renderCandidates();        // settle the list for the new mode
 }
 
-// "Analyze my turn" (play mode only): whether the engine ponders the human's own
-// turn — filling the candidate list with live win% / visits — or sits idle until
-// the human plays. Off by default for a distraction-free game; the header toggle
-// or the centered "开启我的回合分析" button flips it on. Analysis mode ignores it (it
-// always analyzes). Persisted in localStorage("skz_analyze_my_turn").
-let analyzeMyTurn = (function () {
-    try { return localStorage.getItem("skz_analyze_my_turn") === "1"; }
+// "Show analysis on board" (play mode, YOUR turn): whether the engine's candidate
+// discs are drawn over the board while it ponders your turn. The AI's own turn
+// always shows its move-search discs; your turn defaults to hidden so the board
+// stays clean while you think — the ponder still runs continuously (until you
+// move), so the left-column stats and the right-column list are always live.
+// Analysis mode always shows the overlay. Persisted in
+// localStorage("skz_show_analysis_board").
+let showAnalysisOnBoard = (function () {
+    try { return localStorage.getItem("skz_show_analysis_board") === "1"; }
     catch (_) { return false; }
 })();
-function setAnalyzeMyTurn(on) {
-    analyzeMyTurn = !!on;
-    const cb = document.getElementById("analyze_turn_input");
-    if (cb) cb.checked = analyzeMyTurn;
-    try { localStorage.setItem("skz_analyze_my_turn", analyzeMyTurn ? "1" : "0"); } catch (_) {}
-    candSig = "";   // flip the list ↔ analyze button
-    if (analyzeMyTurn) {
-        // Turned on: analyze the current position now if it's your turn,
-        // otherwise the setting just takes effect on your next turn.
-        if (!editMode && !aiThinking && !gameOver && isPonderTurn()) triggerAISearch();
-        else renderCandidates();
-    } else if (currentMode !== "analysis" && toPlay === humanSide) {
-        // Turned off on your turn: abort the in-flight ponder and clear the
-        // analysis back to the "开启我的回合分析" button.
-        searchId++;
-        aiThinking = false;
-        searchSimsTotal = 0;
-        if (state) { state.mcts_visits = null; state.mcts_winrate = null; }
-        if (!gameOver) setStatus("status_your_turn", "active");
-        renderCandidates();
-        draw();
-    } else {
-        renderCandidates();   // off during the AI's turn: just refresh the toggle
-    }
+function setShowAnalysisOnBoard(on) {
+    showAnalysisOnBoard = !!on;
+    const cb = document.getElementById("show_analysis_input");
+    if (cb) cb.checked = showAnalysisOnBoard;
+    try { localStorage.setItem("skz_show_analysis_board", showAnalysisOnBoard ? "1" : "0"); } catch (_) {}
+    draw();   // purely a display change: repaint the board with/without the overlay
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -328,8 +312,17 @@ function draw() {
         }
     }
 
+    // Candidate-disc overlay rules. A pinned heatmap is an explicit opt-in and
+    // overrides everything. Otherwise: the analysis board always shows discs; in
+    // play mode the AI's own turn always shows its move-search ("watch it think"),
+    // while your turn shows them only when "show on board" is on — the ponder
+    // still runs silently for the left-column stats either way.
+    const showOverlay = currentMode === "analysis"
+        || toPlay !== humanSide        // play mode, the AI's turn
+        || showAnalysisOnBoard;        // play mode, your turn, opted in
     if (boardOverlayHeatId) drawBoardHeatOverlay(boardOverlayHeatId);
-    else drawCandidateOverlay();
+    else if (showOverlay) drawCandidateOverlay();
+    else if (state) drawCandidateHover(computeCandidates());   // your turn, overlay off: keep the list's hover-peek
 }
 
 // Lizzie-style candidate discs on the board (shown when no heatmap is pinned):
@@ -369,13 +362,19 @@ function drawCandidateOverlay() {
             ctx.fillText(hasWr ? Math.round(o.wr * 100) : fmtVisits(o.vf), x, y);
         }
     }
-    // Hover highlight driven by the candidate list on the right.
-    if (hoverCand && cands.some(o => o.r === hoverCand.r && o.c === hoverCand.c)) {
-        const x = MARGIN + hoverCand.c * CELL, y = MARGIN + hoverCand.r * CELL;
-        ctx.beginPath(); ctx.arc(x, y, candR + 2, 0, Math.PI * 2);
-        ctx.lineWidth = 2.5; ctx.strokeStyle = cssVar("--accent") || "#0969da";
-        ctx.stroke(); ctx.lineWidth = 1;
-    }
+    drawCandidateHover(cands);
+}
+
+// The accent ring previewing the candidate row hovered in the right-hand list.
+// Split out of the overlay so it still works when the disc overlay is hidden —
+// the list stays linked to the board even with "show on board" off.
+function drawCandidateHover(cands) {
+    if (!hoverCand || !cands.some(o => o.r === hoverCand.r && o.c === hoverCand.c)) return;
+    const candR = Math.max(7, Math.round(CELL * 0.40));
+    const x = MARGIN + hoverCand.c * CELL, y = MARGIN + hoverCand.r * CELL;
+    ctx.beginPath(); ctx.arc(x, y, candR + 2, 0, Math.PI * 2);
+    ctx.lineWidth = 2.5; ctx.strokeStyle = cssVar("--accent") || "#0969da";
+    ctx.stroke(); ctx.lineWidth = 1;
 }
 
 // Tint cells centered on intersections; skip labels on occupied cells so
@@ -687,6 +686,13 @@ let valueTab = "root";    // which evaluation the chart shows: "root" | "nn"
 let lastRootWDL = null;   // current ply's root/nn value, already in Black's frame
 let lastNNWDL = null;
 
+// Per-move wall-clock for the "avg time / move" stat. moveTimes mirrors the ply
+// timeline ([{step, ms, movedBy}]); applyMoveLocal appends and undo trims it,
+// just like valueHistory. lastMoveAt is the timestamp the previous ply landed,
+// i.e. the moment the side-to-move's clock started.
+let moveTimes = [];
+let lastMoveAt = 0;
+
 function stoneCount(board2d) {
     let n = 0;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (board2d[r][c]) n++;
@@ -725,6 +731,7 @@ function recordValues(rootBlack, nnBlack, board2d) {
 
 // Stacked area over moves for the active tab: white (bottom) / draw / black (top).
 function drawValueChart() {
+    renderGameStats();   // keep the stats panel in lock-step (runs even on no-data)
     clearLogical(vctx);
     const W = vctx._logicalW, H = vctx._logicalH;
     const padL = 26, padR = 6, padT = 6, padB = 14;
@@ -761,12 +768,18 @@ function drawValueChart() {
     vctx.fillText(String(pts[0].step), xAt(0), H - padB + 2);
     if (n > 1) vctx.fillText(String(pts[n - 1].step), xAt(n - 1), H - padB + 2);
 
+    // With a single eval there's no curve yet — render it as a flat full-width
+    // band (the point duplicated at both edges) so the chart appears on the very
+    // first point (the opening eval, or at the latest the user's first move)
+    // instead of staying blank until a second one lands.
+    const rpts = n === 1 ? [pts[0], pts[0]] : pts;
+    const rx   = n === 1 ? [padL, W - padR] : pts.map((_, i) => xAt(i));
     // Fill one stacked band between two cumulative-fraction accessors.
     function band(lowerFn, upperFn, color) {
         vctx.fillStyle = color;
         vctx.beginPath();
-        pts.forEach((p, i) => { const x = xAt(i), y = yOf(upperFn(p)); i === 0 ? vctx.moveTo(x, y) : vctx.lineTo(x, y); });
-        for (let i = n - 1; i >= 0; i--) vctx.lineTo(xAt(i), yOf(lowerFn(pts[i])));
+        rpts.forEach((p, i) => { const x = rx[i], y = yOf(upperFn(p)); i === 0 ? vctx.moveTo(x, y) : vctx.lineTo(x, y); });
+        for (let i = rpts.length - 1; i >= 0; i--) vctx.lineTo(rx[i], yOf(lowerFn(rpts[i])));
         vctx.closePath(); vctx.fill();
     }
     const colBlk = cssVar("--stone-black-1") || "#000";
@@ -780,12 +793,88 @@ function drawValueChart() {
     // The two band boundaries (white/draw and draw/black).
     function line(fn) {
         vctx.beginPath();
-        pts.forEach((p, i) => { const x = xAt(i), y = yOf(fn(p)); i === 0 ? vctx.moveTo(x, y) : vctx.lineTo(x, y); });
+        rpts.forEach((p, i) => { const x = rx[i], y = yOf(fn(p)); i === 0 ? vctx.moveTo(x, y) : vctx.lineTo(x, y); });
         vctx.stroke();
     }
     vctx.strokeStyle = muted; vctx.lineWidth = 1.5;
     line(p => p.l);
     line(p => p.l + p.d);
+}
+
+// --- Per-game stats panel (left column, below the chart) -----------------
+// All numbers derive from valueHistory (active tab, Black's frame), the live
+// board, and moveTimes. Win-rate stats are framed from the human's side in
+// play mode, or Black in analysis; accuracy / worst-move / avg-time need a
+// defined human, so they read "—" on the analysis board.
+function fmtPct(x) { return x == null ? t("wdl_dash") : x.toFixed(1) + "%"; }
+function fmtDuration(ms) {
+    if (ms == null) return t("wdl_dash");
+    if (ms < 60000) return (ms / 1000).toFixed(1) + "s";
+    return Math.floor(ms / 60000) + "m" + Math.round((ms % 60000) / 1000) + "s";
+}
+function renderGameStats() {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    const isAnalysis = currentMode === "analysis";
+    // Whose win% the chart-derived stats describe: the human in play, else Black.
+    const side = isAnalysis ? 1 : humanSide;
+
+    // Move count tracks the live board so it ticks up the instant a stone lands,
+    // before that ply's eval arrives.
+    let moves = 0;
+    if (state && state.board) for (const row of state.board) for (const v of row) if (v) moves++;
+    set("gs_moves", String(moves));
+
+    // Perspective tag: a stone dot + "我方" (play) / "黑方" (analysis).
+    const persp = document.getElementById("stats_persp");
+    if (persp) {
+        const cls = side === 1 ? "blk" : "wht";
+        const label = isAnalysis ? t("stats_persp_black") : t("stats_persp_me");
+        persp.innerHTML = `<span class="sw ${cls}"></span>${label}`;
+    }
+
+    // Win% per recorded ply, in the chosen side's frame (draws are negligible
+    // at this strength, so we read the side's win component directly).
+    const pts = valueHistory.filter(p => p[valueTab]).map(p => ({ step: p.step, ...p[valueTab] }));
+    const winOf = (p) => (side === 1 ? p.w : p.l) * 100;
+    // 形势面积: the win% curve's average height, recentered so the opening reads
+    // 50% — ws[0] (the start eval) carries the first-move/side advantage, so we
+    // subtract it. Measures how you fared vs your own starting point, comparable
+    // across Black/White. Per-point clamp keeps it in [0,100].
+    if (pts.length) {
+        const ws = pts.map(winOf);
+        const base = ws[0];
+        const areaN = ws.reduce((a, w) => a + Math.max(0, Math.min(100, w - base + 50)), 0) / ws.length;
+        set("gs_area", fmtPct(areaN));
+    } else {
+        set("gs_area", t("wdl_dash"));
+    }
+
+    // Avg thinking time over the human's own moves (play mode only).
+    let tSum = 0, tN = 0;
+    if (!isAnalysis) for (const m of moveTimes) if (m.movedBy === humanSide) { tSum += m.ms; tN++; }
+    set("gs_avgtime", tN ? fmtDuration(tSum / tN) : t("wdl_dash"));
+
+    // 最大失误: the human move after which their win% fell the most — measured on
+    // the chart from their turn before the move (k-1) to their next turn (k+1), so
+    // it captures the move AND the opponent's punishing reply, both same-depth
+    // ponder evals (a blunder whose damage only shows once the AI responds is still
+    // caught). Falls back to the post-move eval (k) if the game ended. Attributed
+    // to the move at step k that caused the fall.
+    let worstDrop = 0, worstStep = 0;
+    if (!isAnalysis && pts.length) {
+        const winAt = new Map(pts.map(p => [p.step, winOf(p)]));
+        for (const p of pts) {
+            const k = p.step;
+            if ((k % 2 === 1) !== (humanSide === 1)) continue;   // not the human's move
+            if (!winAt.has(k - 1)) continue;                     // no pre-move eval to compare
+            const post = winAt.has(k + 1) ? winAt.get(k + 1) : winAt.get(k);
+            const drop = winAt.get(k - 1) - post;
+            if (drop > worstDrop) { worstDrop = drop; worstStep = k; }
+        }
+    }
+    set("gs_blunder", worstDrop > 0.5
+        ? t("stat_blunder_val", worstStep, "−" + Math.round(worstDrop))
+        : t("wdl_dash"));
 }
 
 // --- Win-rate legend + tabs (active tab, current ply, Black's frame) ---
@@ -913,26 +1002,15 @@ function candColor(frac, best) {
     const c = pal.lo.map((a, i) => Math.round(a + (pal.hi[i] - a) * tt));
     return { fill: `rgb(${c[0]},${c[1]},${c[2]})`, text: candTextOn(c) };
 }
-// The centered "开启我的回合分析" button replaces the empty list exactly when the
-// engine is idling on your move because per-move analysis is switched off.
-function shouldShowAnalyzeButton() {
-    return currentMode === "play" && !editMode && !gameOver && !!boardState
-        && toPlay === humanSide && !analyzeMyTurn;
-}
 function renderCandidates() {
     const cands = state ? computeCandidates() : [];
-    const showBtn = cands.length === 0 && shouldShowAnalyzeButton();
     // Only rebuild when the data changed, so a row's :hover stays put.
-    const sig = (showBtn ? "BTN|" : "") + cands.map(o =>
+    const sig = cands.map(o =>
         o.r + "," + o.c + ":" + Math.round((o.wr ?? -1) * 1000) + ":" + Math.round(o.vf * 1000)).join("|");
     if (sig === candSig) return;
     candSig = sig;
     if (cands.length === 0) {
-        candListEl.innerHTML = showBtn
-            ? '<button type="button" class="cand-analyze-btn" id="cand_analyze_btn">' +
-              '<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M4.5 3l8 5-8 5z"/></svg>' +
-              t("cand_analyze_on") + "</button>"
-            : '<div class="cand-empty">' + t("cand_empty") + "</div>";
+        candListEl.innerHTML = '<div class="cand-empty">' + t("cand_empty") + "</div>";
         return;
     }
     candListEl.innerHTML = cands.map((o, i) => {
@@ -959,7 +1037,6 @@ candListEl.addEventListener("mouseout", (ev) => {
     if (hoverCand) { hoverCand = null; draw(); }
 });
 candListEl.addEventListener("click", (ev) => {
-    if (ev.target.closest("#cand_analyze_btn")) { setAnalyzeMyTurn(true); return; }
     const row = ev.target.closest(".cand-row"); if (!row) return;
     playCandidate(+row.dataset.r, +row.dataset.c);
 });
@@ -1172,6 +1249,8 @@ function newGame() {
     gameOver = false;
     history = [];
     valueHistory = [];
+    moveTimes = [];
+    lastMoveAt = Date.now();
     gumbelPhases = null;
     setCurrentValues(null, null);
     candSig = "";
@@ -1185,25 +1264,18 @@ function newGame() {
 }
 
 // True when the engine should *analyze* (ponder) the side-to-move rather than
-// pick a move for it: always on the analysis board, and on the human's turn in
-// play mode *when "analyze my move" is on* — so the player sees live analysis of
-// their own position. Only the AI's turn in play mode is a move-search.
+// pick a move for it: always on the analysis board, and always on the human's
+// turn in play mode — so the left-column stats are always live and the human can
+// optionally see the analysis. Only the AI's own turn in play mode is a
+// move-search.
 function isPonderTurn() {
     if (gameOver || !boardState) return false;
     if (currentMode === "analysis") return true;
-    return toPlay === humanSide && analyzeMyTurn;
+    return toPlay === humanSide;
 }
 
 function triggerAISearch() {
     if (gameOver) return;
-    // Play mode, your turn, per-move analysis off: don't ponder and don't move
-    // for you — just wait. The candidate area shows the "开启我的回合分析" button.
-    if (currentMode !== "analysis" && toPlay === humanSide && !analyzeMyTurn) {
-        aiThinking = false;
-        setStatus("status_your_turn", "active");
-        renderCandidates();
-        return;
-    }
     aiThinking = true;
     searchId++;
     const ponder = isPonderTurn();
@@ -1211,11 +1283,14 @@ function triggerAISearch() {
     else if (ponder) setStatus("status_your_turn", "active");   // play mode: human's turn, analysis runs quietly
     else setStatus("status_ai_thinking", "thinking");
     let sims = 0, timeMs = 0;
-    if (currentMode === "analysis") {
-        sims = ANALYSIS_CHUNK;   // analysis board deepens in fixed-size PUCT chunks
+    if (ponder) {
+        // A ponder (analysis board, or the human's turn in play mode) deepens in
+        // fixed-size PUCT chunks, re-triggered after each result until the player
+        // moves or the depth cap is hit (see the result handler).
+        sims = ANALYSIS_CHUNK;
     } else {
-        // Play mode: the AI's move-search AND the "my-turn" analysis both run
-        // anytime PUCT for the configured thinking time.
+        // Play mode, the AI's own turn: a single anytime-PUCT move-search for the
+        // configured thinking time, then it plays.
         timeMs = thinkMs;
     }
     worker.postMessage({
@@ -1227,7 +1302,7 @@ function triggerAISearch() {
         timeMs: timeMs,
         gumbel_m: 16,
         searchId: searchId,
-        // timeMs > 0 → anytime PUCT (play mode); else fixed-sims PUCT (analysis board).
+        // timeMs > 0 → anytime PUCT (the AI's move-search); else fixed-sims PUCT (any ponder).
         analyze: ponder,
     });
 }
@@ -1249,6 +1324,16 @@ function applyMoveLocal(action) {
     const movedBy = toPlay;
     toPlay = -toPlay;
     ply++;
+    // Record this ply's wall-clock (time since the previous ply landed = how long
+    // the mover took). Trim entries a prior undo left beyond `ply` before adding,
+    // so replaying after an undo overwrites cleanly. (Blunder size is derived from
+    // the win-rate history in renderGameStats, not captured here.)
+    const nowTs = Date.now();
+    if (lastMoveAt) {
+        while (moveTimes.length && moveTimes[moveTimes.length - 1].step >= ply) moveTimes.pop();
+        moveTimes.push({ step: ply, ms: nowTs - lastMoveAt, movedBy });
+    }
+    lastMoveAt = nowTs;
     if (winner !== null) {
         gameOver = true;
         let key;
@@ -1411,19 +1496,17 @@ worker.onmessage = (e) => {
         // the AI's move-search? At result time toPlay is the searched side.
         const wasPonder = currentMode === "analysis" || toPlay === humanSide;
         if (wasPonder) {
+            // Both the analysis board and the human's turn keep deepening by
+            // reusing the tree, up to a fixed memory-bounded depth — the human's
+            // ponder runs until they move (which aborts via searchId) or the cap.
+            const ponderOn = !gameOver && searchSimsTotal < ANALYSIS_CAP_MIN;
             if (currentMode === "analysis") {
-                // Analysis mode keeps deepening ("一直算") by reusing the tree, up to a
-                // fixed memory-bounded depth (ANALYSIS_CAP_MIN root visits).
-                const cap = ANALYSIS_CAP_MIN;
-                const ponderOn = !gameOver && searchSimsTotal < cap;
                 setStatus(ponderOn ? "status_analyzing" : "status_analysis_ready",
                           ponderOn ? "thinking" : "info");
-                if (ponderOn) triggerAISearch();   // next chunk goes deeper (tree reuse)
             } else {
-                // Play mode, human's turn: a single time-budgeted analysis (no
-                // continuous deepening) — it already ran for the full thinking time.
-                setStatus("status_your_turn", "active");
+                setStatus("status_your_turn", "active");   // play mode: quiet "your turn"
             }
+            if (ponderOn) triggerAISearch();   // next chunk goes deeper (tree reuse)
             return;
         }
         // Play mode, AI's turn: play the chosen move, then ponder the human's reply.
@@ -1431,11 +1514,11 @@ worker.onmessage = (e) => {
         if (winner === null) triggerAISearch();
     }
 };
-(function initAnalyzeToggle() {
-    const cb = document.getElementById("analyze_turn_input");
+(function initShowAnalysisToggle() {
+    const cb = document.getElementById("show_analysis_input");
     if (!cb) return;
-    cb.checked = analyzeMyTurn;
-    cb.addEventListener("change", () => setAnalyzeMyTurn(cb.checked));
+    cb.checked = showAnalysisOnBoard;
+    cb.addEventListener("change", () => setShowAnalysisOnBoard(cb.checked));
 })();
 // Candidate marker palette picker (Settings): fill each swatch with its scheme
 // color, persist the choice, and redraw the board overlay on change.
@@ -1496,9 +1579,12 @@ document.getElementById("undo_btn").addEventListener("click", () => {
     gameOver = false;
     aiThinking = false;
     searchId++;   // abort any in-flight search
-    while (valueHistory.length && valueHistory[valueHistory.length - 1].step > stoneCount(board1Dto2D(boardState))) {
+    const sc = stoneCount(board1Dto2D(boardState));
+    while (valueHistory.length && valueHistory[valueHistory.length - 1].step > sc) {
         valueHistory.pop();
     }
+    while (moveTimes.length && moveTimes[moveTimes.length - 1].step > sc) moveTimes.pop();
+    lastMoveAt = Date.now();   // restart the clock for the side about to move
     setCurrentValues(restoredRootWDL, restoredNNWDL);
     candSig = "";
     searchSimsTotal = 0;
@@ -1526,6 +1612,7 @@ function snapshotForEdit() {
         gumbelPhases,
         history: history.slice(),
         valueHistory: valueHistory.slice(),
+        moveTimes: moveTimes.slice(),
         lastRootWDL, lastNNWDL,
         lastStatus: { ...lastStatus, args: lastStatus.args.slice() },
         aiThinking,
@@ -1575,6 +1662,8 @@ function exitEditMode(commit) {
         gumbelPhases = s.gumbelPhases;
         history = s.history.slice();
         valueHistory = s.valueHistory.slice();
+        moveTimes = s.moveTimes.slice();
+        lastMoveAt = Date.now();
         setCurrentValues(s.lastRootWDL, s.lastNNWDL);
         candSig = "";
         editMode = false;
@@ -1612,6 +1701,8 @@ function exitEditMode(commit) {
     lastMove = null;
     history = [];
     valueHistory = [];
+    moveTimes = [];
+    lastMoveAt = Date.now();
     gumbelPhases = null;
     setCurrentValues(null, null);
     candSig = "";
@@ -1743,6 +1834,8 @@ function migrateBoardSize(target, fitted) {
     aiThinking = false;
     searchId++;   // abort any in-flight search
     history = [];   // old snapshots are at the previous size — undo can't replay across sizes
+    moveTimes = [];
+    lastMoveAt = Date.now();
     // publish before syncBoardSize: if the canvas resizes, syncBoardSize calls
     // draw(), which would otherwise iterate 0..N over a stale state.board.
     publishStateForDrawing();
