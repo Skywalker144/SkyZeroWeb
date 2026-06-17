@@ -26,7 +26,7 @@
   // A pinned "house champion": SkyZero (the site's own AI) holds rank #1 on
   // every board, shown with the brand rainbow. It is synthetic — never stored in
   // D1 nor fetched — so it always leads and real players are renumbered below it.
-  var CHAMPION = { name: 'SkyZero', score: { '2048': 246016, 'dodge': 39728 } };
+  var CHAMPION = { name: 'SkyZero', score: { '2048': 385500, 'dodge': 39728 } };
   var CHAMP_LOWER = CHAMPION.name.toLowerCase();
 
   // ---------- i18n (reads the site-wide skz_lang) ----------
