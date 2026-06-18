@@ -19,10 +19,19 @@ ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/di
 ort.env.wasm.numThreads = 1;   // SharedArrayBuffer cross-origin fragility; force single-thread
 
 var session = null;
-// Search config (overrides MCTS2048.DEFAULTS); mirrors configs/vtransform/run.cfg.
-// Eval mode => gumbel_noise off (deterministic strongest play).
-var SEARCH_CFG = { gamma: 0.999, num_simulations: 64, gumbel_noise: false };
+// Search config (overrides MCTS2048.DEFAULTS); mirrors configs/baseline/run.cfg.
+// Eval mode => gumbel_noise off (deterministic strongest play). root_algo='puct'
+// (classic AlphaZero root): an A/B over the b3c64 net showed PUCT >= Gumbel-SH
+// across the sim range and it composes cleanly with tree reuse (Gumbel trees
+// can't warm-start across plies).
+var SEARCH_CFG = { gamma: 0.999, num_simulations: 64, gumbel_noise: false, root_algo: 'puct' };
 var PLANES = AI2048.NUM_PLANES * AI2048.AREA;   // 16*16 = 256 floats / state
+
+// Carried across plies for tree reuse: the previous search and the move played.
+// MCTS2048.reuseFrom() turns these + the new board into a warm-start subtree, or
+// null (=> fresh tree) when the board doesn't match a single-spawn transition.
+var lastSearch = null;
+var lastAction = -1;
 
 async function fetchModelWithProgress(url) {
   var response = await fetch(url);
@@ -75,7 +84,12 @@ async function think(grid, id, sims) {
   // sims (from the speed slider) overrides the default simulation budget; more
   // sims = stronger play (and slower). Falls back to SEARCH_CFG.num_simulations.
   var cfg = (sims > 0) ? Object.assign({}, SEARCH_CFG, { num_simulations: sims }) : SEARCH_CFG;
-  var res = await MCTS2048.chooseMoveMCTS(exps, runNet, cfg);
+  // Warm-start from the previous ply's subtree when the board is its single-spawn
+  // successor (autoplay); otherwise reuseFrom returns null and we build fresh.
+  var reuse = MCTS2048.reuseFrom(lastSearch, lastAction, exps);
+  var res = await MCTS2048.chooseMoveMCTS(exps, runNet, cfg, reuse);
+  lastSearch = res.search;
+  lastAction = res.action;
   postMessage({
     type: 'move', id: id,
     action: res.action, dir: res.dir, qs: res.qs, value: res.value,
