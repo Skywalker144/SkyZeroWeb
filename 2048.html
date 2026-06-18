@@ -1033,7 +1033,14 @@
     // Adaptive sim budget: we don't know how fast this device evaluates the net,
     // so we measure ms-per-sim (EWMA) and pick the sim count that fills the think
     // budget. Clamped so the fast end isn't random and the slow end can't run away.
-    const AI_SIMS_MIN = 8, AI_SIMS_MAX = 1000, AI_SIMS_BOOTSTRAP = 64;
+    // Floor at 24 (not 8): below ~24 sims the search is barely past the raw
+    // policy, so on slow devices the fast end of the slider would play near-
+    // randomly. A slow device that can't fit 24 sims in the budget just drops
+    // frames (onAiMove already re-fires immediately on overrun) rather than
+    // playing badly. Upper bound stays 1000 — the b3c64 net's strength saturates
+    // by ~200-400 sims, so a higher cap buys little. (PUCT root + tree reuse in
+    // worker2048.js make each sim count for more, raising the effective floor.)
+    const AI_SIMS_MIN = 24, AI_SIMS_MAX = 1000, AI_SIMS_BOOTSTRAP = 64;
     const AI_EWMA_ALPHA = 0.3;
     let aiMsPerSim = 0;               // 0 until the first move is measured
     let aiThinkStartTs = 0;           // performance.now() when the think was dispatched
