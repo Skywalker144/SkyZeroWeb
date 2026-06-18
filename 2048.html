@@ -1014,7 +1014,7 @@
     // keep showing the stale net, and the only way to get the new one would be a
     // "clear site data", which also wipes the leaderboard token in localStorage.
     // Bump AI_MODEL_VERSION whenever models/2048.onnx is re-exported.
-    const AI_MODEL_VERSION = 'v2-b3c64-vt-iter1424';
+    const AI_MODEL_VERSION = 'v2-b5c96-vt-iter1845';
     const AI_MODEL_URL = 'models/2048.onnx?v=' + AI_MODEL_VERSION;
     // AI speed/strength: the slider sets the wall-clock TIME PER MOVE (ms), not a
     // raw simulation count. Left = faster + weaker (short budget), right = slower
@@ -1037,10 +1037,13 @@
     // policy, so on slow devices the fast end of the slider would play near-
     // randomly. A slow device that can't fit 24 sims in the budget just drops
     // frames (onAiMove already re-fires immediately on overrun) rather than
-    // playing badly. Upper bound stays 1000 — the b3c64 net's strength saturates
-    // by ~200-400 sims, so a higher cap buys little. (PUCT root + tree reuse in
-    // worker2048.js make each sim count for more, raising the effective floor.)
-    const AI_SIMS_MIN = 24, AI_SIMS_MAX = 1000, AI_SIMS_BOOTSTRAP = 64;
+    // playing badly. Cap at 2500 (not 1000): the per-move TIME budget is the real
+    // governor, so the cap only matters as a guard against runaway sims/memory on
+    // very fast machines. 1000 used to pin the slider's whole slow half on a fast
+    // box (drag right = slower, no stronger); 2500 leaves that half live and gives
+    // headroom for hard late-game positions / a bigger net, while still bounding
+    // the waste (b3c64's own strength saturates by ~200-400 sims anyway).
+    const AI_SIMS_MIN = 24, AI_SIMS_MAX = 2500, AI_SIMS_BOOTSTRAP = 64;
     const AI_EWMA_ALPHA = 0.3;
     let aiMsPerSim = 0;               // 0 until the first move is measured
     let aiThinkStartTs = 0;           // performance.now() when the think was dispatched
