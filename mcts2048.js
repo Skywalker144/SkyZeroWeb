@@ -26,6 +26,10 @@
 
   // Defaults mirror SkyZero_2048 model_config.Config + configs/vtransform/run.cfg.
   // gumbel_noise OFF => deterministic strongest play (the demo always plays best).
+  // root_algo defaults to 'gumbel' to match model_config.Config (and the existing
+  // cross-check fixture); worker2048.js overrides it to 'puct', which an A/B over
+  // the b3c64 net showed is >= gumbel across the sim range (clearly stronger at
+  // low/mid sims, tied high) and composes cleanly with tree reuse.
   var DEFAULTS = {
     gamma: 0.999,
     num_simulations: 64,
@@ -33,6 +37,7 @@
     gumbel_c_visit: 50.0,
     gumbel_c_scale: 1.0,
     gumbel_noise: false,
+    root_algo: 'gumbel',   // 'gumbel' (Top-k + sequential halving) | 'puct'
   };
 
   function softmax(x) {
@@ -89,13 +94,22 @@
     return this.n > 0 ? this.w / this.n : 0.0;
   };
 
-  // One game's search tree + Gumbel root scheduler. Leaf evaluation is deferred
-  // to the async driver via selectLeaf()/applyEval() (mirrors mcts.py).
-  function GameSearch(state, cfg) {
+  // One game's search tree + root scheduler. Leaf evaluation is deferred to the
+  // async driver via selectLeaf()/applyEval() (mirrors mcts.py). `reuse`, when
+  // given as { root:Decision, stats:MinMax }, warm-starts from a subtree carried
+  // across plies (tree reuse) instead of a fresh root — the carried node keeps
+  // its visit counts / children, and the MinMax range is preserved so PUCT
+  // normalization doesn't reset cold.
+  function GameSearch(state, cfg, reuse) {
     this.cfg = cfg;
-    this.root = new Decision(state);
-    this.root.terminal = AI.isTerminal(state);
-    this.stats = new MinMax();
+    if (reuse) {
+      this.root = reuse.root;
+      this.stats = reuse.stats || new MinMax();
+    } else {
+      this.root = new Decision(state);
+      this.stats = new MinMax();
+    }
+    this.root.terminal = AI.isTerminal(this.root.state);
     this._pendingPath = null;
     this._g = [0, 0, 0, 0];
     this._rootLogits = [NEG, NEG, NEG, NEG];
@@ -116,7 +130,27 @@
     if (this.root.terminal) return;
     this._expand(this.root, logits, value);
     this._backupNode(this.root, value);
-    this._setupGumbel();
+    this._setupRoot();
+  };
+
+  // Build the root scheduler for the active algorithm. Called after a fresh root
+  // expansion (applyRootEval) and also standalone when warm-starting a reused
+  // root that is already expanded.
+  GameSearch.prototype._setupRoot = function () {
+    if (this.cfg.root_algo === 'puct') this._setupPuct();
+    else this._setupGumbel();
+  };
+
+  // Classic AlphaZero root: PUCT selection (same rule as non-root decision
+  // nodes), most-visited move, visit-count policy target. No Gumbel scheduler /
+  // sequential halving, so _active stays empty. Mirrors mcts.py:_setup_puct.
+  GameSearch.prototype._setupPuct = function () {
+    var legal = AI.legalActions(this.root.state);
+    for (var a = 0; a < 4; a++) {
+      this._rootLogits[a] = legal[a] > 0 ? this.root.logits[a] : NEG;
+    }
+    this._active = [];
+    this._ready = true;
   };
 
   GameSearch.prototype._setupGumbel = function () {
@@ -150,8 +184,15 @@
 
   // ---- one simulation: pick root action, descend, return leaf to eval ----
   GameSearch.prototype.selectLeaf = function () {
-    if (this.root.terminal || !this._ready || this._active.length === 0) return null;
-    var a = this._nextRootAction();
+    if (this.root.terminal || !this._ready) return null;
+    var a;
+    if (this.cfg.root_algo === 'puct') {
+      a = this._selectAction(this.root);   // root PUCT, same rule as in-tree
+      if (a < 0) return null;
+    } else {
+      if (this._active.length === 0) return null;
+      a = this._nextRootAction();
+    }
     var path = [this.root];
     var rewards = [];
     var chance = this.root.children[a];
@@ -315,6 +356,17 @@
   // ---- results ----
   GameSearch.prototype.improvedPolicy = function () {
     var legal = AI.legalActions(this.root.state);
+    var a;
+    if (this.cfg.root_algo === 'puct') {
+      // AlphaZero target: normalized root visit counts over legal moves.
+      var vc = this.visitCounts();
+      var out = [0, 0, 0, 0], s = 0;
+      for (a = 0; a < 4; a++) { out[a] = legal[a] > 0 ? vc[a] : 0; s += out[a]; }
+      if (s > 0) { for (a = 0; a < 4; a++) out[a] /= s; return out; }
+      var ls = legal[0] + legal[1] + legal[2] + legal[3];
+      for (a = 0; a < 4; a++) out[a] = ls > 0 ? legal[a] / ls : 0.25;
+      return out;
+    }
     var vmix = this._vMix();
     var comp = [NEG, NEG, NEG, NEG];
     for (var a = 0; a < 4; a++) {
@@ -383,14 +435,22 @@
   //            values:Float32Array[B]} ; value in RAW 2048 points
   //   userCfg: optional overrides of DEFAULTS
   // Returns { action, dir, qs (improved policy[4]), visits[4], value (root value) }.
-  async function chooseMoveMCTS(state, runNet, userCfg) {
+  async function chooseMoveMCTS(state, runNet, userCfg, reuse) {
     var cfg = Object.assign({}, DEFAULTS, userCfg || {});
-    var gs = new GameSearch(state, cfg);
+    var gs = new GameSearch(state, cfg, reuse);
     if (gs.root.terminal) {
-      return { action: -1, dir: null, qs: [0, 0, 0, 0], visits: [0, 0, 0, 0], value: 0 };
+      return { action: -1, dir: null, qs: [0, 0, 0, 0], visits: [0, 0, 0, 0],
+               value: 0, search: gs };
     }
-    var r = await evalStates([gs.rootLeaf()], runNet);
-    gs.applyRootEval(r.logits[0], r.values[0]);
+    if (gs.root.expanded) {
+      // Warm-started from a carried subtree: the root already has its NN eval,
+      // children and visit counts — just (re)build the root scheduler and run
+      // num_simulations fresh sims on top (KataGo-style tree reuse).
+      gs._setupRoot();
+    } else {
+      var r = await evalStates([gs.rootLeaf()], runNet);
+      gs.applyRootEval(r.logits[0], r.values[0]);
+    }
     for (var i = 0; i < cfg.num_simulations; i++) {
       var leaf = gs.selectLeaf();
       if (leaf === null) continue;
@@ -404,7 +464,39 @@
       qs: gs.improvedPolicy(),
       visits: gs.visitCounts(),
       value: gs.rootValue(),
+      search: gs,            // carried by the worker for next-ply tree reuse
     };
+  }
+
+  // Tree reuse: given the search from the previous ply, the action that was
+  // played, and the freshly observed state (= afterstate + one spawned tile),
+  // navigate root -> chosen chance child -> the edge matching that spawn, and
+  // return { root, stats } to warm-start the next search. Returns null (=> fresh
+  // tree) whenever the board doesn't match a single-spawn transition from the
+  // chosen move (new game, human move, desync, or board full after the move).
+  function reuseFrom(prevSearch, prevAction, newState) {
+    if (!prevSearch || prevAction < 0) return null;
+    var chance = prevSearch.root.children[prevAction];
+    if (!chance) return null;
+    var after = chance.afterstate;
+    var cell = -1;
+    for (var i = 0; i < AI.AREA; i++) {
+      if (after[i] !== newState[i]) {
+        // The only allowed difference is one empty cell gaining the spawned tile.
+        if (after[i] !== 0 || cell >= 0) return null;
+        cell = i;
+      }
+    }
+    if (cell < 0) return null;                 // no spawn observed -> don't reuse
+    var exp = newState[cell];
+    for (var e = 0; e < chance.edges.length; e++) {
+      var ed = chance.edges[e];
+      if (ed.cell === cell && ed.exp === exp) {
+        if (!ed.child) return null;            // spawn never explored -> fresh
+        return { root: ed.child, stats: prevSearch.stats };
+      }
+    }
+    return null;
   }
 
   // Encode a list of states and run the net, splitting the flat outputs into
@@ -428,6 +520,7 @@
     DEFAULTS: DEFAULTS,
     MinMax: MinMax, Decision: Decision, Chance: Chance, GameSearch: GameSearch,
     softmax: softmax, chooseMoveMCTS: chooseMoveMCTS, evalStates: evalStates,
+    reuseFrom: reuseFrom,
   };
 
   root.MCTS2048 = api;
