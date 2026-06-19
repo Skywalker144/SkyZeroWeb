@@ -21,8 +21,10 @@ let latestSearchId = 0;
 // Hard cap on the root's cumulative visits for play-mode (time-budgeted) search.
 // Tree reuse accumulates visits across moves, so near the endgame the root is
 // often already well-searched — once it hits this we stop and play, instead of
-// spending the full thinking time re-deepening a settled tree.
-const SEARCH_VISIT_CAP = 2560;
+// spending the full thinking time re-deepening a settled tree. Kept equal to the
+// ponder cap (main.js ANALYSIS_CAP_MIN) so the AI's move-search and the
+// human's-turn analysis settle at the same depth.
+const SEARCH_VISIT_CAP = 2000;
 
 // --- helpers ---
 
