@@ -6,7 +6,7 @@
   <title>SkyZero · Dodge</title>
   <link rel="preload" href="fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="fonts/Jost-SemiBold.woff2"  as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Manrope-Bold.woff2"  as="font" type="font/woff2" crossorigin>
   <script>
     // Reuse the same theme/lang prefs as the other game pages so the look
     // stays consistent across the whole site.
@@ -37,7 +37,7 @@
   <link rel="stylesheet" href="style.css">
   <!-- Pin the leaderboard to dodge so the 2048 board doesn't show here. -->
   <script>window.SKZ_LB_GAME = 'dodge';</script>
-  <script defer src="/leaderboard.js?v=20260617a"></script>
+  <script defer src="/leaderboard.js?v=20260619b"></script>
   <style>
     /* Channel Dodge — a bullet-hell survival game. Theme colors come from
        style.css variables so light/dark mode track the rest of the site. */
@@ -71,12 +71,23 @@
     .cd-actions {
       display: flex; gap: 10px; justify-content: center;
     }
+    /* Pause is inert outside a running round; .btn:disabled (shared in style.css)
+       dims it and blocks pointer events so it reads as disabled, not clickable. */
+    /* The autopilot button label carries the SkyZero wordmark. Drop the flex gap
+       so the wordmark + " 接管" keep their original single-space spacing. Once
+       engaged (.primary → neutral ink fill) only "Sky" follows the button's text
+       colour (else it'd vanish into the fill); "Zero" keeps its rainbow. */
+    #ai_btn { gap: 0; }
+    #ai_btn.primary .bw-sky {
+      color: currentColor; -webkit-text-fill-color: currentColor;
+    }
     /* The arena: a portrait play field that scales to the viewport. */
     .cd-stage {
       position: relative;
       width: 100%;
       aspect-ratio: 3 / 4;
       max-height: calc(100vh - 220px);
+      max-height: calc(100dvh - 220px);   /* dvh tracks the mobile URL bar; vh is the fallback */
       margin: 0 auto;
       background: var(--surface-sunken);
       border: 1px solid var(--border);
@@ -181,7 +192,10 @@
       overflow: hidden;
     }
     /* On touch screens the arena should leave room for the joystick below. */
-    body.cd-touch .cd-stage { max-height: calc(100vh - 360px); }
+    body.cd-touch .cd-stage {
+      max-height: calc(100vh - 360px);
+      max-height: calc(100dvh - 360px);
+    }
     .cd-joystick-base {
       position: absolute;
       left: 50%; top: 50%;
@@ -243,6 +257,7 @@
       transition: border-color .12s ease, color .12s ease;
     }
     .cd-avatar-btn:hover { border-color: var(--border-strong); color: var(--fg); }
+    .cd-avatar-btn:active { transform: scale(0.97); }
     .cd-avatar-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--fg); }
     .cd-avatar-btn canvas { width: 48px; height: 48px; display: block; }
 
@@ -286,6 +301,8 @@
       width: 24px; height: 24px; border-radius: 50%;
       border: 2px solid var(--border); cursor: pointer; padding: 0;
     }
+    .cd-swatch:not([aria-pressed="true"]):hover { border-color: var(--border-strong); }
+    .cd-swatch:active { transform: scale(0.96); }
     .cd-swatch[aria-pressed="true"] { border-color: var(--fg); transform: scale(1.12); }
     .cd-swatch.eraser {
       display: grid; place-items: center;
@@ -297,9 +314,19 @@
       background: var(--surface); border: 2px solid var(--border);
       border-radius: var(--radius-sm); cursor: pointer; color: var(--fg);
     }
+    .cd-size-btn:not([aria-pressed="true"]):hover { border-color: var(--border-strong); }
+    .cd-size-btn:active { background: var(--surface-2); }
     .cd-size-btn[aria-pressed="true"] { border-color: var(--accent); }
     .cd-size-btn .dot { background: currentColor; border-radius: 50%; }
     .cd-draw-actions { display: flex; gap: 8px; justify-content: center; }
+
+    /* Honor the OS "reduce motion" setting for the decorative UI transitions
+       (the game canvas animations are inherent to play and stay as-is). */
+    @media (prefers-reduced-motion: reduce) {
+      .cd-roster-toggle .chev,
+      .cd-hp-fill,
+      .cd-avatar-btn { transition: none; }
+    }
   </style>
 </head>
 <body>
@@ -324,10 +351,10 @@
 
       <div class="cd-actions">
         <button class="btn primary" id="start_btn">开始</button>
-        <button class="btn" id="pause_btn">暂停</button>
-        <button class="btn" id="ai_btn" aria-pressed="false">AI 托管</button>
+        <button class="btn" id="pause_btn" disabled>暂停</button>
+        <button class="btn" id="ai_btn" aria-pressed="false"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管</button>
       </div>
-      <div class="cd-hint" id="ai_hint" hidden>本局使用了 AI 托管,未计入排行榜</div>
+      <div class="cd-hint" id="ai_hint" hidden>本局由 <span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管,未计入排行榜</div>
 
       <div class="cd-stage" id="stage" tabindex="0" aria-label="Channel Dodge arena">
         <canvas class="cd-canvas" id="canvas"></canvas>
@@ -406,11 +433,11 @@
         </div>
       </div>
 
-      <div class="cd-hint" id="hint">WASD / 方向键移动 · 手机上拖动屏幕用摇杆 · 躲过的弹幕越多得分越高</div>
+      <div class="cd-hint" id="hint">WASD / 方向键移动 · 手机上用下方摇杆 · 躲过的弹幕越多得分越高</div>
     </div>
 
     <!-- Draw-your-own avatar modal -->
-    <div class="cd-draw" id="draw_modal" hidden>
+    <div class="cd-draw" id="draw_modal" role="dialog" aria-modal="true" aria-labelledby="draw_title" hidden>
       <div class="cd-draw-panel">
         <div class="cd-draw-title" id="draw_title">画一个形象</div>
         <div class="cd-draw-stage">
@@ -461,9 +488,10 @@
         av_ball: '原版小球', av_custom: '我的形象',
         draw_title: '画一个形象', draw_clear: '清空', draw_cancel: '取消',
         draw_use: '使用', draw_preview: '预览', draw_eraser: '橡皮',
+        draw_color: '颜色', draw_brush: '笔刷',
         draw_empty: '画点东西吧',
-        ai_play: 'AI 托管', ai_on: 'AI 接管中',
-        ai_note: '本局使用了 AI 托管,未计入排行榜',
+        ai_play: 'SkyZero 接管', ai_on: 'SkyZero 接管中',
+        ai_note: '本局由 SkyZero 接管,未计入排行榜',
       },
       en: {
         title_tab: 'SkyZero · Dodge',
@@ -486,9 +514,10 @@
         av_ball: 'Classic ball', av_custom: 'My avatar',
         draw_title: 'Draw your avatar', draw_clear: 'Clear', draw_cancel: 'Cancel',
         draw_use: 'Use', draw_preview: 'Preview', draw_eraser: 'Eraser',
+        draw_color: 'Color', draw_brush: 'Brush',
         draw_empty: 'Draw something first',
-        ai_play: 'Autopilot', ai_on: 'AI playing',
-        ai_note: 'AI autopilot was used — not counted on the leaderboard',
+        ai_play: 'SkyZero autopilot', ai_on: 'SkyZero playing',
+        ai_note: 'SkyZero played this run — not counted on the leaderboard',
       },
     };
     let LANG = 'zh';
@@ -497,6 +526,11 @@
       if (v === 'zh' || v === 'en') LANG = v;
     } catch(_) {}
     function t(k) { return (STR[LANG] && STR[LANG][k]) || STR.en[k] || k; }
+    // Render the "SkyZero" in a label as the colored brand wordmark (matches the
+    // topbar). Used for the autopilot button + the "not counted" hint, which is
+    // why those set innerHTML rather than textContent.
+    const BRAND_WM = '<span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span>';
+    const withBrand = (s) => s.replace('SkyZero', BRAND_WM);
 
     // Cache the resolved accent color; refresh whenever the theme switches.
     let accentColor = '#4493f8';
@@ -593,8 +627,8 @@
       els.drawUse.textContent = t('draw_use');
       els.pauseBtn.textContent = state.mode === 'paused' ? t('resume') : t('pause');
       els.startBtn.textContent = state.mode === 'playing' ? t('restart') : t('start');
-      els.aiBtn.textContent = state.aiOn ? t('ai_on') : t('ai_play');
-      els.aiHint.textContent = t('ai_note');
+      els.aiBtn.innerHTML = withBrand(state.aiOn ? t('ai_on') : t('ai_play'));
+      els.aiHint.innerHTML = withBrand(t('ai_note'));
       if (typeof refreshRoster === 'function') refreshRoster();
       renderOverlay();
     }
@@ -904,17 +938,20 @@
       for (const col of PALETTE) {
         const b = document.createElement('button');
         b.className = 'cd-swatch'; b.type = 'button'; b.style.background = col; b._col = col;
+        b.setAttribute('aria-label', t('draw_color') + ' ' + col);
         b.addEventListener('click', () => { drawColor = col; drawErase = false; updateToolUi(); });
         els.drawPalette.appendChild(b);
       }
       const er = document.createElement('button');
       er.className = 'cd-swatch eraser'; er.type = 'button'; er.textContent = '⌫'; er._erase = true;
+      er.setAttribute('aria-label', t('draw_eraser'));
       er.addEventListener('click', () => { drawErase = true; updateToolUi(); });
       els.drawPalette.appendChild(er);
       els.drawSizes.innerHTML = '';
       for (const s of [8, 14, 24]) {
         const b = document.createElement('button');
         b.className = 'cd-size-btn'; b.type = 'button'; b._size = s;
+        b.setAttribute('aria-label', t('draw_brush') + ' ' + s);
         const dot = document.createElement('span');
         dot.className = 'dot';
         const dd = Math.max(4, Math.round(s / 2.2));
@@ -971,15 +1008,37 @@
       pg.imageSmoothingEnabled = true;
       pg.drawImage(els.drawCanvas, 0, 0, els.drawPreview.width, els.drawPreview.height);
     }
+    let drawLastFocus = null;
     function openDraw() {
       dctx.setTransform(1, 0, 0, 1, 0, 0);
       dctx.clearRect(0, 0, els.drawCanvas.width, els.drawCanvas.height);
       drawErase = false; drawColor = PALETTE[0]; brush = 14;
       updateToolUi(); updatePreview();
       els.drawPreviewLabel.textContent = t('draw_preview');
+      drawLastFocus = document.activeElement;
       els.drawModal.removeAttribute('hidden');
+      // Move focus into the dialog (first palette swatch) for keyboard users.
+      const first = els.drawModal.querySelector('button');
+      if (first) first.focus();
     }
-    function closeDraw() { els.drawModal.setAttribute('hidden', ''); }
+    function closeDraw() {
+      els.drawModal.setAttribute('hidden', '');
+      if (drawLastFocus && drawLastFocus.focus) drawLastFocus.focus();
+      drawLastFocus = null;
+    }
+    // Keep keyboard focus inside the modal while it's open, and let Esc dismiss it
+    // (stopPropagation so the global Esc handler doesn't also pause the game).
+    els.drawModal.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDraw(); return; }
+      if (e.key !== 'Tab') return;
+      const f = Array.prototype.filter.call(
+        els.drawModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+        (el) => !el.disabled && el.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
     els.drawClear.addEventListener('click', () => {
       dctx.clearRect(0, 0, els.drawCanvas.width, els.drawCanvas.height);
       els.drawPreviewLabel.textContent = t('draw_preview');
@@ -1931,6 +1990,7 @@
       hideOverlay();
       els.startBtn.textContent = t('restart');
       els.pauseBtn.textContent = t('pause');
+      els.pauseBtn.disabled = false;
       els.stage.focus({ preventScroll: true });
       drawHud();
       if (!state.raf) state.raf = requestAnimationFrame(frame);
@@ -1962,6 +2022,7 @@
       els.best.textContent = best;
       els.startBtn.textContent = t('start');
       els.pauseBtn.textContent = t('pause');
+      els.pauseBtn.disabled = true;
       // AI-driven runs never post to the leaderboard (honor system).
       if (window.SkzLB && !state.aiEverUsed) window.SkzLB.submit('dodge', state.score);
       renderOverlay();
@@ -2020,7 +2081,7 @@
       AI.reset();
       els.aiBtn.setAttribute('aria-pressed', String(on));
       els.aiBtn.classList.toggle('primary', on);
-      els.aiBtn.textContent = on ? t('ai_on') : t('ai_play');
+      els.aiBtn.innerHTML = withBrand(on ? t('ai_on') : t('ai_play'));
       els.aiHint.hidden = !state.aiEverUsed;   // sticky caption: AI use disqualifies this run
       if (on && state.mode !== 'playing') startGame();
       else if (state.mode === 'playing') els.stage.focus({ preventScroll: true });
