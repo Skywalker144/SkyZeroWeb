@@ -6,7 +6,7 @@
   <title>SkyZero · Web</title>
   <link rel="preload" href="fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="fonts/Jost-SemiBold.woff2"  as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Manrope-Bold.woff2"  as="font" type="font/woff2" crossorigin>
   <script>
     // Set theme before first paint to avoid flash. Tri-state: auto/light/dark.
     (function(){
@@ -35,7 +35,7 @@
     })();
   </script>
   <link rel="stylesheet" href="style.css">
-  <script defer src="/leaderboard.js?v=20260617a"></script>
+  <script defer src="/leaderboard.js?v=20260619b"></script>
   <style>
     /* Landing page fills the viewport so the hero + cards + footer fit on one
        screen without scrolling. Spacing uses vh-based clamps: tall monitors stay
@@ -85,6 +85,15 @@
     .game-card:hover {
       border-color: var(--border-strong); transform: translateY(-3px);
       box-shadow: 0 8px 24px rgba(27,31,36,0.10);
+    }
+    /* Pressed: settle back down so a tap reads as a click, not just a hover. */
+    .game-card:active {
+      border-color: var(--border-strong); transform: translateY(-1px);
+      box-shadow: 0 3px 10px rgba(27,31,36,0.08);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .game-card { transition: border-color .15s ease, box-shadow .15s ease; }
+      .game-card:hover, .game-card:active { transform: none; }
     }
     .game-card .game-icon {
       width: clamp(64px, 9vh, 88px); height: clamp(64px, 9vh, 88px);
