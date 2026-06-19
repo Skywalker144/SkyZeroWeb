@@ -142,6 +142,7 @@
         'background:var(--surface,#fff);border:1px solid var(--border,#d0d7de);' +
         'box-shadow:0 4px 14px rgba(0,0,0,.18);color:var(--fg,#1b1f24);font-size:22px;line-height:1}' +
       '.skz-lb-fab:hover{border-color:var(--border-strong,#afb8c1)}' +
+      '.skz-lb-fab:active{background:var(--surface-2,#f6f8fa)}' +
       '.skz-lb-fab-label{display:none}' +
       '.skz-lb-fab .skz-lb-dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;' +
         'background:var(--accent,#3b82f6);border:2px solid var(--surface,#fff);display:none}' +
@@ -165,6 +166,8 @@
       '.skz-lb-head{display:flex;align-items:center;justify-content:space-between}' +
       '.skz-lb-h{font-size:18px;font-weight:700;color:var(--fg,#1b1f24)}' +
       '.skz-lb-x{cursor:pointer;background:none;border:none;font-size:22px;line-height:1;color:var(--fg-muted,#656d76)}' +
+      '.skz-lb-x:hover{color:var(--fg,#1b1f24)}' +
+      '.skz-lb-x:active{opacity:.6}' +
       '.skz-lb-id{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-muted,#656d76)}' +
       '.skz-lb-id b{color:var(--fg,#1b1f24)}' +
       '.skz-lb-id .skz-lb-link{margin-left:auto;cursor:pointer;background:none;border:none;' +
@@ -174,6 +177,8 @@
         'background:var(--surface-2,#f6f8fa);border:1px solid var(--border,#d0d7de);' +
         'color:var(--fg-muted,#656d76);font-size:14px;font-weight:600}' +
       '.skz-lb-tab[aria-selected="true"]{border-color:var(--accent,#3b82f6);color:var(--fg,#1b1f24)}' +
+      '.skz-lb-tab:not([aria-selected="true"]):hover{border-color:var(--border-strong,#afb8c1)}' +
+      '.skz-lb-tab:active{background:var(--surface-sunken,#fafbfc)}' +
       '.skz-lb-view{display:flex;flex-direction:column;gap:14px;flex:1 1 auto;min-height:0}' +
       '.skz-lb-list{overflow-y:auto;min-height:0;flex:1 1 auto}' +
       // Desktop dock: always-on left panel. Hidden by default; shown only on
@@ -229,7 +234,7 @@
       '.skz-lb-acts .btn,.skz-lb-form .btn{cursor:pointer;padding:8px 14px;border-radius:var(--radius-sm,8px);' +
         'border:1px solid var(--border,#d0d7de);background:var(--surface,#fff);color:var(--fg,#1b1f24);' +
         'font-size:14px;font-weight:600;font-family:inherit}' +
-      '.skz-lb-acts .btn.primary,.skz-lb-form .btn.primary{background:var(--accent,#3b82f6);border-color:var(--accent,#3b82f6);color:#fff}' +
+      '.skz-lb-acts .btn.primary,.skz-lb-form .btn.primary{background:var(--fg,#1b1f24);border-color:var(--fg,#1b1f24);color:var(--bg,#fff)}' +
       '.skz-lb-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:70;' +
         'padding:9px 16px;border-radius:999px;background:var(--fg,#1b1f24);color:var(--bg,#fff);' +
         'font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .2s ease}' +
@@ -457,12 +462,18 @@
   function positionDock() {
     if (!dock) return;
     var tb = document.querySelector('.topbar');
-    // Document-relative top (add scrollY) so the absolutely-positioned dock sits
-    // just below the topbar regardless of the scroll offset when this runs.
+    if (!tb) { dock.style.top = '72px'; return; }
+    // Document-relative top/left (add scroll offsets) so the absolutely-positioned
+    // dock sits just below the topbar and shares its left edge — regardless of the
+    // scroll offset when this runs or the `.app` centering on very wide screens.
     // getBoundingClientRect() alone is viewport-relative and, if measured while
     // the page is scrolled (resize, restored scroll position), would bake in a
-    // wrong/negative top and leave the dock floating over the brand.
-    dock.style.top = (tb ? Math.round(tb.getBoundingClientRect().bottom + window.scrollY) + 8 : 72) + 'px';
+    // wrong/negative top and leave the dock floating over the brand. The CSS
+    // `left:20px` was a static guess that missed the topbar's true left edge (the
+    // `.app` 24px padding), which is what left the dock misaligned with the topbar.
+    var r = tb.getBoundingClientRect();
+    dock.style.top = Math.round(r.bottom + window.scrollY) + 8 + 'px';
+    dock.style.left = Math.round(r.left + window.scrollX) + 'px';
   }
 
   // ---------- DOM: inline panel (mounted by the page, e.g. 2048 below board) ----------
@@ -482,17 +493,37 @@
     selectTab(view, view.game);
   }
 
+  // Shared dialog keyboard handling: Esc closes, Tab is trapped inside the modal.
+  function setupModalKeys(maskEl, closeFn) {
+    maskEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); closeFn(); return; }
+      if (e.key !== 'Tab') return;
+      var nodes = maskEl.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+      var f = [];
+      for (var i = 0; i < nodes.length; i++) {
+        if (!nodes[i].disabled && nodes[i].offsetParent !== null) f.push(nodes[i]);
+      }
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+  }
+
   // ---------- DOM: mobile modal ----------
-  var mask, modalView;
+  var mask, modalView, modalLastFocus = null;
   function buildModal() {
     mask = document.createElement('div');
     mask.className = 'skz-lb-mask';
     mask.hidden = true;
     var panel = document.createElement('div');
     panel.className = 'skz-lb-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'skz-lb-modal-title');
     var head = document.createElement('div');
     head.className = 'skz-lb-head';
-    var h = document.createElement('div'); h.className = 'skz-lb-h'; h.textContent = '🏆 ' + t('title');
+    var h = document.createElement('div'); h.className = 'skz-lb-h'; h.id = 'skz-lb-modal-title'; h.textContent = '🏆 ' + t('title');
     var x = document.createElement('button');
     x.className = 'skz-lb-x'; x.type = 'button'; x.innerHTML = '×';
     x.setAttribute('aria-label', t('close'));
@@ -503,18 +534,31 @@
     panel.appendChild(modalView.root);
     mask.appendChild(panel);
     mask.addEventListener('click', function (e) { if (e.target === mask) closeModal(); });
+    setupModalKeys(mask, closeModal);
     document.body.appendChild(mask);
   }
   function openModal() {
     if (!mask) buildModal();
     renderId(modalView);
+    modalLastFocus = document.activeElement;
     mask.hidden = false;
     selectTab(modalView, modalView.game);
+    var x = mask.querySelector('.skz-lb-x');
+    if (x) x.focus();
   }
-  function closeModal() { if (mask) mask.hidden = true; }
+  function closeModal() {
+    if (mask) mask.hidden = true;
+    if (modalLastFocus && modalLastFocus.focus) modalLastFocus.focus();
+    modalLastFocus = null;
+  }
 
   // ---------- DOM: name dialog ----------
-  var nameMask;
+  var nameMask, nameLastFocus = null;
+  function closeNameDialog() {
+    if (nameMask) nameMask.hidden = true;
+    if (nameLastFocus && nameLastFocus.focus) nameLastFocus.focus();
+    nameLastFocus = null;
+  }
   function openNameDialog() {
     if (!nameMask) buildNameDialog();
     // Re-localize on each open so an in-page language switch is reflected.
@@ -522,12 +566,14 @@
     nameMask.querySelector('.skz-lb-hint').textContent = t('name_hint');
     var input = nameMask.querySelector('input');
     input.placeholder = t('name_ph');
+    input.setAttribute('aria-label', t('name_title'));
     var btns = nameMask.querySelectorAll('.skz-lb-acts .btn');
     if (btns[0]) btns[0].textContent = t('cancel');
     if (btns[1]) btns[1].textContent = t('save');
     var errEl = nameMask.querySelector('.skz-lb-error');
     input.value = getName();
     errEl.textContent = '';
+    nameLastFocus = document.activeElement;
     nameMask.hidden = false;
     input.focus(); input.select();
   }
@@ -538,14 +584,18 @@
     var panel = document.createElement('div');
     panel.className = 'skz-lb-panel';
     panel.style.maxWidth = '360px';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'skz-lb-name-title');
 
     var h = document.createElement('div');
-    h.className = 'skz-lb-h skz-lb-name-h'; h.textContent = t('name_title');
+    h.className = 'skz-lb-h skz-lb-name-h'; h.id = 'skz-lb-name-title'; h.textContent = t('name_title');
 
     var form = document.createElement('div');
     form.className = 'skz-lb-form';
     var input = document.createElement('input');
     input.type = 'text'; input.maxLength = 20; input.placeholder = t('name_ph');
+    input.setAttribute('aria-label', t('name_title'));
     var hint = document.createElement('div');
     hint.className = 'skz-lb-hint'; hint.textContent = t('name_hint');
     var errEl = document.createElement('div');
@@ -554,7 +604,7 @@
     acts.className = 'skz-lb-acts';
     var cancel = document.createElement('button');
     cancel.className = 'btn'; cancel.type = 'button'; cancel.textContent = t('cancel');
-    cancel.addEventListener('click', function () { nameMask.hidden = true; });
+    cancel.addEventListener('click', closeNameDialog);
     var save = document.createElement('button');
     save.className = 'btn primary'; save.type = 'button'; save.textContent = t('save');
 
@@ -564,7 +614,7 @@
       save.disabled = true; errEl.textContent = '';
       claim(v).then(function (data) {
         setIdentity(data.name, data.token);
-        nameMask.hidden = true;
+        closeNameDialog();
         if (btn) btn.classList.remove('has-pending');
         flush();            // upload anything stashed before the name existed
         refreshViews();     // update id row + lists in the dock / modal
@@ -574,15 +624,17 @@
     }
     save.addEventListener('click', doSave);
     input.addEventListener('keydown', function (e) {
+      // Esc + Tab are handled at the mask level (setupModalKeys); here we only
+      // need Enter to submit.
       if (e.key === 'Enter') { e.preventDefault(); doSave(); }
-      else if (e.key === 'Escape') { e.preventDefault(); nameMask.hidden = true; }
     });
 
     acts.appendChild(cancel); acts.appendChild(save);
     form.appendChild(input); form.appendChild(hint); form.appendChild(errEl); form.appendChild(acts);
     panel.appendChild(h); panel.appendChild(form);
     nameMask.appendChild(panel);
-    nameMask.addEventListener('click', function (e) { if (e.target === nameMask) nameMask.hidden = true; });
+    nameMask.addEventListener('click', function (e) { if (e.target === nameMask) closeNameDialog(); });
+    setupModalKeys(nameMask, closeNameDialog);
     document.body.appendChild(nameMask);
   }
 
