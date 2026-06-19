@@ -100,6 +100,31 @@ against a fixture generated from `SkyZero_2048/python/game.py`.
 - `tools/export_onnx_2048.py` — SkyZero_2048 `.pt` → `models/2048.onnx`
 - `models/manifest.json` — gomoku 5-tier ELO catalog
 
+## Gomoku search loop
+
+The gomoku engine alternates between two modes, **reusing the search tree across
+every move** (`worker.js applyMove` re-roots the tree at the child for the move
+just played). `main.js triggerAISearch()` picks the path via `isPonderTurn()`:
+
+- **Ponder** (your turn in play mode, or any move in analysis mode): fixed
+  `ANALYSIS_CHUNK = 96`-sim PUCT chunks, re-fired (reusing the tree) after each
+  result until cumulative root visits reach `ANALYSIS_CAP_MIN = 2000`, then it
+  idles. Runs quietly on your turn but keeps the candidate list / win-rate /
+  heatmaps live; placing a stone aborts the in-flight chunk via `searchId`.
+- **Move-search** (the AI's own turn, play mode): a single anytime-PUCT search
+  that runs for `thinkMs` (toolbar "thinking time", default 3000ms) **or** until
+  cumulative root visits hit `SEARCH_VISIT_CAP` (`worker.js`, = 2000, kept equal
+  to the ponder cap) — whichever comes first — then plays the most-visited move.
+  `thinkMs` only governs the AI's own move; it does not deepen the your-turn
+  ponder (that is always the 96-chunk → 2000 cap, independent of `thinkMs`).
+
+One full turn: page `ready` → `newGame` → ponder your turn; you move → `move`
+(tree reuse) → move-search the AI's reply → AI moves → `move` (tree reuse) →
+ponder your turn again. Both caps count **cumulative** root visits across tree
+reuse, so in the midgame/endgame the search often tops out before spending the
+full time / chunk budget. The two caps are deliberately kept equal — change one,
+change the other.
+
 ## Differences from V5 `play_web.py`
 
 These simplifications are intentional (browser constraints):
