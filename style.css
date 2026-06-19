@@ -384,9 +384,14 @@
   }
   .seg-btn:hover { color: var(--fg); }
   .seg-btn[aria-pressed="true"] {
-    background: var(--surface); color: var(--accent);
+    background: var(--surface); color: var(--fg);
     box-shadow: 0 1px 2px var(--stone-shadow), 0 0 0 1px var(--border);
   }
+  /* Dark mode: the default sunken track (--surface-sunken ≈ #010409) reads as a
+     harsh near-black pit against the surface panels, leaving unselected options
+     looking too dark. Use a gentler sunken (bg) with a lighter raised thumb. */
+  html[data-theme="dark"] .seg-row { background: var(--bg); }
+  html[data-theme="dark"] .seg-btn[aria-pressed="true"] { background: var(--surface-2); }
   /* Candidate marker palette swatches (Settings); background filled by JS. */
   .swatch-btn {
     flex: 1; height: 30px; padding: 0; cursor: pointer; background: #888;
@@ -572,6 +577,17 @@
   .btn.primary:hover {
     background: color-mix(in srgb, var(--fg) 86%, var(--bg));
     border-color: color-mix(in srgb, var(--fg) 86%, var(--bg));
+  }
+  /* Dark mode: a full-strength near-white fill (--fg ≈ #e6edf3) glares against
+     the dark UI, so dim it to a soft light-grey ink that still reads as primary.
+     Hover darkens (toward bg), matching the light-theme direction. */
+  html[data-theme="dark"] .btn.primary {
+    background: color-mix(in srgb, var(--fg) 80%, var(--bg));
+    border-color: color-mix(in srgb, var(--fg) 80%, var(--bg));
+  }
+  html[data-theme="dark"] .btn.primary:hover {
+    background: color-mix(in srgb, var(--fg) 66%, var(--bg));
+    border-color: color-mix(in srgb, var(--fg) 66%, var(--bg));
   }
   .btn.danger-ghost { color: var(--fg-muted); }
   .btn.danger-ghost:hover { color: var(--danger); border-color: var(--danger); }
