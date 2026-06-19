@@ -50,11 +50,11 @@
   src: url("fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
 }
 @font-face {
-  font-family: "Jost";
+  font-family: "Manrope";
   font-style: normal;
-  font-weight: 600;
+  font-weight: 700;
   font-display: swap;
-  src: url("fonts/Jost-SemiBold.woff2") format("woff2");
+  src: url("fonts/Manrope-Bold.woff2") format("woff2");
 }
 
 :root {
@@ -75,7 +75,6 @@
     --fg-subtle: #8b949e;
     --accent: #0969da;
     --accent-hover: #0860c7;
-    --accent-fg: #ffffff;
     --success: #1a7f37;
     --success-bg: #dafbe1;
     --info: #0969da;
@@ -116,7 +115,6 @@
     --fg-subtle: #6e7681;
     --accent: #4493f8;
     --accent-hover: #539bff;
-    --accent-fg: #0d1117;
     --success: #3fb950;
     --success-bg: #0f2a1a;
     --info: #4493f8;
@@ -290,10 +288,11 @@
   a.brand-title { transition: color 0.15s ease; }
   a.brand-title:hover { color: var(--accent); }
 
-  /* SkyZero brand wordmark: Jost geometric, neutral "Sky" + rainbow "Zero".
+  /* SkyZero brand wordmark: Manrope 700 (geometric, ascenders sit at cap height
+     so the camel-case "SkyZero" tops align), neutral "Sky" + rainbow "Zero".
      Gradient = 120deg (red upper-left -> violet lower-right), red held to 15%,
      vivid 7-stop via OKLab + Catmull-Rom spline, baked into stops. Pure CSS. */
-  .brand-wm { font-family: "Jost", var(--font-sans); font-weight: 600; letter-spacing: -0.01em; }
+  .brand-wm { font-family: "Manrope", var(--font-sans); font-weight: 700; letter-spacing: -0.01em; }
   .brand-wm .bw-sky { color: var(--fg); }
   .brand-wm .bw-zero {
     background: linear-gradient(120deg,
@@ -304,8 +303,8 @@
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
   }
-  /* Game-page topbar brand link: whole link in Jost; suffix accent on hover. */
-  .brand-title { font-family: "Jost", var(--font-sans); }
+  /* Game-page topbar brand link: whole link in Manrope; suffix accent on hover. */
+  .brand-title { font-family: "Manrope", var(--font-sans); }
   .brand-suffix { color: var(--fg); }
   a.brand-title:hover .brand-suffix { color: var(--accent); }
   .icon-btn {
@@ -322,26 +321,15 @@
   html[data-theme-mode="light"] .icon-btn .sun-icon,
   html[data-theme-mode="dark"]  .icon-btn .moon-icon,
   html[data-theme-mode="auto"]  .icon-btn .auto-icon { display: inline-block; }
-  .seg-row.compact {
-    display: flex; gap: 0;
-    border: 1px solid var(--border); border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
+  /* Compact variant — smaller thumbs for the icon / short-label toggles
+     (language · theme on the landing page). Inherits the .seg-row track below;
+     only the sizing differs. */
+  .seg-row.compact { padding: 2px; border-radius: 8px; }
   .seg-row.compact .seg-btn {
-    flex: 0 0 auto; min-width: 36px; height: 32px;
-    padding: 0 12px; font-size: 12px; font-weight: 600;
-    background: transparent; color: var(--fg-muted);
-    border: none; border-right: 1px solid var(--border); border-radius: 0;
-    letter-spacing: 0.02em;
+    flex: 0 0 auto; min-width: 30px; height: 26px;
+    padding: 0 10px; font-size: 12px;
   }
-  .seg-row.compact .seg-btn:last-child { border-right: none; }
-  .seg-row.compact .seg-btn:hover {
-    background: var(--surface-2); color: var(--fg); border-color: var(--border-strong);
-  }
-  .seg-row.compact .seg-btn[aria-pressed="true"] {
-    background: var(--surface-2); color: var(--fg);
-  }
-  .seg-row.compact .seg-btn svg { width: 14px; height: 14px; display: block; }
+  .seg-row.compact .seg-btn svg { width: 15px; height: 15px; display: block; }
 
   /* ---------- Main: win-rate chart · board · candidates + heatmaps ---------- */
   .main {
@@ -375,25 +363,29 @@
     display: flex; flex-direction: column; gap: 12px;
     min-width: 0; min-height: 0; overflow-y: auto;
   }
-  .seg-row { display: flex; gap: 8px; }
+  /* Segmented control — a unified inset "track" holding mutually-exclusive
+     options; the selected one reads as a raised thumb (iOS-style). The track is
+     the visual cue that these are pick-one, so it's used everywhere a single
+     choice is made: mode / side / rule / palette / edit-tools (gomoku) and
+     language / theme (landing). */
+  .seg-row {
+    display: flex; gap: 2px; padding: 3px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border); border-radius: 9px;
+  }
   .seg-btn {
-    flex: 1; height: 36px; font-size: 13px; font-weight: 500;
-    background: var(--surface); color: var(--fg);
-    border: 1px solid var(--border); border-radius: var(--radius-sm);
-    cursor: pointer;
+    flex: 1; height: 30px; padding: 0 14px;
+    font-size: 13px; font-weight: 600;
+    background: transparent; color: var(--fg-muted);
+    border: none; border-radius: 6px; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    white-space: nowrap;
+    transition: background 0.12s, color 0.12s, box-shadow 0.12s;
   }
-  .seg-btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
+  .seg-btn:hover { color: var(--fg); }
   .seg-btn[aria-pressed="true"] {
-    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-    color: var(--accent);
-    border-color: var(--accent);
-    font-weight: 600;
-  }
-  .seg-btn[aria-pressed="true"]:hover {
-    background: color-mix(in srgb, var(--accent) 16%, var(--surface));
-    border-color: var(--accent);
+    background: var(--surface); color: var(--accent);
+    box-shadow: 0 1px 2px var(--stone-shadow), 0 0 0 1px var(--border);
   }
   /* Candidate marker palette swatches (Settings); background filled by JS. */
   .swatch-btn {
@@ -402,10 +394,17 @@
     transition: box-shadow 0.12s, border-color 0.12s;
   }
   .swatch-btn:hover { border-color: var(--border-strong); }
+  /* Selected swatch: speak the same language as the segmented-control thumb —
+     an inset surface "pad" with the same lift shadow, plus a thin accent border
+     instead of a heavy halo. Padding stays at the track default so the swatch
+     corners stay concentric with the track (9px track − 3px pad = 6px). */
   .swatch-btn[aria-pressed="true"] {
-    border-color: var(--fg);
-    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--fg);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 2px var(--surface), 0 1px 2px var(--stone-shadow);
   }
+  /* Palette row: keep the standard track padding (concentric corners); just a
+     hair more gap so a selected swatch's border/shadow has room to breathe. */
+  .seg-row.palette-row { gap: 4px; }
   .seg-stone {
     width: 14px; height: 14px; border-radius: 50%;
     border: 1px solid var(--stone-outline);
@@ -421,6 +420,17 @@
   }
   .board-actions {
     display: flex; gap: 8px; width: 100%; max-width: 560px; justify-content: center;
+  }
+
+  /* Move-review bar (below the board while scrubbing past plies). */
+  .review-bar { align-items: center; }
+  .review-bar .btn { height: 32px; padding: 0 10px; flex: 0 0 auto; }
+  .review-bar .btn svg { width: 14px; height: 14px; display: block; }
+  .review-bar .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .review-bar .review-label {
+    flex: 1 1 auto; text-align: center;
+    font-family: var(--font-mono); font-size: 12px; color: var(--fg-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
   }
 
   /* Edit-position mode: swap the standard play actions for the edit toolbar.
@@ -547,10 +557,22 @@
   }
   .btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
   .btn:active { background: var(--surface-sunken); }
-  .btn.primary {
-    background: var(--accent); color: var(--accent-fg); border-color: var(--accent);
+  /* Shared disabled state for every .btn (each page used to redefine this). The
+     ink-fill .primary / danger-ghost variants inherit it too; pointer-events:none
+     keeps their hover/active shifts from firing while disabled. */
+  .btn:disabled, .btn[disabled] {
+    opacity: 0.5; cursor: not-allowed; pointer-events: none;
   }
-  .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  /* Primary action = neutral "ink" fill (near-black in light, near-white in
+     dark) rather than a saturated accent — keeps colour reserved for the brand
+     wordmark and stays symmetric across themes. */
+  .btn.primary {
+    background: var(--fg); color: var(--bg); border-color: var(--fg);
+  }
+  .btn.primary:hover {
+    background: color-mix(in srgb, var(--fg) 86%, var(--bg));
+    border-color: color-mix(in srgb, var(--fg) 86%, var(--bg));
+  }
   .btn.danger-ghost { color: var(--fg-muted); }
   .btn.danger-ghost:hover { color: var(--danger); border-color: var(--danger); }
   .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -609,11 +631,44 @@
     flex: 1; min-width: 0;
     display: flex; align-items: center; gap: 10px;
   }
+  /* Board-size slider: neutral gray rail + ink knob, no left-side fill — matches
+     the 2048 #ai_speed slider and keeps saturated colour reserved for the brand
+     (the old accent-color:var(--accent) left it the lone blue control here). */
   .size-control input[type="range"] {
-    flex: 1; min-width: 0;
-    accent-color: var(--accent);
-    cursor: pointer;
-    margin: 0;
+    -webkit-appearance: none; appearance: none;
+    flex: 1; min-width: 0; height: 30px; margin: 0;
+    background: transparent; cursor: pointer;
+  }
+  .size-control input[type="range"]::-webkit-slider-runnable-track {
+    height: 8px; border-radius: 999px;
+    background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .size-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; margin-top: -5px;   /* (8-18)/2 — ride on rail */
+    border-radius: 50%; background: var(--fg);
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .size-control input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 1px 5px rgba(0,0,0,.38); }
+  .size-control input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.15); }
+  .size-control input[type="range"]::-moz-range-track {
+    height: 8px; border-radius: 999px;
+    background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .size-control input[type="range"]::-moz-range-progress {
+    height: 8px; border-radius: 999px; background: var(--surface-2);
+  }
+  .size-control input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px; border: none; border-radius: 50%;
+    background: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  }
+  .size-control input[type="range"]:focus { outline: none; }
+  .size-control input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--fg) 30%, transparent);
+  }
+  .size-control input[type="range"]:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--fg) 30%, transparent);
   }
   .size-value {
     font-family: var(--font-mono);
