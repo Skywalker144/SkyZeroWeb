@@ -354,6 +354,33 @@ class Gomoku {
         return false;
     }
 
+    // The cells of a winning run (>= 5 in a row) for `color` (+1 black, -1 white),
+    // or null if none. Purely for the win-line highlight; mirrors the run scan in
+    // getWinner step 2 but returns the actual cells (full maximal run).
+    getWinLine(state, color) {
+        if (color !== 1 && color !== -1) return null;
+        const N = this.boardSize;
+        const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+        for (let r = 0; r < N; r++) {
+            for (let c = 0; c < N; c++) {
+                if (state[r * N + c] !== color) continue;
+                for (const [dr, dc] of dirs) {
+                    // Only start at the leftmost / topmost end of a run (as in getWinner).
+                    const pr = r - dr, pc = c - dc;
+                    if (pr >= 0 && pr < N && pc >= 0 && pc < N && state[pr * N + pc] === color) continue;
+                    const cells = [[r, c]];
+                    let nr = r + dr, nc = c + dc;
+                    while (nr >= 0 && nr < N && nc >= 0 && nc < N && state[nr * N + nc] === color) {
+                        cells.push([nr, nc]);
+                        nr += dr; nc += dc;
+                    }
+                    if (cells.length >= 5) return cells;
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * V5 encode: 5 planes padded to MAX_BOARD_SIZE × MAX_BOARD_SIZE = 19×19.
      * Plane 0: on-board mask (1 inside [0, boardSize), 0 in padding)
