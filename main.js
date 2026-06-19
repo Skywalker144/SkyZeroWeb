@@ -170,7 +170,10 @@ function syncBoardSize() {
     const editTb = document.getElementById("edit_toolbar");
     const editH = (document.body.classList.contains("editing") && editTb)
         ? editTb.offsetHeight + colGap : 0;
-    const reserved = appPadY + topbarH + cardPadY + cardBorderY + editH + 12;
+    const reviewTb = document.getElementById("review_bar");
+    const reviewH = (reviewTb && !reviewTb.classList.contains("hidden"))
+        ? reviewTb.offsetHeight + colGap : 0;
+    const reserved = appPadY + topbarH + cardPadY + cardBorderY + editH + reviewH + 12;
     const availH = window.innerHeight - reserved;
 
     const cap = compact ? 560 : 900;
@@ -202,6 +205,10 @@ let showGumbel = false;
 let gumbelPhases = null; // last search's gumbel phases [[r,c]...] per phase
 let boardOverlayHeatId = null; // heat canvas id currently mirrored on the board
 let hoverCand = null;          // {r,c} candidate row under the pointer → board ring
+let hoverCell = null;          // {r,c} empty intersection under the pointer → ghost stone
+let winLine = null;            // [[r,c]...] winning run to highlight, or null
+let reviewIndex = null;        // null = live tip; else a history index being reviewed (read-only)
+let chartHover = null;         // win-rate chart: hovered ply step for the crosshair/tooltip
 
 // Run once synchronously so the first paint is already correctly sized,
 // instead of flashing the 560px default on small viewports. Must run after
@@ -250,6 +257,14 @@ function draw() {
     }
     if (!state) return;
 
+    // When reviewing a past ply, render that snapshot read-only; the live game,
+    // worker, candidate list and heatmaps are untouched. board1Dto2D + the {r,c}→
+    // [r,c] last-move shim keep the snapshot in the shape draw() expects.
+    const reviewing = reviewIndex !== null && reviewIndex < history.length;
+    const dispBoard = reviewing ? board1Dto2D(history[reviewIndex].board) : state.board;
+    const rl = reviewing ? history[reviewIndex].lastMove : null;
+    const dispLast = reviewing ? (rl ? [rl.r, rl.c] : null) : state.last_move;
+
     const stoneR    = Math.max(6, Math.round(CELL * 0.39));
     const gumbelR   = Math.max(6, Math.round(CELL * 0.34));
     const lastDotR  = Math.max(2, Math.round(CELL * 0.11));
@@ -258,7 +273,7 @@ function draw() {
     const gradInner = Math.max(1, Math.round(CELL * 0.11));
     const gumbelFontPx = Math.max(8, Math.round(CELL * 0.28));
 
-    if (showGumbel && gumbelPhases && gumbelPhases.length > 0) {
+    if (showGumbel && gumbelPhases && gumbelPhases.length > 0 && !reviewing) {
         const COLORS = ["#9ca3af","#3b82f6","#10b981","#f59e0b","#ef4444"];
         const LABELS = ["16","8","4","2","1"];
         const deepest = new Map();
@@ -288,7 +303,7 @@ function draw() {
         }
     }
 
-    const b = state.board, lm = state.last_move;
+    const b = dispBoard, lm = dispLast;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
         const v = b[r][c]; if (!v) continue;
         const x = MARGIN + c * CELL, y = MARGIN + r * CELL;
@@ -312,6 +327,10 @@ function draw() {
         }
     }
 
+    // Reviewing a past ply is read-only: just the position, no live overlays,
+    // ghost or win line (those belong to the current position only).
+    if (reviewing) return;
+
     // Candidate-disc overlay rules. A pinned heatmap is an explicit opt-in and
     // overrides everything. Otherwise: the analysis board always shows discs; in
     // play mode the AI's own turn always shows its move-search ("watch it think"),
@@ -322,7 +341,9 @@ function draw() {
         || showAnalysisOnBoard;        // play mode, your turn, opted in
     if (boardOverlayHeatId) drawBoardHeatOverlay(boardOverlayHeatId);
     else if (showOverlay) drawCandidateOverlay();
-    else if (state) drawCandidateHover(computeCandidates());   // your turn, overlay off: keep the list's hover-peek
+    else drawCandidateHover(computeCandidates());   // your turn, overlay off: keep the list's hover-peek
+    drawGhostStone();
+    if (winLine) drawWinLine();   // on a finished game, drawn last so it sits over the stones
 }
 
 // Lizzie-style candidate discs on the board (shown when no heatmap is pinned):
@@ -375,6 +396,58 @@ function drawCandidateHover(cands) {
     ctx.beginPath(); ctx.arc(x, y, candR + 2, 0, Math.PI * 2);
     ctx.lineWidth = 2.5; ctx.strokeStyle = cssVar("--accent") || "#0969da";
     ctx.stroke(); ctx.lineWidth = 1;
+}
+
+// Translucent preview of the stone that would land on the hovered empty cell,
+// plus its coordinate, so dense boards are easier to aim on. Only on a turn you
+// can actually place: analysis (side-to-move) or play mode on the human's turn.
+function drawGhostStone() {
+    if (!hoverCell || !state || gameOver || editMode) return;
+    const { r, c } = hoverCell;
+    if (r < 0 || r >= N || c < 0 || c >= N || state.board[r][c] !== 0) return;
+    let side;
+    if (currentMode === "analysis") side = toPlay;
+    else { if (toPlay !== humanSide) return; side = humanSide; }
+    const x = MARGIN + c * CELL, y = MARGIN + r * CELL;
+    const stoneR = Math.max(6, Math.round(CELL * 0.39));
+    const gradInner = Math.max(1, Math.round(CELL * 0.11));
+    const g0 = side === 1 ? cssVar("--stone-black-0") : cssVar("--stone-white-0");
+    const g1 = side === 1 ? cssVar("--stone-black-1") : cssVar("--stone-white-1");
+    ctx.save();
+    ctx.globalAlpha = 0.42;
+    ctx.beginPath(); ctx.arc(x, y, stoneR, 0, Math.PI * 2);
+    const grad = ctx.createRadialGradient(x - gradInner, y - gradInner, 2, x, y, stoneR);
+    grad.addColorStop(0, g0); grad.addColorStop(1, g1);
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 1; ctx.strokeStyle = cssVar("--stone-outline"); ctx.stroke();
+    // Coordinate readout just above the ghost (flips below for the top row).
+    const fontPx = Math.max(9, Math.round(CELL * 0.30));
+    const above = y - stoneR - 3 >= fontPx;
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = cssVar("--accent") || "#0969da";
+    ctx.font = `bold ${fontPx}px ${MONO_FONT}`;
+    ctx.textAlign = "center"; ctx.textBaseline = above ? "bottom" : "top";
+    ctx.fillText(coordLabel(r, c), x, above ? y - stoneR - 3 : y + stoneR + 3);
+    ctx.restore();
+}
+
+// Highlight the winning five (or longer run) with a gold line through the run's
+// endpoints — amber reads on black and white stones in both themes.
+function drawWinLine() {
+    if (!winLine || winLine.length < 2) return;
+    const a = winLine[0], z = winLine[winLine.length - 1];
+    const x1 = MARGIN + a[1] * CELL, y1 = MARGIN + a[0] * CELL;
+    const x2 = MARGIN + z[1] * CELL, y2 = MARGIN + z[0] * CELL;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(251,191,36,0.35)";
+    ctx.lineWidth = Math.max(8, Math.round(CELL * 0.42));
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = "#f59e0b";
+    ctx.lineWidth = Math.max(2.5, Math.round(CELL * 0.10));
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.restore();
 }
 
 // Tint cells centered on intersections; skip labels on occupied cells so
@@ -655,6 +728,9 @@ window.addEventListener("resize", () => {
 // ResizeObserver below.
 const vcCanvas = document.getElementById("value_chart");
 let vctx = setupCanvas(vcCanvas, 280, 160, false);
+// Chart inner padding, shared by drawValueChart and the hover/click hit-testing
+// below so the x↔ply mapping can't drift between drawing and picking.
+const VC_PAD = { l: 26, r: 6, t: 6, b: 14 };
 function resizeValueChart() {
     const rect = vcCanvas.getBoundingClientRect();
     const w = Math.max(120, Math.floor(rect.width));
@@ -669,6 +745,36 @@ function resizeValueChart() {
     drawValueChart();
 }
 new ResizeObserver(resizeValueChart).observe(vcCanvas);
+
+// Hover the chart to read the exact WDL at any ply (crosshair + tooltip); click
+// to jump the board to that ply (read-only review). Uses the same VC_PAD geometry
+// as drawValueChart so the picked point matches what's drawn.
+function chartStepAtX(clientX) {
+    const pts = valueHistory.filter(p => p[valueTab]);
+    if (!pts.length) return null;
+    const rect = vcCanvas.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const lx = (clientX - rect.left) * (vctx._logicalW / rect.width);
+    const innerW = vctx._logicalW - VC_PAD.l - VC_PAD.r;
+    const n = pts.length;
+    const frac = n <= 1 ? 0 : Math.max(0, Math.min(1, (lx - VC_PAD.l) / innerW));
+    return pts[Math.round(frac * (n - 1))].step;
+}
+vcCanvas.style.cursor = "crosshair";
+vcCanvas.addEventListener("mousemove", (ev) => {
+    const step = chartStepAtX(ev.clientX);
+    if (step === chartHover) return;
+    chartHover = step;
+    drawValueChart();
+});
+vcCanvas.addEventListener("mouseleave", () => {
+    if (chartHover !== null) { chartHover = null; drawValueChart(); }
+});
+vcCanvas.addEventListener("click", (ev) => {
+    const step = chartStepAtX(ev.clientX);
+    if (step === null) return;
+    setReview(navIndexForStep(step));   // null → live tip; else the matching ply
+});
 
 // valueHistory keeps one Black-frame WDL per ply for each evaluation:
 //   [{step, root:{w,d,l}|null, nn:{w,d,l}|null}]   w = Black win, l = White win.
@@ -687,6 +793,11 @@ let lastMoveAt = 0;
 function stoneCount(board2d) {
     let n = 0;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (board2d[r][c]) n++;
+    return n;
+}
+function stoneCount1D(b1d) {
+    let n = 0;
+    for (let i = 0; i < b1d.length; i++) if (b1d[i]) n++;
     return n;
 }
 // Re-express a side-to-move {w,d,l} in Black's frame given the searcher's side
@@ -725,7 +836,7 @@ function drawValueChart() {
     renderGameStats();   // keep the stats panel in lock-step (runs even on no-data)
     clearLogical(vctx);
     const W = vctx._logicalW, H = vctx._logicalH;
-    const padL = 26, padR = 6, padT = 6, padB = 14;
+    const padL = VC_PAD.l, padR = VC_PAD.r, padT = VC_PAD.t, padB = VC_PAD.b;
     const innerW = W - padL - padR, innerH = H - padT - padB;
     const axis = cssVar("--border") || "#d8dee4";
     const grid = cssVar("--heat-grid") || "#e5e7eb";
@@ -790,6 +901,44 @@ function drawValueChart() {
     vctx.strokeStyle = muted; vctx.lineWidth = 1.5;
     line(p => p.l);
     line(p => p.l + p.d);
+
+    // Overlays: a persistent cursor at the reviewed ply + a transient hover
+    // crosshair/tooltip. Both map a ply step → x via the plotted points.
+    const xForStep = (step) => {
+        const j = pts.findIndex(p => p.step === step);
+        return j < 0 ? null : (n === 1 ? rx[0] : xAt(j));
+    };
+    const markStep = (reviewIndex !== null && reviewIndex < history.length)
+        ? stoneCount1D(history[reviewIndex].board) : null;
+    if (markStep !== null) {
+        const x = xForStep(markStep);
+        if (x !== null) {
+            vctx.strokeStyle = cssVar("--accent") || "#0969da"; vctx.lineWidth = 1.5;
+            vctx.beginPath(); vctx.moveTo(x + 0.5, padT); vctx.lineTo(x + 0.5, H - padB); vctx.stroke();
+        }
+    }
+    if (chartHover != null) {
+        const x = xForStep(chartHover);
+        const p = pts.find(pp => pp.step === chartHover);
+        if (x !== null && p) {
+            vctx.strokeStyle = subtle; vctx.lineWidth = 1;
+            vctx.beginPath(); vctx.moveTo(x + 0.5, padT); vctx.lineTo(x + 0.5, H - padB); vctx.stroke();
+            const txt = `#${p.step}  B${Math.round(p.w * 100)} W${Math.round(p.l * 100)}`;
+            vctx.font = `10px ${MONO_FONT}`;
+            const tw = vctx.measureText(txt).width + 10;
+            let bx = x + 6;
+            if (bx + tw > W - padR) bx = x - 6 - tw;
+            bx = Math.max(padL, Math.min(bx, W - padR - tw));
+            const by = padT + 1, bh = 15;
+            vctx.fillStyle = cssVar("--surface") || "#fff";
+            vctx.fillRect(bx, by, tw, bh);
+            vctx.strokeStyle = cssVar("--border") || "#d8dee4";
+            vctx.strokeRect(bx + 0.5, by + 0.5, tw, bh);
+            vctx.fillStyle = cssVar("--fg") || "#1f2328";
+            vctx.textAlign = "left"; vctx.textBaseline = "middle";
+            vctx.fillText(txt, bx + 5, by + bh / 2 + 0.5);
+        }
+    }
 }
 
 // --- Per-game stats panel (left column, below the chart) -----------------
@@ -820,11 +969,14 @@ function commitSkillLosses(drops) {
     try { localStorage.setItem(SKILL_KEY, JSON.stringify(w.slice(Math.max(0, w.length - SKILL_WINDOW)))); } catch (_) {}
 }
 // This game's per-human-move win% losses (play mode only): for each human move
-// at ply k, how much win% it conceded, measured turn-to-turn from the human's
-// previous turn (k-1) to their next turn (k+1) so the opponent's punishing reply
-// is included — the same deep-ponder deltas the worst-move stat uses. Falls back
-// to the post-move eval (k) at game end. Negative deltas (apparent gains) clamp
-// to 0. Empty on the analysis board (no defined human).
+// at step k, how much win% it conceded measured before→after the move — the
+// human's win% on their own turn (k-1, their ponder) minus the eval of the
+// position right after they moved (k, the AI's deep reply-search). That post-move
+// eval is exactly the swing you watch live when the AI re-evaluates your move, so
+// the worst-move stat tracks it. Needs the pre-move ponder (k-1); a move whose
+// step-k eval never landed (e.g. a game-winning move with no AI reply) is absent
+// from `pts` and thus skipped. Negative deltas (apparent gains) clamp to 0. Empty
+// on the analysis board (no defined human).
 function humanMoveLosses() {
     if (currentMode === "analysis") return [];
     const pts = valueHistory.filter(p => p[valueTab]).map(p => ({ step: p.step, ...p[valueTab] }));
@@ -836,8 +988,7 @@ function humanMoveLosses() {
         const k = p.step;
         if ((k % 2 === 1) !== (humanSide === 1)) continue;   // not the human's move
         if (!winAt.has(k - 1)) continue;                     // no pre-move eval to compare
-        const post = winAt.has(k + 1) ? winAt.get(k + 1) : winAt.get(k);
-        out.push({ step: k, drop: Math.max(0, winAt.get(k - 1) - post) });
+        out.push({ step: k, drop: Math.max(0, winAt.get(k - 1) - winAt.get(k)) });
     }
     return out;
 }
@@ -910,7 +1061,12 @@ function renderWinLegend(v) {
     wEl.textContent = n.l.toFixed(1) + "%";   // white win
 }
 function renderValuePanel() {
-    renderWinLegend(valueTab === "root" ? lastRootWDL : lastNNWDL);
+    // While reviewing, the legend tracks the reviewed ply's stored value so it
+    // stays consistent with the board on screen; live otherwise.
+    const h = (reviewIndex !== null && reviewIndex < history.length) ? history[reviewIndex] : null;
+    const root = h ? h.rootWDL : lastRootWDL;
+    const nn = h ? h.nnWDL : lastNNWDL;
+    renderWinLegend(valueTab === "root" ? root : nn);
     drawValueChart();
 }
 // Set the current ply's root/nn values (already in Black's frame) + repaint.
@@ -1277,11 +1433,14 @@ function newGame() {
     moveTimes = [];
     lastMoveAt = Date.now();
     gumbelPhases = null;
+    winLine = null;
+    reviewIndex = null;
     setCurrentValues(null, null);
     candSig = "";
     searchSimsTotal = 0;
     publishStateForDrawing();
     drawAll();
+    updateReviewBar();
     worker.postMessage({ type: "reset", boardSize: N, ply: 0, rule: currentRule });
     // The engine ponders the human's opening (or analysis board); on the AI's
     // opening (human plays white) it searches and plays.
@@ -1333,6 +1492,7 @@ function triggerAISearch() {
 }
 
 function applyMoveLocal(action) {
+    reviewIndex = null;   // a real move advances the line → snap back to live
     history.push({
         board: new Int8Array(boardState),
         toPlay,
@@ -1346,6 +1506,7 @@ function applyMoveLocal(action) {
     boardState = game.getNextState(boardState, action, toPlay);
     lastMove = { r, c };
     const winner = game.getWinner(boardState, action, toPlay);
+    winLine = (winner === 1 || winner === -1) ? game.getWinLine(boardState, winner) : null;
     const movedBy = toPlay;
     toPlay = -toPlay;
     ply++;
@@ -1392,6 +1553,7 @@ function placeAnalysisStone(idx) {
 }
 // Play a move from the candidate list, honoring the current mode.
 function playCandidate(r, c) {
+    if (reviewIndex !== null) { setReview(null); return; }   // leave review first
     if (editMode || gameOver || !boardState) return;
     const idx = r * N + c;
     if (boardState[idx] !== 0) return;
@@ -1406,6 +1568,7 @@ function playCandidate(r, c) {
 // --- Board click ---
 cv.addEventListener("click", (ev) => {
     if (editMode) { handleEditClick(ev); return; }
+    if (reviewIndex !== null) { setReview(null); return; }   // a board click leaves review
     if (gameOver) return;
     const rect = cv.getBoundingClientRect();
     const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
@@ -1421,6 +1584,24 @@ cv.addEventListener("click", (ev) => {
     if (!legal[idx]) return;   // Renju forbidden for black, etc.
     const { winner } = applyMoveLocal(idx);
     if (winner === null) triggerAISearch();
+});
+
+// Ghost-stone preview: track the hovered empty intersection and repaint only when
+// it changes (mousemove fires a lot). Skipped while editing or reviewing; touch
+// devices don't fire mousemove, so they just tap directly with no preview.
+cv.addEventListener("mousemove", (ev) => {
+    if (editMode || reviewIndex !== null) return;
+    const rect = cv.getBoundingClientRect();
+    const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+    const c = Math.round((x - MARGIN) / CELL), r = Math.round((y - MARGIN) / CELL);
+    const cell = (r >= 0 && r < N && c >= 0 && c < N && boardState && boardState[r * N + c] === 0)
+        ? { r, c } : null;
+    if ((!cell && !hoverCell) || (cell && hoverCell && cell.r === hoverCell.r && cell.c === hoverCell.c)) return;
+    hoverCell = cell;
+    draw();
+});
+cv.addEventListener("mouseleave", () => {
+    if (hoverCell) { hoverCell = null; draw(); }
 });
 
 function handleEditClick(ev) {
@@ -1583,6 +1764,7 @@ document.getElementById("new_btn").addEventListener("click", newGame);
 
 document.getElementById("undo_btn").addEventListener("click", () => {
     if (history.length === 0) return;
+    reviewIndex = null;   // undo acts on the live game, not the reviewed ply
     // Analysis mode: undo a single placement. Play mode: undo back to the
     // human's turn (one ply if the AI is to move, otherwise the pair).
     let target = (currentMode === "analysis")
@@ -1602,6 +1784,7 @@ document.getElementById("undo_btn").addEventListener("click", () => {
         restoredNNWDL = prev.nnWDL || null;
     }
     gameOver = false;
+    winLine = null;
     aiThinking = false;
     searchId++;   // abort any in-flight search
     const sc = stoneCount(board1Dto2D(boardState));
@@ -1615,6 +1798,7 @@ document.getElementById("undo_btn").addEventListener("click", () => {
     searchSimsTotal = 0;
     publishStateForDrawing();
     drawAll();
+    updateReviewBar();
     worker.postMessage({ type: "reset", boardSize: N, ply, rule: currentRule });
     if (!gameOver) triggerAISearch();   // ponder the human's turn / search the AI's
 });
@@ -1666,10 +1850,13 @@ function enterEditMode() {
     aiThinking = false;
     gameOver = false;      // edits are unrestricted; we recheck on commit
     gumbelPhases = null;   // hide gumbel overlay during setup
+    winLine = null;
+    reviewIndex = null;
     document.body.classList.add("editing");
     setEditTool(editTool);
     setStatus("status_editing", "info");
     publishStateForDrawing();
+    updateReviewBar();
     syncBoardSize();   // toolbar height differs from play actions
     draw();
 }
@@ -1684,6 +1871,8 @@ function exitEditMode(commit) {
         lastMove = s.lastMove ? { ...s.lastMove } : null;
         ply = s.ply;
         gameOver = s.gameOver;
+        const cw = s.gameOver ? game.getWinner(boardState, null, null) : null;
+        winLine = (cw === 1 || cw === -1) ? game.getWinLine(boardState, cw) : null;
         gumbelPhases = s.gumbelPhases;
         history = s.history.slice();
         valueHistory = s.valueHistory.slice();
@@ -1737,6 +1926,7 @@ function exitEditMode(commit) {
     // We pass null for lastAction so the renju forbidden-detect path is
     // skipped — there is no "last move" in a setup.
     const winner = game.getWinner(boardState, null, null);
+    winLine = (winner === 1 || winner === -1) ? game.getWinLine(boardState, winner) : null;
     if (winner !== null) {
         gameOver = true;
         const key = winner === 1 ? "status_black_wins"
@@ -1783,6 +1973,85 @@ document.addEventListener("keydown", (ev) => {
     else if (ev.key === "b" || ev.key === "B") setEditTool("black");
     else if (ev.key === "w" || ev.key === "W") setEditTool("white");
     else if (ev.key === "e" || ev.key === "E") setEditTool("erase");
+});
+
+// --- Move review / navigation --------------------------------------------
+// Non-destructive scrubbing through the played move line: reviewIndex = null is
+// the live tip; otherwise it's a history index (0 = empty opening) shown
+// read-only while the live game, worker, candidate list and heatmaps keep
+// running. Driven by ←/→/Home/End, the on-board review bar, and the win-rate
+// chart. Stepping forward past the tip (→ / End / Live) returns to play.
+function navStepAt(i) {
+    return stoneCount1D(i < history.length ? history[i].board : boardState);
+}
+function navIndexForStep(step) {
+    for (let i = 0; i < history.length; i++) if (navStepAt(i) === step) return i;
+    return null;   // not a recorded past ply → the live tip
+}
+function updateReviewBar() {
+    const bar = document.getElementById("review_bar");
+    if (!bar) return;
+    const active = reviewIndex !== null && reviewIndex < history.length;
+    const wasActive = !bar.classList.contains("hidden");
+    if (active) {
+        const label = document.getElementById("review_label");
+        if (label) label.textContent = t("review_label", reviewIndex, history.length);
+        const prev = document.getElementById("review_prev");
+        const first = document.getElementById("review_first");
+        if (prev) prev.disabled = reviewIndex <= 0;
+        if (first) first.disabled = reviewIndex <= 0;
+        bar.classList.remove("hidden");
+    } else {
+        bar.classList.add("hidden");
+    }
+    if (active !== wasActive) syncBoardSize();   // reserve / free the bar's row
+}
+function setReview(i) {
+    if (i === null || i >= history.length) i = null;
+    else if (i < 0) i = 0;
+    if (i === reviewIndex) { updateReviewBar(); return; }
+    reviewIndex = i;
+    hoverCell = null;          // a stale ghost would belong to the live position
+    updateReviewBar();
+    renderValuePanel();        // legend → reviewed ply + chart cursor
+    draw();
+}
+function reviewStep(delta) {
+    if (history.length === 0) return;
+    if (reviewIndex === null) { if (delta < 0) setReview(history.length - 1); return; }
+    setReview(reviewIndex + delta);
+}
+for (const [id, fn] of [
+    ["review_first", () => setReview(0)],
+    ["review_prev",  () => reviewStep(-1)],
+    ["review_next",  () => reviewStep(1)],
+    ["review_live",  () => setReview(null)],
+]) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+}
+
+// Play-mode keyboard: ←/→/Home/End scrub the move line, Esc returns to live,
+// u / Ctrl+Z take back a move, n starts a new game. Edit mode and open modals
+// own the keyboard, and typing in a field is never intercepted.
+document.addEventListener("keydown", (ev) => {
+    if (editMode || expandedSourceId !== null || pendingSizeChange != null) return;
+    const tag = ev.target && ev.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (ev.ctrlKey || ev.metaKey) {
+        if (ev.key === "z" || ev.key === "Z") { ev.preventDefault(); document.getElementById("undo_btn").click(); }
+        return;
+    }
+    if (ev.altKey) return;
+    switch (ev.key) {
+        case "ArrowLeft":  ev.preventDefault(); reviewStep(-1); break;
+        case "ArrowRight": ev.preventDefault(); reviewStep(1); break;
+        case "Home":       ev.preventDefault(); if (history.length) setReview(0); break;
+        case "End":        ev.preventDefault(); setReview(null); break;
+        case "Escape":     if (reviewIndex !== null) { ev.preventDefault(); setReview(null); } break;
+        case "u": case "U": ev.preventDefault(); document.getElementById("undo_btn").click(); break;
+        case "n": case "N": ev.preventDefault(); newGame(); break;
+    }
 });
 
 // Side toggle buttons. Non-destructive: just swaps who plays which color
@@ -1856,6 +2125,8 @@ function migrateBoardSize(target, fitted) {
     boardState = fitted.board;
     lastMove = fitted.lastMove;
     gumbelPhases = null;
+    winLine = null;
+    reviewIndex = null;
     aiThinking = false;
     searchId++;   // abort any in-flight search
     history = [];   // old snapshots are at the previous size — undo can't replay across sizes
@@ -1866,6 +2137,7 @@ function migrateBoardSize(target, fitted) {
     publishStateForDrawing();
     syncBoardSize();
     drawAll();
+    updateReviewBar();
     worker.postMessage({ type: "reset", boardSize: N, ply, rule: currentRule });
     if (!gameOver && toPlay !== humanSide) {
         triggerAISearch();
@@ -1966,6 +2238,7 @@ registerI18nCallback(() => {
     renderValuePanel();
     candSig = ""; renderCandidates();
     renderSizeConfirmBody();
+    updateReviewBar();
 });
 
 // --- Settings popover (model / rule / size / palette / setup) ---
