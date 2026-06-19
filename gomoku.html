@@ -6,7 +6,7 @@
   <title>SkyZero · Gomoku</title>
   <link rel="preload" href="fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="fonts/Jost-SemiBold.woff2"  as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Manrope-Bold.woff2"  as="font" type="font/woff2" crossorigin>
   <script>
     // Set theme before first paint to avoid flash. Tri-state: auto/light/dark.
     (function(){
@@ -208,6 +208,22 @@
           <button class="btn" id="edit_undo_btn" data-i18n="btn_edit_undo" disabled>撤回</button>
           <button class="btn primary" id="edit_done_btn" data-i18n="btn_edit_done">完成</button>
           <button class="btn" id="edit_cancel_btn" data-i18n="btn_cancel">取消</button>
+        </div>
+        <!-- Move-review bar: appears below the board while scrubbing past plies
+             (←/→ keys or a click on the win-rate chart). Read-only — it never
+             mutates the live game; "返回对局" jumps back to the current position. -->
+        <div class="board-actions review-bar hidden" id="review_bar">
+          <button class="btn" id="review_first" data-i18n-title="review_first" data-i18n-aria="review_first" title="回到开局" aria-label="回到开局">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 3L6 8l5 5M5 3v10"/></svg>
+          </button>
+          <button class="btn" id="review_prev" data-i18n-title="review_prev" data-i18n-aria="review_prev" title="上一手" aria-label="上一手">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+          </button>
+          <span class="review-label" id="review_label"></span>
+          <button class="btn" id="review_next" data-i18n-title="review_next" data-i18n-aria="review_next" title="下一手" aria-label="下一手">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+          </button>
+          <button class="btn primary" id="review_live" data-i18n="review_live">返回对局</button>
         </div>
       </section>
 
