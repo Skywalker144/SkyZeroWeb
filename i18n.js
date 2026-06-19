@@ -105,6 +105,11 @@ const I18N_STRINGS = {
         aria_edit_tool: "Edit tool",
         status_editing: "Editing position",
         status_edit_invalid: (b, w) => `Invalid stone count (B=${b}, W=${w}); need B==W or B==W+1`,
+        review_label: (cur, total) => `Review · move ${cur} / ${total}`,
+        review_first: "Jump to start",
+        review_prev: "Previous move",
+        review_next: "Next move",
+        review_live: "Live",
     },
     zh: {
         page_title: "SkyZero · Gomoku",
@@ -208,6 +213,11 @@ const I18N_STRINGS = {
         aria_edit_tool: "编辑工具",
         status_editing: "编辑棋形中",
         status_edit_invalid: (b, w) => `棋子数不合法(黑 ${b} / 白 ${w});需 黑 = 白 或 黑 = 白 + 1`,
+        review_label: (cur, total) => `复盘 · 第 ${cur} / ${total} 手`,
+        review_first: "回到开局",
+        review_prev: "上一手",
+        review_next: "下一手",
+        review_live: "返回对局",
     },
 };
 
