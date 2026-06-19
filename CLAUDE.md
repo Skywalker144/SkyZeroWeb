@@ -13,6 +13,15 @@
 
 躲避游戏现在有一个 **SAC 训练的自动驾驶 AI**（页面上「AI 托管」按钮，玩家可随时开关）。和五子棋/2048 不同，它的网络极小（连续 SAC actor，MLP `271→256→256→4`，relu；输出前 2 维=移动向量的高斯均值，贪心动作 = `tanh(mean)` 裁剪到单位圆），所以**没有用 onnxruntime-web**：actor 权重打包成 `dodge-policy.js`（base64 little-endian float32，`continuous:true`），在 `channel-dodge.html` 内用 ~30 行**纯 JS 同步前向**跑（无 CDN、无 WASM、无 Worker、无 async），保持页面单文件自包含。271 维观测（最近 32 个威胁的相对位置/速度/伤害/半径 + 3 条激光 + 3 颗炸弹 + 2 个血包 + 玩家血量/无敌/位置/四向墙距）在 JS 里逐字复刻训练环境 `../SkyZero/DodgeSAC/env_dodge.py` 的 `_obs_vector`；决策固定 **30 Hz**。**关键：游戏物理必须跑在固定 450×600 逻辑坐标系**（`SIM_W/SIM_H`，`resize()` 里只缩放渲染，不缩放物理）——否则手机等小屏上 obs 会被 `POS_NORM/VEL_NORM` 裁剪/失真，精确的连续 SAC 直接秒死（旧离散 argmax 策略粗糙反而扛得住，所以这坑曾被掩盖）。敌人弹幕仍是手写行为脚本（AI 只接管玩家移动）。
 
+## 五子棋搜索逻辑（对弈循环）
+
+五子棋是「ponder（分析，不落子）↔ move-search（搜索并落子）」交替循环，**全程复用搜索树**（`worker.js` 的 `applyMove` 把刚走的那一手对应子节点直接当新根）。两条路径在 `main.js` `triggerAISearch()` 里分流（`isPonderTurn()` 判定），用**不同的搜索方式和不同的访问上限**：
+
+- **ponder（对弈模式你的回合 / 分析模式任意手）**：固定 `ANALYSIS_CHUNK = 96` sims/块的 PUCT，结果回来后只要**累计根访问 < `ANALYSIS_CAP_MIN = 2000`** 就复用树再下一块，直到 ≥2000 才停（见结果处理 `main.js:1708`）。对弈模式下安静跑（状态栏只显示「轮到你」），但候选/胜率/热力图实时刷新；你一落子就 `searchId++` 中止当前块。
+- **move-search（对弈模式 AI 自己的回合）**：anytime PUCT，跑满 `thinkMs`（工具栏「思考时间」下拉，默认 3000ms）**或**累计根访问到 `SEARCH_VISIT_CAP`（`worker.js`，现 = 2000，与 ponder 上限对齐）——**先到者停**，然后落最高访问手。`thinkMs` 只影响 AI 自己这一手的搜索时长，不会加深你的回合 ponder（后者永远是 96-块到 2000 封顶，与 `thinkMs` 无关）。
+
+完整一轮：开页面 ready→`newGame`→ponder 你的回合；你落子→`move`（树复用）→move-search AI 的手→AI 落子→`move`（树复用）→回到 ponder。**两个上限都是「跨树复用的累计根访问」，不是单次搜索量**；因为复用，中/残局往往没跑满时间或没下满块就已到顶。改其中一个上限记得另一个同步（两者刻意保持相等）。
+
 ## 部署（重要）
 
 - 通过 **Cloudflare Pages** 部署，**无构建步骤**：源码即产物，`git push` 自动上线。
