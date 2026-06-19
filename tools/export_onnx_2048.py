@@ -47,9 +47,9 @@ def _import_net_builders():
     """Lazily import the SkyZero_2048 net definition. Only needed to rebuild a
     bare/dict state_dict; an already-traced TorchScript checkpoint (V1
     scripted_iter_*.pt, V2 server_models/*.pt) is exported as-is without it."""
-    py = Path(__file__).resolve().parents[2] / "SkyZero_2048" / "python"
+    py = Path(__file__).resolve().parents[2] / "SkyZero" / "SkyZero_2048_V2" / "python"
     if not py.is_dir():
-        raise SystemExit(f"Expected SkyZero_2048 python at {py}")
+        raise SystemExit(f"Expected SkyZero_2048_V2 python at {py}")
     sys.path.insert(0, str(py))
     from nets import build_net               # noqa: E402
     from model_config import config_from_name  # noqa: E402
