@@ -62,7 +62,7 @@
 
       <div class="tb-group">
         <span class="tb-label" data-i18n="tb_label_mode">模式</span>
-        <div class="seg-row" id="mode_seg" role="group" data-i18n-aria="tb_label_mode" aria-label="模式">
+        <div class="seg-row seg-slide" id="mode_seg" role="group" data-i18n-aria="tb_label_mode" aria-label="模式">
           <button class="seg-btn" id="mode_play" aria-pressed="true" data-i18n="mode_play">对弈</button>
           <button class="seg-btn" id="mode_analysis" aria-pressed="false" data-i18n="mode_analysis">分析</button>
         </div>
@@ -70,7 +70,7 @@
 
       <div class="tb-group" id="side_row">
         <span class="tb-label" data-i18n="tb_label_side">执子</span>
-        <div class="seg-row">
+        <div class="seg-row seg-slide">
           <button class="seg-btn" id="side_black" aria-pressed="true">
             <span class="seg-stone black"></span><span data-i18n="side_black">黑棋</span>
           </button>
@@ -82,19 +82,24 @@
 
       <div class="tb-group" id="model_wrap">
         <span class="tb-label" data-i18n="label_model">模型</span>
-        <select id="model_select" class="tb-select"></select>
+        <div class="custom-select" id="model_select">
+          <button type="button" class="cs-trigger" id="model_trigger"
+                  aria-haspopup="listbox" aria-expanded="false"
+                  data-i18n-aria="label_model" aria-label="模型">
+            <span class="cs-trigger-label" id="model_trigger_label">—</span>
+            <svg class="cs-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="cs-menu hidden" id="model_menu" role="listbox" data-i18n-aria="label_model" aria-label="模型"></div>
+        </div>
       </div>
 
       <div class="tb-group" id="think_time_wrap">
         <span class="tb-label" data-i18n="tb_label_think">思考时间</span>
-        <select id="think_time_select" class="num tb-select" data-i18n-aria="aria_think_time" aria-label="思考时间">
-          <option value="500">0.5s</option>
-          <option value="1000">1s</option>
-          <option value="2000">2s</option>
-          <option value="3000" selected>3s</option>
-          <option value="5000">5s</option>
-          <option value="10000">10s</option>
-        </select>
+        <div class="think-slider">
+          <input type="range" id="think_time_range" min="0" max="5" step="1" value="3"
+                 data-i18n-aria="aria_think_time" aria-label="思考时间" />
+          <span class="think-val" id="think_time_val">3s</span>
+        </div>
       </div>
 
       <div class="tb-actions">
@@ -352,5 +357,6 @@
   <script src="gomoku.js"></script>
   <script src="mcts.js"></script>
   <script src="main.js"></script>
+  <script src="seg-slide.js"></script>
 </body>
 </html>
