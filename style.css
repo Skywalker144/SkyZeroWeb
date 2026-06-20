@@ -211,14 +211,24 @@
     .topbar .topbar-right { order: 1; margin-left: auto; }
     .topbar .tb-group     { order: 2; flex: 1 1 auto; min-width: 0; }
     .topbar .tb-group .seg-row { width: 100%; }
-    /* Custom dropdown / slider fill their group on phones, matching the seg-rows. */
+    /* Custom dropdowns / trigger fill their group on phones, matching the seg-rows.
+       Think-time keeps the button + popover on phones too; the trigger fills its
+       half-cell, overriding the desktop fixed width. */
     .topbar #model_wrap .custom-select,
-    .topbar #model_wrap .cs-trigger { width: 100%; }
+    .topbar #model_wrap .cs-trigger,
+    .topbar #think_time_wrap .think-select,
+    .topbar #think_time_wrap .cs-trigger { width: 100%; }
     .topbar #think_time_wrap .think-slider { width: 100%; min-width: 0; }
     /* min-width:0 lets the range shrink below its ~132px intrinsic width — form
-       controls default to min-width:auto and otherwise overflow the 50% column on
-       narrow phones (e.g. 390px), breaking the toolbar layout. */
+       controls default to min-width:auto and otherwise overflow the panel on
+       narrow phones (e.g. 390px). */
     .topbar #think_time_range { flex: 1 1 auto; width: auto; min-width: 0; }
+    /* The think-time panel is fixed-position (anchored under the trigger by
+       main.js) so it escapes #play_row's overflow:hidden instead of being clipped
+       by it; width clamps to the viewport on narrow screens. ID selector so it
+       beats .cs-menu's position:absolute / min-width:100% (same specificity, but
+       defined later in the file — it would otherwise win and re-clip the panel). */
+    #think_pop { position: fixed; width: min(240px, calc(100vw - 24px)); min-width: 0; }
     .topbar .tb-actions   { order: 5; width: 100%; margin: 0; }
     .topbar .tb-actions .btn { flex: 1; }
 
@@ -249,6 +259,11 @@
       display: flex; flex-wrap: wrap; gap: 8px 14px; min-width: 0;
     }
     .topbar #model_wrap { order: 3; }
+    /* #model_wrap sits in the right half of row 1, so the menu's default left:0
+       anchor (it's wider than its half-cell trigger because of the ELO column)
+       spilled past the screen's right edge. Anchor its right edge to the trigger
+       instead so it opens leftward, into the viewport. */
+    .topbar #model_menu { left: auto; right: 0; }
     .topbar #play_row {
       order: 4; display: flex; flex: 1 1 100%;
       gap: 8px 14px; overflow: hidden; max-height: 3rem;
@@ -367,6 +382,17 @@
   .cs-option[aria-selected="true"] .cs-opt-elo {
     color: color-mix(in srgb, var(--accent) 70%, var(--fg-muted));
   }
+
+  /* Think-time popover — an external 思考时间 label sits in the toolbar next to a
+     fixed-width trigger showing the current seconds; the 6-stop slider lives in a
+     panel reusing the .cs-menu shell (model dropdown). The fixed trigger width
+     keeps the toolbar from reflowing as the value changes (0.5s ↔ 10s). Gated by
+     .think-select.open (toggled in JS) rather than the .hidden class. On phones
+     the panel switches to position:fixed (mobile block) so it escapes #play_row's
+     overflow:hidden — main.js anchors it under the trigger. */
+  .think-trigger { width: 70px; font-variant-numeric: tabular-nums; }
+  .think-pop { display: none; gap: 8px; padding: 10px 12px; min-width: 200px; }
+  .think-select.open .think-pop { display: flex; }
 
   /* Thinking-time slider (toolbar) — a 6-stop range with a live value label,
      replacing the cramped native dropdown. */
