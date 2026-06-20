@@ -7,6 +7,15 @@
   <link rel="preload" href="fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Manrope-Bold.woff2"  as="font" type="font/woff2" crossorigin>
+  <!-- Kick off the onnxruntime-web WASM runtime download in parallel with page
+       boot; otherwise it's fetched late (worker spins up -> ort.min.js loads ->
+       model downloads -> only then the wasm), serializing the two big cold-cache
+       downloads. Only helps the first visit — the file is immutable for a year.
+       SIMD build covers all modern browsers; a non-SIMD one just wastes this hint
+       and falls back to ort-wasm.wasm. Version MUST match worker.js's @1.17.0. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preload" as="fetch" crossorigin
+        href="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort-wasm-simd.wasm">
   <script>
     // Set theme before first paint to avoid flash. Tri-state: auto/light/dark.
     (function(){
