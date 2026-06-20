@@ -196,22 +196,30 @@
     .topbar #think_time_wrap .tb-label,
     .topbar #model_wrap .tb-label { display: inline-block; }
 
-    /* Three rows:  1) brand · status ............ [设置]
-                    2) [对弈|分析]   [黑棋|白棋]
-                    3) [新对局] [悔棋]
-       The settings button is all that's left in .topbar-right; margin-left:auto
-       parks it at the right end of row 1 (so its popover anchors flush to the
-       screen edge), while width:100% on .tb-actions drops the action buttons to
-       their own final row. */
+    /* Brand row:  [SkyZero · Gomoku  状态] ............ [设置]
+       brand + status are a nowrap unit (.tb-brandrow) so 状态 can never wrap below
+       the brand — it shrinks instead (the pill ellipsizes; the brand keeps its
+       full suffix). 设置 (.topbar-right) parks at the far right via margin-left:auto
+       (so its popover anchors flush to the screen edge). The control rows sit below
+       in .tb-controls (its own flex-basis:100% block), so nothing here can shove
+       them around. */
+    .topbar .tb-brandrow {
+      order: 0; flex: 0 1 auto; min-width: 0;
+      display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 14px;
+    }
+    .topbar .tb-brandrow .brand-title { flex: 0 0 auto; }
     .topbar .topbar-right { order: 1; margin-left: auto; }
     .topbar .tb-group     { order: 2; flex: 1 1 auto; min-width: 0; }
     .topbar .tb-group .seg-row { width: 100%; }
     /* Custom dropdown / slider fill their group on phones, matching the seg-rows. */
     .topbar #model_wrap .custom-select,
     .topbar #model_wrap .cs-trigger { width: 100%; }
-    .topbar #think_time_wrap .think-slider { width: 100%; }
-    .topbar #think_time_range { flex: 1 1 auto; width: auto; }
-    .topbar .tb-actions   { order: 3; width: 100%; margin: 0; }
+    .topbar #think_time_wrap .think-slider { width: 100%; min-width: 0; }
+    /* min-width:0 lets the range shrink below its ~132px intrinsic width — form
+       controls default to min-width:auto and otherwise overflow the 50% column on
+       narrow phones (e.g. 390px), breaking the toolbar layout. */
+    .topbar #think_time_range { flex: 1 1 auto; width: auto; min-width: 0; }
+    .topbar .tb-actions   { order: 5; width: 100%; margin: 0; }
     .topbar .tb-actions .btn { flex: 1; }
 
     /* Status text is short + fixed-width now, so the pill keeps its width on row 1
@@ -224,6 +232,56 @@
     /* Keep the settings popover inside narrow viewports (it was running off the
        left edge before the toolbar reflow parked the button flush right). */
     .settings-pop { width: min(300px, calc(100vw - 32px)); }
+
+    /* All controls live in .tb-controls, a flex-basis:100% block that owns its
+       own rows below the brand line — fully isolated from the brand/status/设置
+       row, so the controls always pair 2-up no matter how wide the brand line is
+       or how it wraps (the earlier bug: a wide brand line shoved 状态 down into
+       the controls, knocking every pair off by one). Inside it, three rows:
+         1) [对弈|分析]      [模型]
+         2) [黑棋|白棋]      [思考时间]   ← #play_row, play-only
+         3) [新对局]         [悔棋]
+       #play_row groups the two play-only controls so analysis mode folds that one
+       row as a vertical accordion (fold defined below). Each pair's basis sums to
+       100% with the gap, so it's always exactly two-up. */
+    .topbar .tb-controls {
+      order: 2; flex: 1 1 100%;
+      display: flex; flex-wrap: wrap; gap: 8px 14px; min-width: 0;
+    }
+    .topbar #model_wrap { order: 3; }
+    .topbar #play_row {
+      order: 4; display: flex; flex: 1 1 100%;
+      gap: 8px 14px; overflow: hidden; max-height: 3rem;
+    }
+    .tb-controls > .tb-group,
+    .topbar #play_row > .tb-group { flex: 1 1 calc(50% - 7px); }
+    /* #play_row stays in the layout (display:flex) and folds via plain
+       max-height/opacity/margin transitions — NOT display:none + @starting-style,
+       which setMode()'s synchronous syncBoardSize() (a forced layout flush right
+       after the class toggle) would skip, snapping instead of animating. A plain
+       property transition interpolates from the last painted value, so the flush
+       doesn't defeat it. margin-top:-8px swallows the row-gap so the actions row
+       meets the controls row with no end-snap. visibility flips to hidden only
+       AFTER the fold (delay = duration) to drop the clipped controls from the tab
+       order; expanding back, it's immediate. Gated on .tb-anim-ready (added
+       post-first-paint by main.js) so it doesn't fold in on initial load. */
+    body.tb-anim-ready .topbar #play_row {
+      transition: max-height 0.28s ease, opacity 0.22s ease,
+                  margin-top 0.28s ease, visibility 0s;
+    }
+    body.tb-anim-ready.mode-analysis .topbar #play_row {
+      transition: max-height 0.28s ease, opacity 0.22s ease,
+                  margin-top 0.28s ease, visibility 0s 0.28s;
+    }
+    body.mode-analysis .topbar #play_row {
+      max-height: 0; opacity: 0; margin-top: -8px; visibility: hidden;
+    }
+  }
+
+  /* Respect reduced-motion: fold instantly instead of animating. */
+  @media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+    body.tb-anim-ready .topbar #play_row,
+    body.tb-anim-ready.mode-analysis .topbar #play_row { transition: none; }
   }
 
   /* ---------- Top toolbar ---------- */
@@ -1105,7 +1163,22 @@
      list, heatmaps); the toggle only changes interaction (play-vs-AI vs a
      free-placement board the engine continuously analyzes). Mode wiring is
      in main.js (setMode). */
-  /* Analysis mode drives both colors itself, so the human-side picker is
-     meaningless and hidden. */
-  body.mode-analysis #side_row,
-  body.mode-analysis #think_time_wrap { display: none; }
+  /* Analysis mode drives both colors itself (so the side picker is meaningless)
+     and never plays (so think-time is meaningless). On DESKTOP both groups are
+     made invisible rather than removed: visibility:hidden keeps their box in the
+     flex flow, so the model dropdown + action buttons to their right stay put
+     instead of sliding left on the play↔analysis toggle (they sit contiguously,
+     执子 · 思考时间, so the reserved gap reads as one blank block). Phones don't
+     reserve — they collapse the whole #play_row as one accordion (see ≤720px) —
+     so this is scoped away from them. */
+  @media (min-width: 721px) {
+    body.mode-analysis #side_row,
+    body.mode-analysis #think_time_wrap { visibility: hidden; }
+  }
+  /* .tb-brandrow, #play_row and .tb-controls only form rows on phones; on desktop
+     all three are layout-neutral pass-throughs (display:contents), so brand,
+     status and the control groups stay direct toolbar items in source order
+     (brand · status · 模式 · 执子 · 思考时间 · 模型 · actions). */
+  .tb-brandrow,
+  #play_row,
+  .tb-controls { display: contents; }
