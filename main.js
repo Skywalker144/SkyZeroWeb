@@ -1212,19 +1212,40 @@ async function loadManifest() {
     const r = await fetch("models/manifest.json", { cache: "no-cache" });
     if (!r.ok) throw new Error("manifest.json fetch failed: " + r.status);
     manifest = await r.json();
-    const sel = document.getElementById("model_select");
-    sel.innerHTML = "";
-    // Sort by ELO ascending so "新手" sits at the top.
+    const menu = document.getElementById("model_menu");
+    menu.innerHTML = "";
+    // Sort by ELO ascending so "入门" sits at the top.
     const items = manifest.models.slice().sort((a, b) => a.elo - b.elo);
     for (const m of items) {
-        const o = document.createElement("option");
-        o.value = m.id;
-        const eloStr = (m.elo >= 0 ? "+" : "") + m.elo;
-        o.textContent = `${m.id.toUpperCase()} ${m.label} · ELO ${eloStr}`;
-        sel.appendChild(o);
+        const o = document.createElement("button");
+        o.type = "button";
+        o.className = "cs-option";
+        o.setAttribute("role", "option");
+        o.dataset.id = m.id;
+        const name = document.createElement("span");
+        name.className = "cs-opt-name";
+        name.textContent = `${m.id.toUpperCase()} ${m.label}`;
+        const elo = document.createElement("span");
+        elo.className = "cs-opt-elo";
+        elo.textContent = "ELO " + (m.elo >= 0 ? "+" : "") + m.elo;
+        o.append(name, elo);
+        menu.appendChild(o);
     }
     currentModelId = manifest.default || items[0].id;
-    sel.value = currentModelId;
+    setModelTrigger(currentModelId);
+}
+
+// Reflect the active model on the dropdown trigger — the short "LV3 高手" only
+// (the ELO lives in the menu rows, so the toolbar control stays narrow) — and
+// mark the matching menu row as selected.
+function setModelTrigger(id) {
+    const m = modelById(id);
+    if (!m) return;
+    const labelEl = document.getElementById("model_trigger_label");
+    if (labelEl) labelEl.textContent = `${m.id.toUpperCase()} ${m.label}`;
+    for (const opt of document.querySelectorAll("#model_menu .cs-option")) {
+        opt.setAttribute("aria-selected", opt.dataset.id === id ? "true" : "false");
+    }
 }
 
 function modelById(id) {
@@ -1746,16 +1767,31 @@ worker.onmessage = (e) => {
         });
     }
 })();
-// Thinking-time dropdown (toolbar): apply the saved value, persist on change.
+// Thinking-time slider (toolbar): a stepped range over THINK_MS_OPTIONS. The
+// options aren't evenly spaced (0.5/1/2/3/5/10s), so the slider walks their
+// index rather than the raw ms; the live label shows the current value and it
+// persists while dragging.
 (function initThinkTime() {
-    const sel = document.getElementById("think_time_select");
-    if (!sel) return;
-    sel.value = String(thinkMs);
-    sel.addEventListener("change", () => {
-        const v = parseInt(sel.value, 10);
-        if (!THINK_MS_OPTIONS.includes(v)) return;
-        thinkMs = v;
-        try { localStorage.setItem("skz_think_ms", String(v)); } catch (_) {}
+    const range = document.getElementById("think_time_range");
+    const valEl = document.getElementById("think_time_val");
+    if (!range) return;
+    const fmt = (ms) => (ms / 1000) + "s";
+    range.max = String(THINK_MS_OPTIONS.length - 1);
+    function reflect(idx) {
+        const ms = THINK_MS_OPTIONS[idx];
+        if (valEl) valEl.textContent = fmt(ms);
+        range.setAttribute("aria-valuetext", fmt(ms));
+        return ms;
+    }
+    let idx = THINK_MS_OPTIONS.indexOf(thinkMs);
+    if (idx < 0) idx = THINK_MS_OPTIONS.indexOf(3000);
+    range.value = String(idx);
+    reflect(idx);
+    range.addEventListener("input", () => {
+        const i = parseInt(range.value, 10);
+        if (!(i >= 0 && i < THINK_MS_OPTIONS.length)) return;
+        thinkMs = reflect(i);
+        try { localStorage.setItem("skz_think_ms", String(thinkMs)); } catch (_) {}
     });
 })();
 
@@ -2212,17 +2248,38 @@ function closeSizeConfirmModal(commit) {
     });
 }
 
-// Model dropdown.
-document.getElementById("model_select").addEventListener("change", (ev) => {
-    const id = ev.target.value;
-    const m = modelById(id);
-    if (!m) return;
-    currentModelId = id;
-    showLoadingOverlay("loading_model", m.label);
-    searchId++;
-    aiThinking = false;
-    worker.postMessage({ type: "swap-model", modelUrl: modelUrl(m) });
-});
+// Model dropdown (custom listbox). The native <select> rendered the full
+// "LV3 高手 · ELO +1132" string and ran wide; this trigger shows just the short
+// name while each ELO lives in the popped-open menu rows.
+(function initModelDropdown() {
+    const trigger = document.getElementById("model_trigger");
+    const menu = document.getElementById("model_menu");
+    if (!trigger || !menu) return;
+    function setOpen(open) {
+        menu.classList.toggle("hidden", !open);
+        trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    trigger.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        setOpen(menu.classList.contains("hidden"));
+    });
+    menu.addEventListener("click", (ev) => {
+        const opt = ev.target.closest(".cs-option");
+        if (!opt) return;
+        setOpen(false);
+        const id = opt.dataset.id;
+        const m = modelById(id);
+        if (!m || id === currentModelId) return;
+        currentModelId = id;
+        setModelTrigger(id);
+        showLoadingOverlay("loading_model", m.label);
+        searchId++;
+        aiThinking = false;
+        worker.postMessage({ type: "swap-model", modelUrl: modelUrl(m) });
+    });
+    document.addEventListener("click", () => setOpen(false));
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") setOpen(false); });
+})();
 
 // Re-render dynamic strings (status, loading overlay, modal title,
 // value-chart 'no data') when the user switches language.
