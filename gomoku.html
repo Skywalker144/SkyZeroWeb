@@ -96,12 +96,28 @@
           </div>
         </div>
 
+        <!-- Think-time collapsed into a compact dropdown: an external 思考时间 label
+             (mirrors 模型) + a fixed-width trigger showing the current seconds, which
+             opens the slider in a popover — so the toolbar no longer carries the full
+             inline slider, and the fixed width stops the bar reflowing as the value
+             changes. On phones the panel is position:fixed (anchored by main.js) so
+             it escapes #play_row's overflow:hidden instead of being clipped. -->
         <div class="tb-group" id="think_time_wrap">
           <span class="tb-label" data-i18n="tb_label_think">思考时间</span>
-          <div class="think-slider">
-            <input type="range" id="think_time_range" min="0" max="5" step="1" value="3"
-                   data-i18n-aria="aria_think_time" aria-label="思考时间" />
-            <span class="think-val" id="think_time_val">3s</span>
+          <div class="custom-select think-select" id="think_select">
+            <button type="button" class="cs-trigger think-trigger" id="think_trigger"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="think_pop"
+                    data-i18n-aria="aria_think_time" aria-label="思考时间">
+              <span class="cs-trigger-label" id="think_trigger_val">3s</span>
+              <svg class="cs-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="cs-menu think-pop" id="think_pop">
+              <div class="think-slider">
+                <input type="range" id="think_time_range" min="0" max="5" step="1" value="3"
+                       data-i18n-aria="aria_think_time" aria-label="思考时间" />
+                <span class="think-val" id="think_time_val">3s</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
