@@ -137,6 +137,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const a = document.getElementById("mode_analysis");
     if (p) p.addEventListener("click", () => setMode("play"));
     if (a) a.addEventListener("click", () => setMode("analysis"));
+    // Enable the mobile #play_row fold transition only after the first paint, so
+    // the play-only row doesn't animate in on initial load — only on a later
+    // mode toggle (mirrors seg-slide's -ready gate).
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+        document.body.classList.add("tb-anim-ready")));
 });
 
 // --- Board sizing --------------------------------------------------------
