@@ -7,6 +7,15 @@
   <link rel="preload" href="fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Manrope-Bold.woff2"  as="font" type="font/woff2" crossorigin>
+  <!-- Kick off the onnxruntime-web WASM runtime download in parallel with page
+       boot; otherwise it's fetched late (worker spins up -> ort.min.js loads ->
+       model downloads -> only then the wasm), serializing the two big cold-cache
+       downloads. Only helps the first visit — the file is immutable for a year.
+       SIMD build covers all modern browsers; a non-SIMD one just wastes this hint
+       and falls back to ort-wasm.wasm. Version MUST match worker2048.js's @1.17.0. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preload" as="fetch" crossorigin
+        href="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort-wasm-simd.wasm">
   <script>
     // Reuse the same theme/lang prefs as the Gomoku page so style stays
     // consistent across the two games.
@@ -401,7 +410,7 @@
         play_again: '再来一局', keep_going: '继续',
         brand: 'SkyZero · 2048',
         ai_auto: 'SkyZero 接管', ai_stop: 'SkyZero 接管中',
-        ai_loading: '加载 AI 模型…',
+        ai_loading: '加载SkyZero引擎中…', ai_initializing: '正在初始化SkyZero引擎…',
         ai_ready: 'AI 就绪', ai_error: 'AI 加载失败',
         ai_fast: '更快 更弱', ai_strong: '更慢 更强',
         ai_note: '本局由 SkyZero 接管,未计入排行榜',
@@ -413,7 +422,7 @@
         play_again: 'Play again', keep_going: 'Keep going',
         brand: 'SkyZero · 2048',
         ai_auto: 'SkyZero autopilot', ai_stop: 'SkyZero playing',
-        ai_loading: 'Loading AI model…',
+        ai_loading: 'Loading SkyZero engine…', ai_initializing: 'Initializing SkyZero engine…',
         ai_ready: 'AI ready', ai_error: 'AI failed to load',
         ai_fast: 'Faster, weaker', ai_strong: 'Slower, stronger',
         ai_note: 'SkyZero played this run — not counted on the leaderboard',
@@ -1099,6 +1108,9 @@
     const aiSpeedValEl = document.getElementById('ai_speed_val');
 
     function setAiStatus(text) { if (aiStatusEl) aiStatusEl.textContent = text || ''; }
+    // Loading line carries the SkyZero wordmark, so it goes through innerHTML
+    // (withBrand) rather than setAiStatus's textContent. Suffix is numbers only.
+    function setAiLoading(suffix) { if (aiStatusEl) aiStatusEl.innerHTML = withBrand(t('ai_loading') + (suffix || '')); }
     function fmtMB(bytes) { return (Number(bytes || 0) / 1048576).toFixed(1); }
     // Current per-move interval (ms) from the slider — read live so dragging it
     // mid-autoplay takes effect on the next move.
@@ -1153,11 +1165,18 @@
         const m = ev.data || {};
         if (m.type === 'model-progress') {
           if (!aiReady) {
-            let s = t('ai_loading');
-            if (m.percent != null) s += ' ' + Math.round(m.percent) + '%';
-            if (m.total) s += ' (' + fmtMB(m.loaded) + '/' + fmtMB(m.total) + ' MB)';
-            else if (m.loaded) s += ' (' + fmtMB(m.loaded) + ' MB)';
-            setAiStatus(s);
+            if (m.percent != null && m.percent >= 100) {
+              // Download done — worker is now building the ONNX session (ort WASM
+              // + graph compile), which the bar doesn't track. Say so instead of
+              // freezing the line at "100% (2.0/2.0 MB)".
+              if (aiStatusEl) aiStatusEl.innerHTML = withBrand(t('ai_initializing'));
+            } else {
+              let s = '';
+              if (m.percent != null) s += ' ' + Math.round(m.percent) + '%';
+              if (m.total) s += ' (' + fmtMB(m.loaded) + '/' + fmtMB(m.total) + ' MB)';
+              else if (m.loaded) s += ' (' + fmtMB(m.loaded) + ' MB)';
+              setAiLoading(s);
+            }
           }
         } else if (m.type === 'ready') {
           aiReady = true; setAiStatus(''); refreshAiButtons();
@@ -1171,7 +1190,7 @@
       aiWorker.onerror = () => {
         aiBusy = false; aiAuto = false; setAiStatus(t('ai_error')); refreshAiButtons();
       };
-      setAiStatus(t('ai_loading'));
+      setAiLoading('');
       aiWorker.postMessage({ type: 'init', model: AI_MODEL_URL });
     }
 
