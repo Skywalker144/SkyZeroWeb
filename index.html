@@ -126,11 +126,11 @@
     <header class="topbar">
       <div></div>
       <div class="topbar-actions">
-        <div class="seg-row compact" id="lang_seg" role="group" aria-label="切换语言">
+        <div class="seg-row compact seg-slide" id="lang_seg" role="group" aria-label="切换语言">
           <button class="seg-btn" data-lang="zh" aria-pressed="true">中</button>
           <button class="seg-btn" data-lang="en" aria-pressed="false">EN</button>
         </div>
-        <div class="seg-row compact" id="theme_seg" role="group" aria-label="切换配色主题">
+        <div class="seg-row compact seg-slide" id="theme_seg" role="group" aria-label="切换配色主题">
           <button class="seg-btn" data-theme="auto" aria-pressed="true" aria-label="自动" title="自动">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
               <circle cx="8" cy="8" r="6"></circle>
@@ -360,5 +360,6 @@
       } catch (e) {}
     });
   </script>
+  <script defer src="seg-slide.js?v=20260620"></script>
 </body>
 </html>
