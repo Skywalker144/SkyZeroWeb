@@ -1779,13 +1779,16 @@ worker.onmessage = (e) => {
 (function initThinkTime() {
     const range = document.getElementById("think_time_range");
     const valEl = document.getElementById("think_time_val");
+    const trigEl = document.getElementById("think_trigger_val");
     if (!range) return;
     const fmt = (ms) => (ms / 1000) + "s";
     range.max = String(THINK_MS_OPTIONS.length - 1);
     function reflect(idx) {
         const ms = THINK_MS_OPTIONS[idx];
-        if (valEl) valEl.textContent = fmt(ms);
-        range.setAttribute("aria-valuetext", fmt(ms));
+        const txt = fmt(ms);
+        if (valEl) valEl.textContent = txt;       // in-popover readout
+        if (trigEl) trigEl.textContent = txt;     // collapsed trigger face
+        range.setAttribute("aria-valuetext", txt);
         return ms;
     }
     let idx = THINK_MS_OPTIONS.indexOf(thinkMs);
@@ -1798,6 +1801,41 @@ worker.onmessage = (e) => {
         thinkMs = reflect(i);
         try { localStorage.setItem("skz_think_ms", String(thinkMs)); } catch (_) {}
     });
+})();
+
+// Think-time popover: the trigger (current seconds) toggles the slider panel.
+// Mirrors the model dropdown / settings popover (outside-click + Escape close),
+// but flips a .open class on the wrapper instead of the .hidden toggle. On phones
+// the panel is position:fixed (CSS) to escape #play_row's overflow:hidden, so it's
+// anchored under the trigger here (clamped to the viewport); on desktop it's a
+// plain CSS-positioned dropdown and these inline styles stay cleared.
+(function initThinkPopover() {
+    const sel = document.getElementById("think_select");
+    const trigger = document.getElementById("think_trigger");
+    const pop = document.getElementById("think_pop");
+    if (!sel || !trigger || !pop) return;
+    const mq = window.matchMedia("(max-width: 720px)");
+    function anchorFixed() {
+        const r = trigger.getBoundingClientRect();
+        const margin = 8;
+        const left = Math.max(margin,
+            Math.min(r.left, window.innerWidth - pop.offsetWidth - margin));
+        pop.style.left = left + "px";
+        pop.style.top = (r.bottom + 6) + "px";
+    }
+    function setOpen(open) {
+        sel.classList.toggle("open", open);
+        trigger.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open && mq.matches) anchorFixed();          // measured after .open shows it
+        else { pop.style.left = ""; pop.style.top = ""; }
+    }
+    trigger.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        setOpen(!sel.classList.contains("open"));
+    });
+    pop.addEventListener("click", (ev) => ev.stopPropagation());
+    document.addEventListener("click", () => setOpen(false));
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") setOpen(false); });
 })();
 
 // --- Buttons ---
