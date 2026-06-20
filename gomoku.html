@@ -51,15 +51,26 @@
   <div class="app">
     <!-- Top toolbar: brand · status · mode/side segments · actions · settings · lang/theme -->
     <header class="topbar">
+      <!-- Brand + status kept together on one line by .tb-brandrow (a nowrap
+           flex unit on phones, so 状态 can never wrap below the brand). Desktop
+           uses display:contents, so both stay direct toolbar items. -->
+      <div class="tb-brandrow">
       <a class="brand-title" href="/" data-i18n-title="back_home" title="返回首页"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · Gomoku</span></a>
 
       <div class="status-pill" id="status_pill" data-variant="idle">
         <span class="dot"></span>
         <span id="status" data-i18n="status_idle">空闲</span>
       </div>
+      </div><!-- /.tb-brandrow -->
 
       <div class="tb-sep"></div>
 
+      <!-- All toolbar controls in one wrapper. On phones it's a flex-basis:100%
+           block that owns its own rows below the brand line, fully isolated from
+           the brand/status/settings row (so the controls always pair 2-up no
+           matter how the brand line wraps). On desktop it's display:contents — a
+           no-op pass-through — so the groups stay direct toolbar items. -->
+      <div class="tb-controls">
       <div class="tb-group">
         <span class="tb-label" data-i18n="tb_label_mode">模式</span>
         <div class="seg-row seg-slide" id="mode_seg" role="group" data-i18n-aria="tb_label_mode" aria-label="模式">
@@ -68,15 +79,30 @@
         </div>
       </div>
 
-      <div class="tb-group" id="side_row">
-        <span class="tb-label" data-i18n="tb_label_side">执子</span>
-        <div class="seg-row seg-slide">
-          <button class="seg-btn" id="side_black" aria-pressed="true">
-            <span class="seg-stone black"></span><span data-i18n="side_black">黑棋</span>
-          </button>
-          <button class="seg-btn" id="side_white" aria-pressed="false">
-            <span class="seg-stone white"></span><span data-i18n="side_white">白棋</span>
-          </button>
+      <!-- Play-only controls. On phones these wrap into one collapsible row
+           (#play_row) so analysis mode folds them away as a unit; on desktop the
+           wrapper is display:contents (a no-op), keeping 执子/思考时间 as normal
+           toolbar groups. -->
+      <div class="tb-playrow" id="play_row">
+        <div class="tb-group" id="side_row">
+          <span class="tb-label" data-i18n="tb_label_side">执子</span>
+          <div class="seg-row seg-slide">
+            <button class="seg-btn" id="side_black" aria-pressed="true">
+              <span class="seg-stone black"></span><span data-i18n="side_black">黑棋</span>
+            </button>
+            <button class="seg-btn" id="side_white" aria-pressed="false">
+              <span class="seg-stone white"></span><span data-i18n="side_white">白棋</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="tb-group" id="think_time_wrap">
+          <span class="tb-label" data-i18n="tb_label_think">思考时间</span>
+          <div class="think-slider">
+            <input type="range" id="think_time_range" min="0" max="5" step="1" value="3"
+                   data-i18n-aria="aria_think_time" aria-label="思考时间" />
+            <span class="think-val" id="think_time_val">3s</span>
+          </div>
         </div>
       </div>
 
@@ -93,19 +119,11 @@
         </div>
       </div>
 
-      <div class="tb-group" id="think_time_wrap">
-        <span class="tb-label" data-i18n="tb_label_think">思考时间</span>
-        <div class="think-slider">
-          <input type="range" id="think_time_range" min="0" max="5" step="1" value="3"
-                 data-i18n-aria="aria_think_time" aria-label="思考时间" />
-          <span class="think-val" id="think_time_val">3s</span>
-        </div>
-      </div>
-
       <div class="tb-actions">
         <button class="btn primary" id="new_btn" data-i18n="btn_new_game">新对局</button>
         <button class="btn danger-ghost" id="undo_btn" data-i18n="btn_undo">悔棋</button>
       </div>
+      </div><!-- /.tb-controls -->
 
       <div class="topbar-right">
         <div class="settings-wrap">
