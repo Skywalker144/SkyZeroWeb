@@ -1303,6 +1303,16 @@ function showLoadingOverlay(key, ...args) {
     if (tEl) tEl.innerHTML = withBrand(t(key, ...args));
     setLoadingProgress(0);
 }
+// Swap just the headline (keeps the bar/percent as-is). Used to flip from
+// "loading" to "initializing" once the download hits 100% — the session-build
+// step (ort WASM runtime + graph compile) isn't tracked by the bar, so a full
+// bar would otherwise read as frozen. Routes through lastLoadingMsg so a
+// language switch mid-init re-renders the right string.
+function setLoadingHeadline(key, ...args) {
+    lastLoadingMsg = { key, args };
+    const tEl = document.getElementById("loading_text");
+    if (tEl) tEl.innerHTML = withBrand(t(key, ...args));
+}
 function rerenderLoadingOverlay() {
     if (!lastLoadingMsg) return;
     const tEl = document.getElementById("loading_text");
@@ -1681,6 +1691,9 @@ worker.onmessage = (e) => {
     const data = e.data;
     if (data.type === "model-progress") {
         if (Number.isFinite(data.percent)) setLoadingProgress(data.percent, data.loaded, data.total);
+        // Download done — the worker is now building the inference session; tell
+        // the user so the full bar doesn't look stuck until "ready" arrives.
+        if (data.percent >= 100) setLoadingHeadline("loading_initializing");
         return;
     }
     if (data.type === "ready") {
