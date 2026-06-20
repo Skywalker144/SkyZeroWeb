@@ -1290,19 +1290,23 @@ function hideLoadingOverlay() {
     lastLoadingMsg = null;
 }
 let lastLoadingMsg = null; // { key, args }
+// Render the literal "SkyZero" in a string as the brand wordmark (neutral "Sky"
+// + rainbow "Zero"), mirroring 2048.html / channel-dodge.html.
+const BRAND_WM = '<span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span>';
+const withBrand = (s) => s.replace("SkyZero", BRAND_WM);
 function showLoadingOverlay(key, ...args) {
     const o = document.getElementById("loading_overlay");
     if (!o) return;
     o.style.display = "";
     lastLoadingMsg = { key, args };
     const tEl = document.getElementById("loading_text");
-    if (tEl) tEl.textContent = t(key, ...args);
+    if (tEl) tEl.innerHTML = withBrand(t(key, ...args));
     setLoadingProgress(0);
 }
 function rerenderLoadingOverlay() {
     if (!lastLoadingMsg) return;
     const tEl = document.getElementById("loading_text");
-    if (tEl) tEl.textContent = t(lastLoadingMsg.key, ...lastLoadingMsg.args);
+    if (tEl) tEl.innerHTML = withBrand(t(lastLoadingMsg.key, ...lastLoadingMsg.args));
 }
 
 // --- Game state (mirrors V5 gomoku semantics, in-browser) ---
