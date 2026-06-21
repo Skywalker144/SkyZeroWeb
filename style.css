@@ -4,56 +4,56 @@
   font-family: "Inter";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/Inter-Regular.woff2") format("woff2");
 }
 @font-face {
   font-family: "Inter";
   font-style: normal;
   font-weight: 500;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/Inter-Medium.woff2") format("woff2");
 }
 @font-face {
   font-family: "Inter";
   font-style: normal;
   font-weight: 600;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/Inter-SemiBold.woff2") format("woff2");
 }
 @font-face {
   font-family: "Inter";
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/Inter-Bold.woff2") format("woff2");
 }
 @font-face {
   font-family: "JetBrains Mono";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/JetBrainsMono-Regular.woff2") format("woff2");
 }
 @font-face {
   font-family: "JetBrains Mono";
   font-style: normal;
   font-weight: 500;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/JetBrainsMono-Medium.woff2") format("woff2");
 }
 @font-face {
   font-family: "JetBrains Mono";
   font-style: normal;
   font-weight: 600;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
 }
 @font-face {
   font-family: "Manrope";
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: optional;
   src: url("fonts/Manrope-Bold.woff2") format("woff2");
 }
 
@@ -391,6 +391,10 @@
      the panel switches to position:fixed (mobile block) so it escapes #play_row's
      overflow:hidden — main.js anchors it under the trigger. */
   .think-trigger { width: 70px; font-variant-numeric: tabular-nums; }
+  /* Reserve the model trigger's width too, so populating the label from its "—"
+     placeholder to "LVx 级名" once the manifest/model loads doesn't widen the
+     group and reflow the whole toolbar (the big load-time layout jump). */
+  #model_trigger { min-width: 100px; }
   .think-pop { display: none; gap: 8px; padding: 10px 12px; min-width: 200px; }
   .think-select.open .think-pop { display: flex; }
 
