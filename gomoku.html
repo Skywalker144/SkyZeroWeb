@@ -396,6 +396,44 @@
     </div>
   </div>
 
+  <!-- Size the board canvas to its final dimensions BEFORE the blocking game
+       scripts below (i18n/gomoku/mcts/main, ~100ms to load) run. Otherwise the
+       browser paints the canvas at its 300×150 default first, then main.js's
+       syncBoardSize() resizes it once it finally executes — jumping the board
+       box and the side columns pinned to its height. This mirrors the first run
+       of syncBoardSize() in main.js; keep the formula in sync with it. -->
+  <script>
+  (function(){
+    var cv = document.getElementById("board");
+    var card = document.querySelector(".board-card");
+    var col = document.querySelector(".board-col");
+    var topbar = document.querySelector(".topbar");
+    var app = document.querySelector(".app");
+    if (!cv || !card || !col || !topbar || !app) return;
+    var N = 15, DPR = window.devicePixelRatio || 1;
+    var compact = window.matchMedia("(max-width: 1180px)").matches;
+    var MARGIN = compact ? 10 : 28;
+    var cs = getComputedStyle(card);
+    var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    var availW = Math.max(0, col.clientWidth - padX);
+    var acs = getComputedStyle(app), tcs = getComputedStyle(topbar);
+    var reserved = parseFloat(acs.paddingTop) + parseFloat(acs.paddingBottom) + topbar.offsetHeight + (parseFloat(tcs.marginBottom) || 0) + padY + 12;
+    var availH = window.innerHeight - reserved;
+    var cap = compact ? 560 : 900;
+    var size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
+    var CELL = Math.max(compact ? 12 : 18, Math.floor((size - 2 * MARGIN) / (N - 1)));
+    var LOGICAL = MARGIN * 2 + CELL * (N - 1);
+    cv.width = Math.round(LOGICAL * DPR);
+    cv.height = Math.round(LOGICAL * DPR);
+    cv.style.width = LOGICAL + "px";
+    cv.style.height = LOGICAL + "px";
+    var colH = compact ? "" : card.offsetHeight + "px";
+    var wcol = document.getElementById("winrate_col"), acol = document.getElementById("right_col");
+    if (wcol) wcol.style.height = colH;
+    if (acol) acol.style.height = colH;
+  })();
+  </script>
   <script src="i18n.js"></script>
   <script src="gomoku.js"></script>
   <script src="mcts.js"></script>
