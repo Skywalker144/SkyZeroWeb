@@ -6,10 +6,13 @@
 // obviously-garbage values. See LEADERBOARD_SETUP.md for the threat model.
 //   2048:  SUM_CAP=262144, MAX_TILE=131072 → real scores top out a few ×10^6.
 //   dodge: +1..+N per dodged projectile over a survival run → ~10^4 realistic.
-export const GAMES = {
+// No prototype, so GAMES['__proto__'] / ['constructor'] / ['toString'] etc.
+// don't inherit truthy values that would bypass the `!GAMES[game]` whitelist
+// check below and in leaderboard.js.
+export const GAMES = Object.assign(Object.create(null), {
   '2048':  { max: 100_000_000 },
   'dodge': { max: 10_000_000 },
-};
+});
 
 export const NAME_MAX = 20;
 
