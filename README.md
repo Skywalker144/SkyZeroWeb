@@ -133,5 +133,7 @@ These simplifications are intentional (browser constraints):
 - No stochastic transform
 - No parallel MCTS (Worker is single-threaded)
 - No root symmetry pruning toggle
-- RENJU rule only (no STANDARD / FREESTYLE — only RENJU was trained)
+- UI only exposes RENJU / FREESTYLE toggle buttons (STANDARD is trained — see
+  `models/manifest.json`'s per-model `rules` — and playable via `gomoku.js`,
+  but has no button in `main.js`/`gomoku.html`)
 - `value_td` and intermediate heads dropped from ONNX export
