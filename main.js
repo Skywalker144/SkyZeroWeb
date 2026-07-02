@@ -1251,6 +1251,12 @@ function setModelTrigger(id) {
     for (const opt of document.querySelectorAll("#model_menu .cs-option")) {
         opt.setAttribute("aria-selected", opt.dataset.id === id ? "true" : "false");
     }
+    // Grey out rule buttons the newly selected model wasn't trained on
+    // (manifest.json's per-model `rules`); models missing `rules` leave every
+    // button enabled.
+    for (const b of document.querySelectorAll(".seg-btn[data-rule]")) {
+        b.disabled = !!m.rules && !m.rules.includes(b.dataset.rule);
+    }
 }
 
 function modelById(id) {
