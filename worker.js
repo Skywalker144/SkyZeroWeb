@@ -16,7 +16,6 @@ let mcts = null;
 let root = null;
 let currentBoardSize = 15;
 let currentRule = "renju";
-let currentPly = 0;
 let latestSearchId = 0;
 // Hard cap on the root's cumulative visits for play-mode (time-budgeted) search.
 // Tree reuse accumulates visits across moves, so near the endgame the root is
@@ -70,8 +69,11 @@ async function inference(state, toPlay) {
     const M = MAX_BOARD_SIZE, A = M * M;         // padded canvas (from gomoku.js)
     const N = currentBoardSize, NA = N * N;      // game canvas
 
+    let ply = 0;
+    for (let i = 0; i < state.length; i++) if (state[i] !== 0) ply++;
+
     const spatial = game.encodeState(state, toPlay);
-    const globalF = game.computeGlobalFeatures(currentPly, toPlay);
+    const globalF = game.computeGlobalFeatures(ply, toPlay);
 
     const feeds = {
         input_spatial: new ort.Tensor("float32", spatial, [1, 5, M, M]),
@@ -160,7 +162,7 @@ async function initSession(modelUrl, boardSize, rule) {
     postMessage({ type: "ready" });
 }
 
-function resetGame(boardSize, ply, rule) {
+function resetGame(boardSize, rule) {
     const sizeChanged = boardSize !== undefined && boardSize !== currentBoardSize;
     const ruleChanged = rule !== undefined && rule !== currentRule;
     if (sizeChanged) currentBoardSize = boardSize;
@@ -169,12 +171,10 @@ function resetGame(boardSize, ply, rule) {
         game = new Gomoku(currentBoardSize, currentRule);
         if (mcts) mcts.game = game;   // keep MCTS bound to the live game
     }
-    currentPly = ply || 0;
     root = null;
 }
 
-function applyMove(action, nextState, nextToPlay, ply) {
-    currentPly = ply;
+function applyMove(action, nextState, nextToPlay) {
     if (root && root.children.length > 0) {
         const child = root.children.find(c => c.actionTaken === action);
         if (child) {
@@ -186,8 +186,7 @@ function applyMove(action, nextState, nextToPlay, ply) {
     root = new Node(nextState, nextToPlay);
 }
 
-async function runSearch(state, toPlay, ply, sims, gumbelM, gen, externalSearchId, analyze, timeMs) {
-    currentPly = ply;
+async function runSearch(state, toPlay, sims, gumbelM, gen, externalSearchId, analyze, timeMs) {
     if (gumbelM != null) mcts.args.gumbel_m = gumbelM;
     if (!root) root = new Node(state, toPlay);
 
@@ -403,13 +402,13 @@ onmessage = async (e) => {
             await initSession(data.modelUrl, data.boardSize, data.rule);
         } else if (data.type === "reset") {
             latestSearchId++;
-            resetGame(data.boardSize, data.ply, data.rule);
+            resetGame(data.boardSize, data.rule);
         } else if (data.type === "move") {
-            applyMove(data.action, data.nextState, data.nextToPlay, data.ply);
+            applyMove(data.action, data.nextState, data.nextToPlay);
         } else if (data.type === "search") {
             latestSearchId++;
             const gen = latestSearchId;
-            await runSearch(data.state, data.toPlay, data.ply, data.sims, data.gumbel_m, gen, data.searchId, data.analyze, data.timeMs);
+            await runSearch(data.state, data.toPlay, data.sims, data.gumbel_m, gen, data.searchId, data.analyze, data.timeMs);
         } else if (data.type === "swap-model") {
             latestSearchId++;
             session = null;
