@@ -1698,8 +1698,10 @@ worker.onmessage = (e) => {
     }
     if (data.type === "ready") {
         hideLoadingOverlay();
-        // First-ready means model is loaded; if it's a swap, just resume.
+        // First-ready means model is loaded; if it's a swap, resume the search
+        // the model switch aborted (ponder or the AI's own move-search).
         if (!boardState) newGame();
+        else if (!gameOver) triggerAISearch();
         return;
     }
     if (data.type === "error") {
