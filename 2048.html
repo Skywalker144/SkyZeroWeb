@@ -46,7 +46,7 @@
   <link rel="stylesheet" href="style.css?v=20260702">
   <!-- Pin the leaderboard to 2048 so the dodge board doesn't show here. -->
   <script>window.SKZ_LB_GAME = '2048';</script>
-  <script defer src="/leaderboard.js?v=20260619b"></script>
+  <script defer src="/leaderboard.js?v=20260703"></script>
   <style>
     /* 2048-specific styles. Theme colors come from style.css variables so
        light/dark mode follow the gomoku page automatically. */
@@ -1296,6 +1296,11 @@
         fitBoard();
         rebuildTilesFromGrid('appear');
         updateScoreDom();
+        // overlayMode isn't persisted, so a restored dead board (player reached
+        // game-over, then reloaded) would look playable while doMove silently
+        // no-ops every input. Re-derive the lose state here. (A 'win' overlay is
+        // a dismissible milestone, not a terminal state, so it isn't restored.)
+        if (!anyMovePossible()) { overlayMode = 'lose'; updateOverlay(); }
       });
     }
     // Web-font load nudges the chrome height (text reflow), shifting the board's
