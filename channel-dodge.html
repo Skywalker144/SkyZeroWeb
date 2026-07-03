@@ -37,7 +37,7 @@
   <link rel="stylesheet" href="style.css?v=20260702">
   <!-- Pin the leaderboard to dodge so the 2048 board doesn't show here. -->
   <script>window.SKZ_LB_GAME = 'dodge';</script>
-  <script defer src="/leaderboard.js?v=20260619b"></script>
+  <script defer src="/leaderboard.js?v=20260703"></script>
   <style>
     /* Channel Dodge — a bullet-hell survival game. Theme colors come from
        style.css variables so light/dark mode track the rest of the site. */
@@ -1966,7 +1966,9 @@
     function startGame() {
       resize();
       state.mode = 'playing';
-      state.player = { x: state.W / 2, y: state.H * 0.75, hp: MAX_HP, sinceHit: 999, invuln: 0 };
+      // Start dead-centre to match the SAC training env (env_dodge.py resets the
+      // player to W*0.5, H*0.5); the old H*0.75 put the opening ~1s off-distribution.
+      state.player = { x: state.W / 2, y: state.H * 0.5, hp: MAX_HP, sinceHit: 999, invuln: 0 };
       state.projectiles = [];
       state.lasers = [];
       state.bombs = [];
