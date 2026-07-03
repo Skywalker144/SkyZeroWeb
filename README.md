@@ -1,8 +1,8 @@
 # SkyZeroWeb
 
-Static webpage that runs a SkyZero V5 model in the browser via
-`onnxruntime-web`. Full UI parity with `SkyZero_V5/python/play_web.py`
-but no server, no C++ engine — everything runs client-side.
+Static webpage that runs SkyZero self-trained AI models in the browser via
+`onnxruntime-web` — gomoku (`SkyZero_V7.1`), 2048 (`SkyZero_2048_V2`), and a
+dodge game (`DodgeSAC`). No server, no C++ engine — everything runs client-side.
 
 ## Quick start
 
@@ -20,12 +20,13 @@ need an HTTP server.)
 ### Tests
 
 ```bash
-export PATH=/home/sky/.nvm/versions/node/v24.15.0/bin:$PATH
+export PATH=/home/sky/.nvm/versions/node/v24.16.0/bin:$PATH
 npm test
 ```
 
-Runs Node 18+ builtin test runner against `gomoku.js` and `mcts.js`
-(pure-logic units; UI is verified manually). Should report `tests 37 | pass 37`.
+Runs the Node 18+ builtin test runner against `gomoku.js` / `mcts.js` /
+`ai2048.js` / `mcts2048.js` (pure-logic units; UI is verified manually).
+Should report `tests 58 | pass 58`.
 
 ### Deploy
 
@@ -35,24 +36,24 @@ with no build step. Connect via git, point to repo root.
 ## Adding / updating a model
 
 ```bash
-# Use V5's pytorch env (has torch/onnx/onnxscript installed)
-/home/sky/anaconda3/envs/pytorch/bin/python tools/export_onnx.py \
-    --ckpt /path/to/SkyZero_V5/data/.../models/model_iter_NNNNNN.pt \
+# In the `pytorch` conda env (has torch/onnx/onnxscript installed)
+python tools/export_onnx.py \
+    --ckpt /path/to/SkyZero_V7.1/.../nets/b5c128/model_iter_NNNNNN.pt \
     --out  models/levelN.onnx \
-    --num-blocks 10 --num-channels 128
+    --num-blocks 5 --num-channels 128
 
 # Or use a TorchScript anchor file (the script handles both formats):
-/home/sky/anaconda3/envs/pytorch/bin/python tools/export_onnx.py \
-    --ckpt /path/to/SkyZero_V5/anchors/b10c128iter80.pt \
+python tools/export_onnx.py \
+    --ckpt /path/to/SkyZero_V7.1/anchors/b5c128iterNN.pt \
     --out  models/level3.onnx \
-    --num-blocks 10 --num-channels 128
+    --num-blocks 5 --num-channels 128
 
 # Then edit models/manifest.json — add or update the entry's elo / label / file
 # git add + commit + push → Cloudflare auto-deploys
 ```
 
 The 5-tier ELO catalog is hand-curated. Each tier ships one ONNX
-(~4 MB for `b10c128`, ~0.4 MB for `b4c64`).
+(~3.45 MB for the current `b5c128` nets).
 
 ### Python prerequisites for export
 
@@ -64,20 +65,21 @@ pip install onnx onnxscript onnxruntime
 
 ## Adding / updating the 2048 model
 
-The 2048 page runs the SkyZero_2048 Stochastic Gumbel AlphaZero value net in the
-browser. Export a checkpoint with the dedicated script (uses the SkyZero_2048
-`pytorch` env, which has torch/onnx/onnxruntime):
+The 2048 page runs the `SkyZero_2048_V2` value net in the browser. The current
+network is `b5c96`; the export script eats the traced TorchScript directly (no
+`--net` needed) and bakes the value transform into the ONNX graph:
 
 ```bash
-/home/sky/miniconda3/envs/pytorch/bin/python tools/export_onnx_2048.py \
-    --ckpt ../SkyZero/SkyZero_2048/data2048_td/nets/b3c64/scripted_iter_000051.pt \
-    --net  b3c64 --out models/2048.onnx
+# In the `pytorch` conda env (has torch/onnx/onnxruntime installed)
+python tools/export_onnx_2048.py \
+    --ckpt ../SkyZero/SkyZero_2048_V2/data2048/nets/b5c96/latest.pt \
+    --out models/2048.onnx --value-scale 30 --value-transform
 ```
 
-`--net b3c64` parses to blocks=3/channels=64; the value head is rescaled to raw
-2048 points inside the ONNX graph (so the browser AI's expectimax Q is in
-points). To swap in a stronger checkpoint just re-export to `models/2048.onnx`
-and redeploy. After training a different arch, change `--net` accordingly.
+`--value-scale 30` and `--value-transform` come from the net's `latest.meta.json`
+(V2's value lives in h-space at scale 30); the head is rescaled to raw 2048
+points inside the ONNX graph. Then bump `AI_MODEL_VERSION` in `2048.html` to
+cache-bust. See `CLAUDE.md` for the authoritative, step-by-step flow.
 
 The browser AI (`ai2048.js`) plays a **1-ply expectimax** over the value head —
 `Q(a) = reward(a) + γ·E_spawn[V(next)]` — rather than the full Gumbel MCTS used
@@ -95,8 +97,8 @@ against a fixture generated from `SkyZero_2048/python/game.py`.
 - `worker2048.js` — runs the 2048 value net (ONNX) + expectimax off-thread
 - `mcts.js` — Sequential MCTS with variance-scaled cPUCT + Gumbel halving
 - `ai2048.js` — 2048 afterstate logic + 1-ply value-net expectimax
-- `gomoku.js` — RENJU game logic with multi-board-size + V5 5-plane encoding
-- `tools/export_onnx.py` — V5 `.pt` → `.onnx` (gomoku, drops UI-unused heads)
+- `gomoku.js` — RENJU game logic with multi-board-size + V7.1 5-plane encoding
+- `tools/export_onnx.py` — V7.1 `.pt` → `.onnx` (gomoku, drops UI-unused heads)
 - `tools/export_onnx_2048.py` — SkyZero_2048 `.pt` → `models/2048.onnx`
 - `models/manifest.json` — gomoku 5-tier ELO catalog
 
