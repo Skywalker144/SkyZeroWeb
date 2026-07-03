@@ -23,7 +23,11 @@ from pathlib import Path
 
 import numpy as np
 
-_2048_PY = Path(__file__).resolve().parents[2] / "SkyZero_2048" / "python"
+# The committed gumbel fixture was generated from the V1 repo (nested under
+# ../SkyZero/); the previous path dropped that layer and never resolved. The
+# production worker forces PUCT, so this Gumbel-root fixture is a frozen snapshot
+# — regenerate only if you change mcts2048.js's Gumbel path against V1's mcts.py.
+_2048_PY = Path(__file__).resolve().parents[2] / "SkyZero" / "SkyZero_2048" / "python"
 if not _2048_PY.is_dir():
     raise SystemExit(f"Expected SkyZero_2048 python at {_2048_PY}")
 sys.path.insert(0, str(_2048_PY))
