@@ -121,11 +121,11 @@
       var score = pending[game];
       if (score == null) return;
       if (sessionBest[game] >= score) return;
-      sessionBest[game] = score;
       postScore(game, score).then(function () {
+        sessionBest[game] = score;   // only mark done once it actually landed
         toast(t('uploaded'));
         refreshViews();   // reflect the new score in the live dock / open modal
-      }).catch(function () { /* keep pending for a later retry */ });
+      }).catch(function () { /* leave sessionBest unadvanced so a later flush retries */ });
     });
   }
 
