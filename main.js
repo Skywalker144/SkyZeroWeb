@@ -1705,9 +1705,11 @@ worker.onmessage = (e) => {
     if (data.type === "ready") {
         hideLoadingOverlay();
         // First-ready means model is loaded; if it's a swap, resume the search
-        // the model switch aborted (ponder or the AI's own move-search).
+        // the model switch aborted (ponder or the AI's own move-search). Don't
+        // resume while editing a position: enterEditMode clears gameOver so the
+        // `!gameOver` test alone would start a search on the half-built board.
         if (!boardState) newGame();
-        else if (!gameOver) triggerAISearch();
+        else if (!gameOver && !editMode) triggerAISearch();
         return;
     }
     if (data.type === "error") {
@@ -1767,6 +1769,11 @@ worker.onmessage = (e) => {
             return;
         }
         // Play mode, AI's turn: play the chosen move, then ponder the human's reply.
+        // Guard against a late ponder result landing after the game already ended:
+        // a human's *winning* move skips triggerAISearch() (winner !== null), so
+        // searchId isn't bumped to discard the in-flight ponder chunk — without
+        // this check its result would drop a ghost AI stone on the won board.
+        if (gameOver) return;
         const { winner } = applyMoveLocal(data.gumbelAction);
         if (winner === null) triggerAISearch();
     }
