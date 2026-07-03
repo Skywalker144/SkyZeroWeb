@@ -47,6 +47,10 @@ export function cleanName(raw) {
 
 // Validate a submitted score against the game's ceiling. Returns {score} or {error}.
 export function cleanScore(raw, game) {
+  // Reject non-string game keys before the lookup: an array like ['2048'] would
+  // coerce to the string '2048' and match a real game, then flow a non-string
+  // into submit.js's D1 bind() (which has no try/catch) as an unhandled 500.
+  if (typeof game !== 'string') return { error: 'unknown game' };
   const g = GAMES[game];
   if (!g) return { error: 'unknown game' };
   const n = Number(raw);
