@@ -19,3 +19,7 @@ node_modules/
 origin_models/
 
 docs/
+
+# Internal audit reports — enumerate vulnerabilities, so keep them out of the
+# public repo / "source is the product" Pages deploy. Stay local-only.
+AUDIT_*.md
