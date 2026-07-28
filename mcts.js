@@ -66,6 +66,22 @@ function flipWdl(value) {
     return new Float64Array([value[2], value[1], value[0]]);
 }
 
+// KataGo PlayUtils::getSearchFactor, specialized to values already expressed
+// from the fixed AI player's perspective. Only reduce search when the least
+// winning of the last three completed AI move-searches is above the threshold.
+function searchFactorWhenWinning(
+    recentWinLossValues,
+    threshold = 0.95,
+    minimumFactor = 0.30
+) {
+    if (recentWinLossValues.length < 3 || threshold >= 1) return 1;
+    const leastWinning = Math.min(...recentWinLossValues.slice(-3));
+    if (leastWinning <= threshold) return 1;
+    const lambda = Math.min(
+        1, (leastWinning - threshold) / (1 - threshold));
+    return 1 + lambda * (minimumFactor - 1);
+}
+
 function drawUtilityInFrame(drawUtility, toPlay) {
     return toPlay === 1 ? -drawUtility : drawUtility;
 }
@@ -824,6 +840,7 @@ if (typeof module !== "undefined" && module.exports) {
         flipWdl,
         uncertaintyWeight,
         valueWeightCdf,
+        searchFactorWhenWinning,
         boardSymmetries,
         rootSymmetryMask,
     };

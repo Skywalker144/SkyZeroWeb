@@ -4,7 +4,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const {
     Node, MCTS, softmax, uncertaintyWeight, valueWeightCdf,
-    boardSymmetries, rootSymmetryMask,
+    searchFactorWhenWinning, boardSymmetries, rootSymmetryMask,
 } = require("../mcts.js");
 
 const stubGame = {
@@ -42,6 +42,15 @@ test("three-degree Student-t CDF is symmetric and monotonic", () => {
     assert.ok(Math.abs(valueWeightCdf(-2) + valueWeightCdf(2) - 1) < 1e-12);
     assert.ok(valueWeightCdf(-1) < valueWeightCdf(0));
     assert.ok(valueWeightCdf(0) < valueWeightCdf(1));
+});
+
+test("KataGo winning search factor requires three sustained high values", () => {
+    assert.strictEqual(searchFactorWhenWinning([1, 1]), 1);
+    assert.strictEqual(searchFactorWhenWinning([1, 0.94, 1]), 1);
+    assert.ok(Math.abs(
+        searchFactorWhenWinning([0.975, 0.98, 0.99]) - 0.65) < 1e-12);
+    assert.ok(Math.abs(
+        searchFactorWhenWinning([1, 1, 1]) - 0.3) < 1e-12);
 });
 
 test("empty root keeps only the center and never applies RNNM", () => {

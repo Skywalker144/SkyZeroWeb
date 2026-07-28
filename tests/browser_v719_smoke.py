@@ -35,6 +35,15 @@ def main():
         page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
         page.goto(URL, wait_until="domcontentloaded", timeout=120_000)
         wait_ready(page)
+        assert page.locator("#think_trigger_val").inner_text() == "1s"
+        assert page.locator("#think_time_range").input_value() == "1"
+        assert page.locator("#heat_drawer_btn").get_attribute(
+            "aria-expanded") == "false"
+        assert not page.locator("#heat_drawer_body").is_visible()
+        page.locator("#heat_drawer_btn").click()
+        assert page.locator("#heat_drawer_btn").get_attribute(
+            "aria-expanded") == "true"
+        assert page.locator("#heat_drawer_body").is_visible()
         assert page.locator("#h_nn_futurepos_8").count() == 0
         assert page.locator("#h_nn_futurepos_32").count() == 0
         assert page.locator("#h_nn_optimistic_policy").is_visible()

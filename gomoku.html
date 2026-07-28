@@ -117,14 +117,14 @@
             <button type="button" class="cs-trigger think-trigger" id="think_trigger"
                     aria-haspopup="true" aria-expanded="false" aria-controls="think_pop"
                     data-i18n-aria="aria_think_time" aria-label="思考时间">
-              <span class="cs-trigger-label" id="think_trigger_val">3s</span>
+              <span class="cs-trigger-label" id="think_trigger_val">1s</span>
               <svg class="cs-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <div class="cs-menu think-pop" id="think_pop">
               <div class="think-slider">
-                <input type="range" id="think_time_range" min="0" max="5" step="1" value="3"
+                <input type="range" id="think_time_range" min="0" max="5" step="1" value="1"
                        data-i18n-aria="aria_think_time" aria-label="思考时间" />
-                <span class="think-val" id="think_time_val">3s</span>
+                <span class="think-val" id="think_time_val">1s</span>
               </div>
             </div>
           </div>
@@ -303,12 +303,12 @@
         </div>
 
         <div class="card drawer" id="heat_drawer" data-more="collapsed">
-          <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="true" aria-controls="heat_drawer_body">
+          <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="false" aria-controls="heat_drawer_body">
             <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
             <span data-i18n="heat_drawer_title">分析热力图</span>
             <span class="drawer-count">5</span>
           </button>
-          <div class="drawer-body" id="heat_drawer_body">
+          <div class="drawer-body hidden" id="heat_drawer_body">
             <div class="grids" id="heat_grids">
               <div class="card grid-card">
                 <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_policy">网络策略</span>
@@ -437,8 +437,8 @@
   </script>
   <script src="i18n.js?v=20260729"></script>
   <script src="gomoku.js?v=20260729"></script>
-  <script src="mcts.js?v=20260729"></script>
-  <script src="main.js?v=20260729"></script>
+  <script src="mcts.js?v=20260730"></script>
+  <script src="main.js?v=20260730"></script>
   <script src="seg-slide.js?v=20260702"></script>
 </body>
 </html>

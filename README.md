@@ -108,10 +108,13 @@ just played). `main.js triggerAISearch()` picks the path via `isPonderTurn()`:
   idles. Runs quietly on your turn but keeps the candidate list / win-rate /
   heatmaps live; placing a stone aborts the in-flight chunk via `searchId`.
 - **Move-search** (the AI's own turn, play mode): a single anytime-PUCT search
-  that runs for `thinkMs` (toolbar "thinking time", default 3000ms) **or** until
+  that runs for `thinkMs` (toolbar "thinking time", default 1000ms) **or** until
   cumulative root visits hit `SEARCH_VISIT_CAP` (`worker.js`, = 2000, kept equal
   to the ponder cap) — whichever comes first — then applies V7.19 retrospective
-  root weighting and LCB selection.
+  root weighting and LCB selection. Matching KataGo's
+  `searchFactorWhenWinning=0.30` and threshold `0.95`, three consecutive
+  completed AI move-searches above the threshold smoothly scale both time and
+  visit limits from 100% down to 30%.
   `thinkMs` only governs the AI's own move; it does not deepen the your-turn
   ponder (that is always the 128-chunk → 2000 cap, independent of `thinkMs`).
 
@@ -130,8 +133,10 @@ main/opponent/optimistic policy heads, uncertainty-weighted recompute backup,
 value-weighted child aggregation, subtree value bias, variance-scaled PUCT,
 root/non-root FPU, stochastic D4 inference, empty-board center restriction,
 root symmetry pruning, tree reuse, retrospective play-selection weights and
-LCB move selection. Renju forbidden black moves remain playable white-win
-terminals. Standard is exact-five for both colors; Freestyle is five-or-more.
+LCB move selection. PDA is fixed at `0.5`; in play mode its reference color is
+always the AI, while free analysis uses Black as the stable reference. Renju
+forbidden black moves remain playable white-win terminals. Standard is
+exact-five for both colors; Freestyle is five-or-more.
 The analysis drawer shows current, optimistic, opponent, and LCB-adjusted
 play-selection heatmaps by default; raw visits remain an expandable diagnostic.
 The two future-position heatmaps are intentionally not displayed.

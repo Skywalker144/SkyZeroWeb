@@ -1094,8 +1094,8 @@ const THINK_MS_OPTIONS = [500, 1000, 2000, 3000, 5000, 10000];
 let thinkMs = (function () {
     try {
         const v = parseInt(localStorage.getItem("skz_think_ms"), 10);
-        return THINK_MS_OPTIONS.includes(v) ? v : 3000;
-    } catch (_) { return 3000; }
+        return THINK_MS_OPTIONS.includes(v) ? v : 1000;
+    } catch (_) { return 1000; }
 })();
 function colLetter(c) { return String.fromCharCode(65 + c); }
 // Board notation: columns A.. left→right, rows N..1 top→bottom (H8 = center of 15).
@@ -1550,6 +1550,9 @@ function triggerAISearch() {
         sims: sims,
         timeMs: timeMs,
         searchId: searchId,
+        // Fixed PDA=0.5. Play mode keeps the AI color as the reference for the
+        // whole game; free analysis keeps Black as the stable reference side.
+        pdaPla: currentMode === "analysis" ? 1 : -humanSide,
         // timeMs > 0 → anytime PUCT (the AI's move-search); else fixed-sims PUCT (any ponder).
         analyze: ponder,
     });
@@ -1850,7 +1853,7 @@ worker.onmessage = (e) => {
         return ms;
     }
     let idx = THINK_MS_OPTIONS.indexOf(thinkMs);
-    if (idx < 0) idx = THINK_MS_OPTIONS.indexOf(3000);
+    if (idx < 0) idx = THINK_MS_OPTIONS.indexOf(1000);
     range.value = String(idx);
     reflect(idx);
     range.addEventListener("input", () => {

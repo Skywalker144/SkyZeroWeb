@@ -19,6 +19,11 @@ let currentRule = "renju";
 let latestSearchId = 0;
 const NN_CACHE_LIMIT = 8192;
 const nnCache = new Map();
+const PLAYOUT_DOUBLING_ADVANTAGE = 0.5;
+const SEARCH_FACTOR_WHEN_WINNING_THRESHOLD = 0.95;
+const SEARCH_FACTOR_WHEN_WINNING = 0.30;
+let currentPdaPla = 0;
+let recentAiWinLossValues = [];
 // Hard cap on the root's cumulative visits for play-mode (time-budgeted) search.
 // Tree reuse accumulates visits across moves, so near the endgame the root is
 // often already well-searched — once it hits this we stop and play, instead of
@@ -99,7 +104,9 @@ function undoSpatial(input, channels, size, rotation, flip) {
 }
 
 function cacheKey(state, toPlay, isRoot) {
-    return `${currentBoardSize}|${currentRule}|${toPlay}|${isRoot ? "root" : "child"}|`
+    return `${currentBoardSize}|${currentRule}|${toPlay}`
+        + `|pda=${PLAYOUT_DOUBLING_ADVANTAGE}|pdaPla=${currentPdaPla}`
+        + `|${isRoot ? "root" : "child"}|`
         + Array.from(state).join("");
 }
 
@@ -120,7 +127,8 @@ async function inference(state, toPlay, isRoot = false) {
     for (let i = 0; i < state.length; i++) if (state[i] !== 0) ply++;
 
     const spatial = game.encodeState(state, toPlay);
-    const globalF = game.computeGlobalFeatures(ply, toPlay);
+    const globalF = game.computeGlobalFeatures(
+        ply, toPlay, 0, PLAYOUT_DOUBLING_ADVANTAGE, currentPdaPla);
     const key = cacheKey(state, toPlay, isRoot);
     let raw = nnCache.get(key);
     if (raw) {
@@ -255,6 +263,21 @@ function resetGame(boardSize, rule) {
     if (root && mcts) mcts.clear(root);
     root = null;
     nnCache.clear();
+    currentPdaPla = 0;
+    recentAiWinLossValues = [];
+}
+
+function setPdaReference(pdaPla) {
+    if (pdaPla !== 1 && pdaPla !== -1) {
+        throw new Error(
+            "search requires pdaPla to be black (+1) or white (-1)");
+    }
+    if (currentPdaPla === pdaPla) return;
+    if (root && mcts) mcts.clear(root);
+    root = null;
+    nnCache.clear();
+    currentPdaPla = pdaPla;
+    recentAiWinLossValues = [];
 }
 
 function applyMove(action, nextState, nextToPlay) {
@@ -275,7 +298,10 @@ function applyMove(action, nextState, nextToPlay) {
     root = new Node(nextState, nextToPlay);
 }
 
-async function runSearch(state, toPlay, sims, gen, externalSearchId, analyze, timeMs) {
+async function runSearch(
+    state, toPlay, sims, gen, externalSearchId, analyze, timeMs, pdaPla
+) {
+    setPdaReference(pdaPla);
     if (!root) root = new Node(state, toPlay);
 
     // Root inference if not already expanded.
@@ -337,6 +363,9 @@ async function runSearch(state, toPlay, sims, gen, externalSearchId, analyze, ti
     const npsNow = (now) => Math.round(totalSims / Math.max(0.001, (now - searchStart) / 1000));
 
     let selectedAction, rootValue, phases;
+    let appliedSearchFactor = 1;
+    let effectiveTimeMs = timeMs;
+    let effectiveVisitCap = SEARCH_VISIT_CAP;
     // One plain-PUCT simulation from the root (no Gumbel / no Dirichlet noise).
     // Returns false if the search was superseded mid-inference (caller bails).
     const puctStep = async () => {
@@ -405,25 +434,35 @@ async function runSearch(state, toPlay, sims, gen, externalSearchId, analyze, ti
     };
 
     if (timeMs > 0) {
+        appliedSearchFactor = searchFactorWhenWinning(
+            recentAiWinLossValues,
+            SEARCH_FACTOR_WHEN_WINNING_THRESHOLD,
+            SEARCH_FACTOR_WHEN_WINNING);
+        effectiveTimeMs = timeMs * appliedSearchFactor;
+        effectiveVisitCap = Math.max(
+            1, Math.ceil(SEARCH_VISIT_CAP * appliedSearchFactor));
         // Anytime PUCT — run until the time budget elapses OR the root's cumulative
-        // visits reach SEARCH_VISIT_CAP. Play mode uses this for BOTH the AI's
-        // move-search and the "my-turn" analysis; both stream live candidates so the
-        // board shows per-point win% / visits as the search runs. Tree reuse carries
-        // visits across moves, so near the endgame the cap is often already met —
-        // then the loop runs zero steps and we play the settled tree immediately.
+        // visits reach the KataGo-style winning-factor-adjusted cap. Tree reuse
+        // carries visits across moves, so a settled root may already exceed it.
         let rootVisits = 0;
         for (const ch of root.children) rootVisits += ch.n;
-        while (performance.now() - searchStart < timeMs && rootVisits < SEARCH_VISIT_CAP) {
+        while (performance.now() - searchStart < effectiveTimeMs
+               && rootVisits < effectiveVisitCap) {
             if (!await puctStep()) return;
             rootVisits++;
             const now = performance.now();
             if (now - lastProgress > 60) {
                 lastProgress = now;
-                streamCandidates(now, ((now - searchStart) / timeMs) * 100);
+                streamCandidates(
+                    now, ((now - searchStart) / effectiveTimeMs) * 100);
             }
         }
         if (latestSearchId !== gen) return;
         finishPuct();
+        recentAiWinLossValues.push(rootValue[0] - rootValue[2]);
+        if (recentAiWinLossValues.length > 3) {
+            recentAiWinLossValues.shift();
+        }
     } else if (analyze) {
         // Fixed-sims PUCT — the analysis board deepens in chunks (no time budget).
         for (let i = 0; i < sims; i++) {
@@ -485,6 +524,11 @@ async function runSearch(state, toPlay, sims, gen, externalSearchId, analyze, ti
         iterations:    totalSims,
         searchSims:    rootVisits,   // cumulative root visits (analysis ponder depth)
         nps:           npsNow(performance.now()),
+        pda:           PLAYOUT_DOUBLING_ADVANTAGE,
+        pdaPla:        currentPdaPla,
+        searchFactor:  appliedSearchFactor,
+        effectiveTimeMs,
+        effectiveVisitCap,
     });
 }
 
@@ -502,13 +546,14 @@ onmessage = async (e) => {
             latestSearchId++;
             const gen = latestSearchId;
             await runSearch(data.state, data.toPlay, data.sims, gen,
-                data.searchId, data.analyze, data.timeMs);
+                data.searchId, data.analyze, data.timeMs, data.pdaPla);
         } else if (data.type === "swap-model") {
             latestSearchId++;
             session = null;
             if (root && mcts) mcts.clear(root);
             root = null;
             nnCache.clear();
+            recentAiWinLossValues = [];
             const bytes = await fetchModelWithProgress(data.modelUrl);
             session = await ort.InferenceSession.create(bytes, {
                 executionProviders: ["wasm"],
