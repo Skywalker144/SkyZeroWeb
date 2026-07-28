@@ -112,24 +112,21 @@ function setMode(m) {
     renderCandidates();        // settle the list for the new mode
 }
 
-// "Show analysis on board" (play mode, YOUR turn): whether the engine's candidate
-// discs are drawn over the board while it ponders your turn. The AI's own turn
-// always shows its move-search discs; your turn defaults to hidden so the board
-// stays clean while you think — the ponder still runs continuously (until you
-// move), so the left-column stats and the right-column list are always live.
-// Analysis mode always shows the overlay. Persisted in
-// localStorage("skz_show_analysis_board").
-let showAnalysisOnBoard = (function () {
-    try { return localStorage.getItem("skz_show_analysis_board") === "1"; }
-    catch (_) { return false; }
+// Candidate overlays in play mode have independent visibility for the human
+// turn and the AI's own search. Analysis mode always shows them. Migrate the
+// former single human-turn toggle while keeping the new defaults: human hidden,
+// AI shown.
+let showAnalysisOnHumanTurn = (function () {
+    try {
+        const saved = localStorage.getItem("skz_show_analysis_human");
+        const legacy = localStorage.getItem("skz_show_analysis_board");
+        return (saved ?? legacy) === "1";
+    } catch (_) { return false; }
 })();
-function setShowAnalysisOnBoard(on) {
-    showAnalysisOnBoard = !!on;
-    const cb = document.getElementById("show_analysis_input");
-    if (cb) cb.checked = showAnalysisOnBoard;
-    try { localStorage.setItem("skz_show_analysis_board", showAnalysisOnBoard ? "1" : "0"); } catch (_) {}
-    draw();   // purely a display change: repaint the board with/without the overlay
-}
+let showAnalysisOnAiTurn = (function () {
+    try { return localStorage.getItem("skz_show_analysis_ai") !== "0"; }
+    catch (_) { return true; }
+})();
 
 document.addEventListener("DOMContentLoaded", () => {
     updateModeButtons();
@@ -338,12 +335,13 @@ function draw() {
 
     // Candidate-disc overlay rules. A pinned heatmap is an explicit opt-in and
     // overrides everything. Otherwise: the analysis board always shows discs; in
-    // play mode the AI's own turn always shows its move-search ("watch it think"),
-    // while your turn shows them only when "show on board" is on — the ponder
-    // still runs silently for the left-column stats either way.
+    // play mode uses independent settings for the AI's own move-search and the
+    // human-turn ponder. The ponder still runs silently for the left-column
+    // stats and right-side list when its board overlay is hidden.
     const showOverlay = currentMode === "analysis"
-        || toPlay !== humanSide        // play mode, the AI's turn
-        || showAnalysisOnBoard;        // play mode, your turn, opted in
+        || (toPlay !== humanSide
+            ? showAnalysisOnAiTurn
+            : showAnalysisOnHumanTurn);
     if (boardOverlayHeatId) drawBoardHeatOverlay(boardOverlayHeatId);
     else if (showOverlay) drawCandidateOverlay();
     else drawCandidateHover(computeCandidates());   // your turn, overlay off: keep the list's hover-peek
@@ -1097,6 +1095,15 @@ let thinkMs = (function () {
         return THINK_MS_OPTIONS.includes(v) ? v : 1000;
     } catch (_) { return 1000; }
 })();
+let pda = (function () {
+    try {
+        const raw = localStorage.getItem("skz_pda");
+        if (raw === null) return 0.5;
+        const v = Number(raw);
+        return Number.isFinite(v) && v >= -1 && v <= 1
+            && Math.abs(v * 10 - Math.round(v * 10)) < 1e-9 ? v : 0.5;
+    } catch (_) { return 0.5; }
+})();
 function colLetter(c) { return String.fromCharCode(65 + c); }
 // Board notation: columns A.. left→right, rows N..1 top→bottom (H8 = center of 15).
 function coordLabel(r, c) { return colLetter(c) + (N - r); }
@@ -1417,6 +1424,7 @@ function publishStateForDrawing(extras = {}) {
         nn_policy:            extras.nn_policy            || null,
         nn_optimistic_policy: extras.nn_optimistic_policy || null,
         nn_opp_policy:        extras.nn_opp_policy        || null,
+        pda: Number.isFinite(extras.pda) ? extras.pda : null,
     };
 }
 
@@ -1550,8 +1558,9 @@ function triggerAISearch() {
         sims: sims,
         timeMs: timeMs,
         searchId: searchId,
-        // Fixed PDA=0.5. Play mode keeps the AI color as the reference for the
-        // whole game; free analysis keeps Black as the stable reference side.
+        // Play mode keeps the AI color as the PDA reference for the whole game;
+        // free analysis keeps Black as the stable reference side.
+        pda,
         pdaPla: currentMode === "analysis" ? 1 : -humanSide,
         // timeMs > 0 → anytime PUCT (the AI's move-search); else fixed-sims PUCT (any ponder).
         analyze: ponder,
@@ -1767,6 +1776,7 @@ worker.onmessage = (e) => {
             nn_optimistic_policy:
                 flatToGrid(data.nnOptimisticPolicy),
             nn_opp_policy:  flatToGrid(data.nnOppPolicy),
+            pda: data.pda,
         });
         // Values are from the searched side-to-move (= toPlay here, before any
         // move is applied). Convert to Black's frame for the chart + legend.
@@ -1807,11 +1817,27 @@ worker.onmessage = (e) => {
         if (winner === null) triggerAISearch();
     }
 };
-(function initShowAnalysisToggle() {
-    const cb = document.getElementById("show_analysis_input");
-    if (!cb) return;
-    cb.checked = showAnalysisOnBoard;
-    cb.addEventListener("change", () => setShowAnalysisOnBoard(cb.checked));
+(function initCandidateOverlayToggles() {
+    const bindings = [
+        ["show_analysis_human_input", "skz_show_analysis_human",
+            () => showAnalysisOnHumanTurn,
+            value => { showAnalysisOnHumanTurn = value; }],
+        ["show_analysis_ai_input", "skz_show_analysis_ai",
+            () => showAnalysisOnAiTurn,
+            value => { showAnalysisOnAiTurn = value; }],
+    ];
+    for (const [id, storageKey, readValue, writeValue] of bindings) {
+        const input = document.getElementById(id);
+        if (!input) continue;
+        input.checked = readValue();
+        input.addEventListener("change", () => {
+            writeValue(input.checked);
+            try {
+                localStorage.setItem(storageKey, input.checked ? "1" : "0");
+            } catch (_) {}
+            draw();
+        });
+    }
 })();
 // Candidate marker palette picker (Settings): fill each swatch with its scheme
 // color, persist the choice, and redraw the board overlay on change.
@@ -1864,8 +1890,41 @@ worker.onmessage = (e) => {
     });
 })();
 
+// PDA style slider: this is NN conditioning only and does not alter the search
+// budget. Negative values present a more conservative style and positive values
+// a more aggressive one. Stop the old search during a drag, then restart once
+// the chosen value is committed.
+(function initPdaStyle() {
+    const range = document.getElementById("pda_range");
+    if (!range) return;
+    const snapToBalance = (value) => Math.abs(value) <= 0.15 ? 0 : value;
+    function reflect(value) {
+        const rounded = Math.round(value * 10) / 10;
+        const normalized = Object.is(rounded, -0) ? 0 : rounded;
+        const numericText = normalized.toFixed(1);
+        range.value = String(normalized);
+        range.setAttribute("aria-valuenow", String(normalized));
+        range.setAttribute("aria-valuetext",
+            normalized > 0 ? `+${numericText}` : numericText);
+    }
+    reflect(pda);
+    range.addEventListener("input", () => {
+        const value = Number(range.value);
+        if (!Number.isFinite(value) || value < -1 || value > 1) return;
+        pda = Math.round(snapToBalance(value) * 10) / 10;
+        reflect(pda);
+        try { localStorage.setItem("skz_pda", String(pda)); } catch (_) {}
+        searchId++;
+        aiThinking = false;
+        worker.postMessage({ type: "set-pda", pda });
+    });
+    range.addEventListener("change", () => {
+        if (boardState && !gameOver && !editMode) triggerAISearch();
+    });
+})();
+
 // Think-time popover: the trigger (current seconds) toggles the slider panel.
-// Mirrors the model dropdown / settings popover (outside-click + Escape close),
+// Mirrors the model dropdown / settings dialog (outside-click + Escape close),
 // but flips a .open class on the wrapper instead of the .hidden toggle. On phones
 // the panel is position:fixed (CSS) to escape #play_row's overflow:hidden, so it's
 // anchored under the trigger here (clamped to the viewport); on desktop it's a
@@ -1879,8 +1938,9 @@ worker.onmessage = (e) => {
     function anchorFixed() {
         const r = trigger.getBoundingClientRect();
         const margin = 8;
+        const centeredLeft = r.left + r.width / 2 - pop.offsetWidth / 2;
         const left = Math.max(margin,
-            Math.min(r.left, window.innerWidth - pop.offsetWidth - margin));
+            Math.min(centeredLeft, window.innerWidth - pop.offsetWidth - margin));
         pop.style.left = left + "px";
         pop.style.top = (r.bottom + 6) + "px";
     }
@@ -1978,9 +2038,10 @@ function setEditTool(tool) {
 
 function enterEditMode() {
     if (editMode) return;
-    // Close the settings popover the edit button lives in.
+    // Close the settings dialog the edit button lives in.
     const pop = document.getElementById("settings_pop");
     if (pop) pop.classList.add("hidden");
+    document.body.classList.remove("settings-open");
     document.getElementById("settings_btn")?.setAttribute("aria-expanded", "false");
     editMode = true;
     editSnapshot = snapshotForEdit();
@@ -2402,21 +2463,28 @@ registerI18nCallback(() => {
     updateReviewBar();
 });
 
-// --- Settings popover (model / rule / size / palette / setup) ---
-(function initSettingsPopover() {
+// --- Settings dialog (single panel: rule / size / palette / setup) ---
+(function initSettingsDialog() {
     const btn = document.getElementById("settings_btn");
-    const pop = document.getElementById("settings_pop");
-    if (!btn || !pop) return;
+    const modal = document.getElementById("settings_pop");
+    const closeBtn = document.getElementById("settings_close_btn");
+    if (!btn || !modal || !closeBtn) return;
     function setOpen(open) {
-        pop.classList.toggle("hidden", !open);
+        modal.classList.toggle("hidden", !open);
+        document.body.classList.toggle("settings-open", open);
         btn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) closeBtn.focus();
     }
-    btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        setOpen(pop.classList.contains("hidden"));
+    btn.addEventListener("click", () => {
+        setOpen(modal.classList.contains("hidden"));
     });
-    pop.addEventListener("click", (ev) => ev.stopPropagation());
-    document.addEventListener("click", () => setOpen(false));
+    closeBtn.addEventListener("click", () => {
+        setOpen(false);
+        btn.focus();
+    });
+    modal.addEventListener("click", (ev) => {
+        if (ev.target === modal) setOpen(false);
+    });
     document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") setOpen(false); });
 })();
 
