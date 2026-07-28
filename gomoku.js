@@ -3,7 +3,8 @@ const C_BLACK = 1;
 const C_WHITE = 2;
 const C_WALL = 3;
 
-const MAX_BOARD_SIZE = 19;     // V5 MAX_BOARD_SIZE
+const MIN_BOARD_SIZE = 11;
+const MAX_BOARD_SIZE = 15;     // V7.19 fixed NN canvas
 const MAX_AREA = MAX_BOARD_SIZE * MAX_BOARD_SIZE;
 const NUM_SPATIAL_PLANES = 5;
 
@@ -239,13 +240,20 @@ class Gomoku {
         if (!VALID_RULES.includes(rule)) {
             throw new Error("Gomoku: unknown rule '" + rule + "' (expected freestyle|standard|renju)");
         }
+        if (!Number.isInteger(boardSize)
+            || boardSize < MIN_BOARD_SIZE
+            || boardSize > MAX_BOARD_SIZE) {
+            throw new Error(
+                `Gomoku: board size ${boardSize} outside `
+                + `[${MIN_BOARD_SIZE}, ${MAX_BOARD_SIZE}]`);
+        }
         this.boardSize = boardSize;
         this.area = boardSize * boardSize;
         this.rule = rule;
         this.fpf = new ForbiddenPointFinder(boardSize);
     }
 
-    get hasForbidden() { return this.rule !== RULE_FREESTYLE; }
+    get hasForbidden() { return this.rule === RULE_RENJU; }
 
     getInitialState() {
         return new Int8Array(this.area);
@@ -258,7 +266,7 @@ class Gomoku {
     }
 
     // Returns Uint8Array(area), 1 = legal, 0 = illegal.
-    // V5 semantics (cpp/envs/gomoku.h::get_is_legal_actions): any empty cell is
+    // V7.19 semantics (cpp/envs/gomoku.h::get_is_legal_actions): any empty cell is
     // legal, regardless of rule. Forbidden points are *legal but losing* — that
     // verdict is delivered by getWinner on the just-played move.
     getLegalActions(state, _toPlay) {
@@ -269,30 +277,26 @@ class Gomoku {
 
     /**
      * Returns +1 (black wins), -1 (white wins), 0 (draw, board full),
-     * or null (ongoing). Mirrors V5 cpp/envs/gomoku.h::get_winner_v5.
+     * or null (ongoing). Mirrors V7.19 cpp/envs/gomoku.h::get_winner.
      *
      * lastAction / lastPlayer describe the most recent move; required when
-     * rule has forbidden semantics (renju full-forbidden, standard long-row).
+     * rule has forbidden semantics (Renju only).
      */
     getWinner(state, lastAction, lastPlayer) {
         const N = this.boardSize;
 
         // Step 1: forbidden-move detection on the just-played move by black.
-        if (lastAction != null && lastPlayer === 1 && this.rule !== RULE_FREESTYLE) {
+        if (lastAction != null && lastPlayer === 1 && this.rule === RULE_RENJU) {
             const r = (lastAction / N) | 0;
             const c = lastAction % N;
-            if (this.rule === RULE_RENJU) {
-                // FPF.isForbidden expects (r,c) to be empty: build from board minus lastAction.
-                this.fpf.clear();
-                for (let i = 0; i < this.area; i++) {
-                    if (i === lastAction || state[i] === 0) continue;
-                    const sr = (i / N) | 0, sc = i % N;
-                    this.fpf.setStone(sr, sc, state[i] === 1 ? C_BLACK : C_WHITE);
-                }
-                if (this.fpf.isForbidden(r, c)) return -1;
-            } else {  // STANDARD: only overline (≥6) is forbidden for black
-                if (this._isOverlineAt(state, r, c, 1)) return -1;
+            // FPF.isForbidden expects (r,c) to be empty: build from board minus lastAction.
+            this.fpf.clear();
+            for (let i = 0; i < this.area; i++) {
+                if (i === lastAction || state[i] === 0) continue;
+                const sr = (i / N) | 0, sc = i % N;
+                this.fpf.setStone(sr, sc, state[i] === 1 ? C_BLACK : C_WHITE);
             }
+            if (this.fpf.isForbidden(r, c)) return -1;
         }
 
         // Step 2: scan for any run of length matching the per-color win condition.
@@ -321,8 +325,13 @@ class Gomoku {
                         } else {
                             if (len === 5) return 1;
                         }
-                    } else {  // White always wins on 5+ across all rules
-                        if (len >= 5) return -1;
+                    } else {
+                        // Standard is exact-five for both colors. Renju and
+                        // freestyle allow White overlines.
+                        if (len === 5
+                            || (len > 5 && this.rule !== RULE_STANDARD)) {
+                            return -1;
+                        }
                     }
                 }
             }
@@ -374,7 +383,12 @@ class Gomoku {
                         cells.push([nr, nc]);
                         nr += dr; nc += dc;
                     }
-                    if (cells.length >= 5) return cells;
+                    const exactOnly = this.rule === RULE_STANDARD
+                        || (this.rule === RULE_RENJU && color === 1);
+                    if (cells.length === 5
+                        || (cells.length > 5 && !exactOnly)) {
+                        return cells;
+                    }
                 }
             }
         }
@@ -382,19 +396,16 @@ class Gomoku {
     }
 
     /**
-     * V5 encode: 5 planes padded to MAX_BOARD_SIZE × MAX_BOARD_SIZE = 19×19.
+     * V7.19 encode: 5 planes padded to a fixed 15×15 canvas.
      * Plane 0: on-board mask (1 inside [0, boardSize), 0 in padding)
      * Plane 1: own stones
      * Plane 2: opponent stones
-     * Plane 3: forbidden points when current player is BLACK (rule != freestyle)
+     * Plane 3: Renju forbidden points when current player is BLACK
      * Plane 4: forbidden points when current player is WHITE
      *
      * Output is Float32Array (model expects float32 input).
      *
-     * STANDARD note (matches V5 gomoku.h::encode_state_v5): we still write the
-     * full FPF result into the forbidden plane. Only long-row is *enforced* by
-     * the winner check, but the plane carries the same patterns and the
-     * network leans on the rule one-hot (global features) to weigh them.
+     * STANDARD and FREESTYLE leave both forbidden planes zero.
      */
     encodeState(state, toPlay) {
         const N = this.boardSize;
@@ -442,22 +453,28 @@ class Gomoku {
     }
 
     /**
-     * 12-dim global features (KataGoNet.linear_global input).
-     * Layout matches V5 gomoku.h::compute_global_features:
-     *   [0..2] rule one-hot (freestyle, standard, renju)
-     *   [3]    renju_color_sign (only fires under RENJU; black=-1, white=+1)
-     *   [4]    has_forbidden (1 iff rule != freestyle)
-     *   [5]    ply / board_area
-     *   [6..11] VCF placeholders (zero)
+     * V7.19 7-dim global features.
+     *   [0] standard
+     *   [1] renju
+     *   [2] renju color sign (black=-1, white=+1)
+     *   [3] forbidden feature enabled
+     *   [4] signed draw utility
+     *   [5] PDA active
+     *   [6] signed 0.5 * PDA
      */
-    computeGlobalFeatures(ply, toPlay) {
-        const f = new Float32Array(12);
-        f[0] = (this.rule === RULE_FREESTYLE) ? 1 : 0;
-        f[1] = (this.rule === RULE_STANDARD)  ? 1 : 0;
-        f[2] = (this.rule === RULE_RENJU)     ? 1 : 0;
-        f[3] = (this.rule === RULE_RENJU) ? (toPlay === 1 ? -1 : +1) : 0;
-        f[4] = this.hasForbidden ? 1 : 0;
-        f[5] = ply / this.area;
+    computeGlobalFeatures(_ply, toPlay, drawUtility = 0, pda = 0, pdaPla = 0) {
+        const f = new Float32Array(7);
+        f[0] = (this.rule === RULE_STANDARD) ? 1 : 0;
+        f[1] = (this.rule === RULE_RENJU) ? 1 : 0;
+        f[2] = (this.rule === RULE_RENJU)
+            ? (toPlay === 1 ? -1 : +1) : 0;
+        f[3] = this.hasForbidden ? 1 : 0;
+        f[4] = drawUtility === 0
+            ? 0 : (toPlay === 1 ? -drawUtility : drawUtility);
+        if (pda !== 0 && (pdaPla === 1 || pdaPla === -1)) {
+            f[5] = 1;
+            f[6] = 0.5 * (toPlay === pdaPla ? pda : -pda);
+        }
         return f;
     }
 }
@@ -466,7 +483,7 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         Gomoku, ForbiddenPointFinder,
         C_EMPTY, C_BLACK, C_WHITE, C_WALL,
-        MAX_BOARD_SIZE, MAX_AREA, NUM_SPATIAL_PLANES,
+        MIN_BOARD_SIZE, MAX_BOARD_SIZE, MAX_AREA, NUM_SPATIAL_PLANES,
         RULE_RENJU, RULE_STANDARD, RULE_FREESTYLE, VALID_RULES,
     };
 }
