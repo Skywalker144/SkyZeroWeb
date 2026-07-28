@@ -2,6 +2,7 @@
 let N = 15;
 const MARGIN_DESKTOP = 28;   // leaves room for top + left coordinate labels
 const MARGIN_COMPACT = 10;   // mobile / portrait — labels hidden, just enough for stones
+const MARGIN_PHONE = 8;      // reclaim phone width while keeping edge stones clear
 let MARGIN = MARGIN_DESKTOP;
 let CELL = 36;
 let BOARD_LOGICAL = MARGIN * 2 + CELL * (N - 1);
@@ -152,7 +153,8 @@ const boardColEl = document.querySelector(".board-col");
 
 function syncBoardSize() {
     const compact = window.matchMedia("(max-width: 1180px)").matches;
-    MARGIN = compact ? MARGIN_COMPACT : MARGIN_DESKTOP;
+    const phone = window.matchMedia("(max-width: 720px)").matches;
+    MARGIN = phone ? MARGIN_PHONE : (compact ? MARGIN_COMPACT : MARGIN_DESKTOP);
 
     const cardCS = getComputedStyle(boardCard);
     const cardPadX = parseFloat(cardCS.paddingLeft) + parseFloat(cardCS.paddingRight);
@@ -182,6 +184,10 @@ function syncBoardSize() {
     const size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
     const minCell = compact ? 12 : 18;
     CELL = Math.max(minCell, Math.floor((size - 2 * MARGIN) / (N - 1)));
+    // Integer cell widths can leave several unused pixels on wider phones
+    // (notably 430px iPhones). Absorb that remainder into the canvas margin so
+    // the canvas fills the card content box and all four CSS insets match.
+    if (phone) MARGIN = (size - CELL * (N - 1)) / 2;
     BOARD_LOGICAL = MARGIN * 2 + CELL * (N - 1);
     if (cv.width !== Math.round(BOARD_LOGICAL * DPR)) {
         setupCanvas(cv, BOARD_LOGICAL, BOARD_LOGICAL);
