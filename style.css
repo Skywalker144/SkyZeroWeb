@@ -218,7 +218,7 @@
     .topbar #model_wrap .cs-trigger,
     .topbar #think_time_wrap .think-select,
     .topbar #think_time_wrap .cs-trigger { width: 100%; }
-    .topbar #think_time_wrap .think-slider { width: 100%; min-width: 0; }
+    .topbar #think_time_wrap .think-section { width: 100%; min-width: 0; }
     /* min-width:0 lets the range shrink below its ~132px intrinsic width — form
        controls default to min-width:auto and otherwise overflow the panel on
        narrow phones (e.g. 390px). */
@@ -228,7 +228,10 @@
        by it; width clamps to the viewport on narrow screens. ID selector so it
        beats .cs-menu's position:absolute / min-width:100% (same specificity, but
        defined later in the file — it would otherwise win and re-clip the panel). */
-    #think_pop { position: fixed; width: min(240px, calc(100vw - 24px)); min-width: 0; }
+    #think_pop {
+      position: fixed; width: min(260px, calc(100vw - 24px)); min-width: 0;
+      transform: none;
+    }
     .topbar .tb-actions   { order: 5; width: 100%; margin: 0; }
     .topbar .tb-actions .btn { flex: 1; }
 
@@ -238,10 +241,6 @@
        grow — flex-basis:0 + grow gets starved to 0 width by that auto margin, which
        is what collapsed the pill. */
     .topbar .status-pill { flex: 0 1 auto; min-width: 0; }
-
-    /* Keep the settings popover inside narrow viewports (it was running off the
-       left edge before the toolbar reflow parked the button flush right). */
-    .settings-pop { width: min(300px, calc(100vw - 32px)); }
 
     /* All controls live in .tb-controls, a flex-basis:100% block that owns its
        own rows below the brand line — fully isolated from the brand/status/设置
@@ -321,26 +320,141 @@
      HTML only — was once wrongly dropped as an "orphaned" rule. */
   .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   /* Mobile-only bottom bar holding the relocated Settings control (moved here by
-     initSettingsPlacement in main.js). It spans the page width; since the bar
-     sits at the page bottom, its popover opens upward instead of down. */
+     initSettingsPlacement in main.js). */
   .mobile-actionbar { display: none; }
   @media (max-width: 720px) {
     .mobile-actionbar { display: flex; margin-top: 12px; }
     .mobile-actionbar .settings-wrap { width: 100%; }
     .mobile-actionbar #settings_btn { width: 100%; }
-    .mobile-actionbar .settings-pop { top: auto; bottom: calc(100% + 8px); right: 0; }
   }
-  /* Settings popover (model / rule / size / palette / setup) */
+  /* Settings dialog — mirrors play_web.py's visual language without the
+     category sidebar: every current setting lives in one continuous panel. */
   .settings-wrap { position: relative; }
-  .settings-pop {
-    position: absolute; right: 0; top: calc(100% + 8px); z-index: 500;
-    width: 300px; padding: 14px 16px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-    display: flex; flex-direction: column; gap: 12px;
+  body.settings-open { overflow: hidden; }
+  .settings-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    display: grid; place-items: center;
+    padding: 24px;
+    background: rgba(1, 4, 9, 0.52);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
-  .set-row { display: flex; flex-direction: column; gap: 6px; }
+  .settings-dialog {
+    width: min(680px, calc(100vw - 48px));
+    max-height: min(680px, calc(100dvh - 48px));
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.32);
+  }
+  .settings-header {
+    min-height: 68px; padding: 0 22px 0 26px;
+    display: flex; align-items: center; gap: 14px;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .settings-heading { min-width: 0; }
+  .settings-title {
+    margin: 0;
+    font-size: 19px; line-height: 1.25; font-weight: 650;
+    letter-spacing: -0.01em; color: var(--fg);
+  }
+  .settings-subtitle {
+    margin: 3px 0 0;
+    color: var(--fg-muted); font-size: 12px; line-height: 1.35;
+  }
+  .settings-close {
+    width: 34px; height: 34px; margin-left: auto; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--fg-muted); background: transparent;
+    border: 1px solid transparent; border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .settings-close:hover {
+    color: var(--fg); background: var(--surface-2);
+    border-color: var(--border);
+  }
+  .settings-close:focus-visible {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .settings-close svg { width: 17px; height: 17px; }
+  .settings-content {
+    min-width: 0; min-height: 0;
+    padding: 28px 32px 36px;
+    overflow-y: auto; overscroll-behavior: contain;
+    background: var(--surface);
+  }
+  .settings-panel { max-width: 610px; margin: 0 auto; }
+  .settings-panel-head { margin-bottom: 22px; }
+  .settings-panel-title {
+    margin: 0;
+    font-size: 22px; line-height: 1.25; font-weight: 650;
+    letter-spacing: -0.015em; color: var(--fg);
+  }
+  .settings-panel-desc {
+    margin: 6px 0 0; max-width: 560px;
+    color: var(--fg-muted); font-size: 13px; line-height: 1.55;
+  }
+  .settings-group {
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs, 0 1px 2px rgba(0,0,0,0.06));
+  }
+  .settings-item {
+    padding: 17px 18px;
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(210px, 1.15fr);
+    align-items: center; gap: 24px;
+  }
+  .settings-item + .settings-item { border-top: 1px solid var(--border); }
+  .settings-item-copy { min-width: 0; }
+  .settings-item-title {
+    display: block;
+    color: var(--fg); font-size: 13.5px; line-height: 1.35;
+    font-weight: 600;
+  }
+  .settings-item-desc {
+    display: block; margin-top: 4px;
+    color: var(--fg-muted); font-size: 11.5px; line-height: 1.45;
+  }
+  .settings-control {
+    min-width: 0;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .settings-seg,
+  .settings-palette,
+  .settings-control .size-control { width: 100%; }
+  .settings-palette { justify-content: center; }
+  @media (min-width: 721px) and (max-width: 860px) {
+    .settings-content { padding: 24px; }
+    .settings-item {
+      grid-template-columns: 1fr;
+      align-items: stretch; gap: 12px;
+    }
+  }
+  @media (max-width: 720px) {
+    .settings-modal { padding: 0; place-items: stretch; }
+    .settings-dialog {
+      width: 100%; height: 100dvh; max-height: none;
+      border: 0; border-radius: 0;
+    }
+    .settings-header { min-height: 62px; padding: 0 14px 0 18px; }
+    .settings-subtitle { display: none; }
+    .settings-content { flex: 1 1 auto; padding: 22px 16px 30px; }
+    .settings-panel-head { margin-bottom: 17px; }
+    .settings-panel-title { font-size: 20px; }
+    .settings-item {
+      padding: 16px;
+      grid-template-columns: 1fr;
+      align-items: stretch; gap: 12px;
+    }
+  }
   /* Custom model dropdown — replaces the native <select>; the trigger shows the
      short "LV3 高手" (each ELO lives in the menu rows) so it reads far narrower
      than the full "LV3 高手 · ELO +1132" the native control rendered. */
@@ -395,29 +509,45 @@
      placeholder to "LVx 级名" once the manifest/model loads doesn't widen the
      group and reflow the whole toolbar (the big load-time layout jump). */
   #model_trigger { min-width: 100px; }
-  .think-pop { display: none; gap: 8px; padding: 10px 12px; min-width: 200px; }
+  .think-pop {
+    left: 50%; transform: translateX(-50%);
+    width: 260px; min-width: 260px;
+    display: none; gap: 12px; padding: 13px 14px;
+  }
   .think-select.open .think-pop { display: flex; }
 
-  /* Thinking-time slider (toolbar) — a 6-stop range with a live value label,
-     replacing the cramped native dropdown. */
-  .think-slider { display: inline-flex; align-items: center; gap: 10px; }
+  /* Thinking-time and PDA style sliders. */
+  .think-section { display: flex; flex-direction: column; gap: 8px; }
+  .think-section-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    color: var(--fg); font-size: 12.5px; font-weight: 600;
+  }
+  .think-divider { height: 1px; background: var(--border); }
   .think-val {
     min-width: 30px; font-family: var(--font-mono); font-size: 12.5px;
     color: var(--fg); font-variant-numeric: tabular-nums; text-align: right;
   }
-  #think_time_range {
+  .pda-scale {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    color: var(--fg-muted); font-size: 10.5px; line-height: 1;
+  }
+  .pda-scale span:last-child { text-align: right; }
+  .pda-scale span:nth-child(2) {
+    color: var(--fg); font-weight: 600;
+  }
+  .think-range {
     -webkit-appearance: none; appearance: none;
-    width: 132px; height: 26px; background: transparent; cursor: pointer; margin: 0;
+    width: 100%; height: 26px; background: transparent; cursor: pointer; margin: 0;
   }
   /* Rounded "groove" track — same inset language as the segmented controls.
      Content-box (the default): `height` is the inner height, so the thumb's
      margin-top centering below stays simple. 24 inner + 2*1px border = 26,
      matching the input height. */
-  #think_time_range::-webkit-slider-runnable-track {
+  .think-range::-webkit-slider-runnable-track {
     height: 24px; border-radius: 8px;
     background: var(--surface-sunken); border: 1px solid var(--border);
   }
-  #think_time_range::-moz-range-track {
+  .think-range::-moz-range-track {
     height: 24px; border-radius: 8px;
     background: var(--surface-sunken); border: 1px solid var(--border);
   }
@@ -425,14 +555,14 @@
      controls. Vertical centering (webkit): thumb total height = 18 + 2*1px
      border = 20; track inner height = 24; margin-top = (24 − 20) / 2 = 2px.
      Firefox centers ::-moz-range-thumb on its own, so no margin there. */
-  #think_time_range::-webkit-slider-thumb {
+  .think-range::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none;
     width: 26px; height: 18px; margin-top: 2px;
     border-radius: 6px; background: var(--surface);
     border: 1px solid var(--border-strong);
     box-shadow: 0 1px 2px var(--stone-shadow);
   }
-  #think_time_range::-moz-range-thumb {
+  .think-range::-moz-range-thumb {
     width: 26px; height: 18px;
     border-radius: 6px; background: var(--surface);
     border: 1px solid var(--border-strong);
@@ -441,16 +571,16 @@
   /* Dark mode: a near-black sunken groove reads as a harsh pit, so use the
      gentler page bg for the track and a lighter raised thumb (matching the
      segmented-control treatment). */
-  html[data-theme="dark"] #think_time_range::-webkit-slider-runnable-track,
-  html[data-theme="dark"] #think_time_range::-moz-range-track { background: var(--bg); }
-  html[data-theme="dark"] #think_time_range::-webkit-slider-thumb,
-  html[data-theme="dark"] #think_time_range::-moz-range-thumb { background: var(--surface-2); }
-  #think_time_range:focus { outline: none; }
-  #think_time_range:focus-visible::-webkit-slider-thumb {
+  html[data-theme="dark"] .think-range::-webkit-slider-runnable-track,
+  html[data-theme="dark"] .think-range::-moz-range-track { background: var(--bg); }
+  html[data-theme="dark"] .think-range::-webkit-slider-thumb,
+  html[data-theme="dark"] .think-range::-moz-range-thumb { background: var(--surface-2); }
+  .think-range:focus { outline: none; }
+  .think-range:focus-visible::-webkit-slider-thumb {
     border-color: var(--accent);
     box-shadow: 0 1px 2px var(--stone-shadow), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
-  #think_time_range:focus-visible::-moz-range-thumb {
+  .think-range:focus-visible::-moz-range-thumb {
     border-color: var(--accent);
     box-shadow: 0 1px 2px var(--stone-shadow), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
@@ -970,14 +1100,8 @@
     font-size: 10.5px; color: var(--fg-subtle); font-family: var(--font-mono);
     text-transform: none; letter-spacing: 0; font-weight: 500;
   }
-  /* "Show analysis on board" switch: sits right after the title, pushing the
-     legend to the far right. Play-mode only — the analysis board always draws the
-     overlay, so the switch is hidden there. */
-  .cand-toggle { padding: 0; gap: 6px; margin-right: auto; align-self: center; }
   .cand-toggle-label { font-size: 11.5px; color: var(--fg-muted); white-space: nowrap; }
-  .mode-analysis .cand-toggle { display: none; }
-  /* Legend + "open in search tree" button, kept together at the head's far right
-     so the layout holds whether or not the on-board toggle (play-mode only) shows. */
+  /* Legend + "open in search tree" button, kept together at the head's far right. */
   .cand-head-right { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .cand-list {
     display: flex; flex-direction: column; gap: 2px;
