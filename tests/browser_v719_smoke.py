@@ -37,6 +37,27 @@ def main():
         wait_ready(page)
         assert page.locator("#think_trigger_val").inner_text() == "1s"
         assert page.locator("#think_time_range").input_value() == "1"
+        page.locator("#think_trigger").click()
+        assert page.locator("#think_pop").is_visible()
+        trigger_box = page.locator("#think_trigger").bounding_box()
+        pop_box = page.locator("#think_pop").bounding_box()
+        assert trigger_box and pop_box
+        assert abs(
+            trigger_box["x"] + trigger_box["width"] / 2
+            - pop_box["x"] - pop_box["width"] / 2
+        ) < 1
+        pda_range = page.locator("#pda_range")
+        assert pda_range.get_attribute("min") == "-1"
+        assert pda_range.get_attribute("max") == "1"
+        assert pda_range.get_attribute("step") == "0.1"
+        assert pda_range.input_value() == "0.5"
+        assert page.locator("#pda_value").count() == 0
+        pda_range.fill("0.1")
+        assert pda_range.input_value() == "0"
+        assert page.evaluate("localStorage.getItem('skz_pda')") == "0"
+        page.wait_for_function("() => state && state.pda === 0",
+                               timeout=120_000)
+        page.locator("#think_trigger").click()
         assert page.locator("#heat_drawer_btn").get_attribute(
             "aria-expanded") == "false"
         assert not page.locator("#heat_drawer_body").is_visible()
@@ -73,7 +94,26 @@ def main():
             assert page.locator("#model_trigger_label").inner_text().startswith(
                 model_id.upper())
 
-        # V7.19 runtime board range and all three rule buttons.
+        # Single-panel play_web-style settings dialog with only the current
+        # controls. V7.19 Web exposes only its trained rule families.
+        page.locator("#settings_btn").click()
+        assert page.locator("#settings_pop").is_visible()
+        assert page.locator("#settings_pop").get_attribute("role") == "dialog"
+        assert page.locator(".settings-nav").count() == 0
+        assert page.locator(".settings-item").count() == 5
+        assert page.locator("#rule_standard").count() == 0
+        assert page.locator(".seg-btn[data-rule]").count() == 2
+        human_overlay = page.locator("#show_analysis_human_input")
+        ai_overlay = page.locator("#show_analysis_ai_input")
+        assert not human_overlay.is_checked()
+        assert ai_overlay.is_checked()
+        assert page.locator("#show_analysis_input").count() == 0
+        human_overlay.evaluate("(input) => input.click()")
+        assert page.evaluate(
+            "localStorage.getItem('skz_show_analysis_human')") == "1"
+        human_overlay.evaluate("(input) => input.click()")
+
+        # V7.19 runtime board range and the two trained rule buttons.
         slider = page.locator("#size_input")
         assert slider.get_attribute("min") == "11"
         assert slider.get_attribute("max") == "15"
@@ -89,13 +129,18 @@ def main():
             page.wait_for_timeout(100)
             assert page.locator("#size_value").inner_text() == str(size)
 
-        for rule in ("standard", "renju", "freestyle"):
+        for rule in ("renju", "freestyle"):
             if not page.locator("#settings_pop").is_visible():
                 page.locator("#settings_btn").click()
             page.locator(f'.seg-btn[data-rule="{rule}"]').click()
             assert page.locator(
                 f'.seg-btn[data-rule="{rule}"]').get_attribute(
                     "aria-pressed") == "true"
+
+        page.locator("#settings_close_btn").click()
+        assert not page.locator("#settings_pop").is_visible()
+        assert "settings-open" not in (
+            page.locator("body").get_attribute("class") or "")
 
         # Position-edit path: enter, place a stone, finish, and return to search.
         if not page.locator("#settings_pop").is_visible():
@@ -131,6 +176,9 @@ def main():
         )
         assert tree_page.locator("#size option").count() == 5
         assert tree_page.locator("#model option").count() == 6
+        assert tree_page.locator("#rule option").evaluate_all(
+            "(options) => options.map((option) => option.value)"
+        ) == ["renju", "freestyle"]
         tree_page.locator("#btnStep").click()
         tree_page.wait_for_function(
             """() => document.getElementById("status")
