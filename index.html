@@ -108,11 +108,6 @@
     }
     /* Gomoku icon board */
     .ico-board { background: var(--board-bg); border-radius: 8px; padding: 10px; }
-    .landing-footer {
-      font-size: 11px; color: var(--fg-subtle);
-      padding: 0 20px clamp(12px, 2.5vh, 28px);
-      text-align: center;
-    }
     /* Phone: lang/theme are the landing page's only header controls and they're
        hidden on phones (see style.css), so drop the whole now-empty bar and let
        the hero + cards sit at the top. */
@@ -239,10 +234,6 @@
         </a>
       </div>
     </div>
-
-    <footer class="landing-footer">
-      <span id="footer_text">QQ群:620366051</span>
-    </footer>
   </div>
 
   <script>
@@ -259,7 +250,6 @@
         g2048_desc: '经典数字合并益智游戏',
         dodge_name: '躲避',
         dodge_desc: '操控人物躲避四面弹幕',
-        footer: 'QQ群:620366051',
         aria_lang: '切换语言', aria_theme: '切换配色主题',
         th_auto: '自动', th_light: '明亮', th_dark: '暗黑',
       },
@@ -274,7 +264,6 @@
         g2048_desc: 'The classic tile-merging puzzle',
         dodge_name: 'Dodge',
         dodge_desc: 'Steer a character through bullet hell',
-        footer: 'QQ群:620366051',
         aria_lang: 'Switch language', aria_theme: 'Toggle theme',
         th_auto: 'Auto', th_light: 'Light', th_dark: 'Dark',
       },
@@ -296,7 +285,6 @@
       document.getElementById('card_2048_desc').textContent = s.g2048_desc;
       document.getElementById('card_dodge_name').textContent = s.dodge_name;
       document.getElementById('card_dodge_desc').textContent = s.dodge_desc;
-      document.getElementById('footer_text').textContent = s.footer;
       var langSeg = document.getElementById('lang_seg');
       langSeg.setAttribute('aria-label', s.aria_lang);
       langSeg.querySelectorAll('.seg-btn[data-lang]').forEach(function(b){
