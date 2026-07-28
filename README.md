@@ -133,8 +133,11 @@ main/opponent/optimistic policy heads, uncertainty-weighted recompute backup,
 value-weighted child aggregation, subtree value bias, variance-scaled PUCT,
 root/non-root FPU, stochastic D4 inference, empty-board center restriction,
 root symmetry pruning, tree reuse, retrospective play-selection weights and
-LCB move selection. PDA is fixed at `0.5`; in play mode its reference color is
-always the AI, while free analysis uses Black as the stable reference. Renju
+LCB move selection. PDA is user-adjustable from `-1` (conservative) to `1`
+(aggressive), defaults to `0.5`, and changes NN conditioning without changing
+the search budget. The style slider snaps to balanced (`0`) near its midpoint.
+In play mode its reference color is always the AI, while
+free analysis uses Black as the stable reference. Renju
 forbidden black moves remain playable white-win terminals. Standard is
 exact-five for both colors; Freestyle is five-or-more.
 The analysis drawer shows current, optimistic, opponent, and LCB-adjusted
