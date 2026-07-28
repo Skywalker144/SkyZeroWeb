@@ -43,7 +43,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260729">
+  <link rel="stylesheet" href="style.css?v=20260802">
 </head>
 <body>
   <script>
@@ -121,10 +121,27 @@
               <svg class="cs-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <div class="cs-menu think-pop" id="think_pop">
-              <div class="think-slider">
+              <div class="think-section">
+                <div class="think-section-head">
+                  <span data-i18n="tb_label_think">思考时间</span>
+                  <span class="think-val" id="think_time_val">1s</span>
+                </div>
                 <input type="range" id="think_time_range" min="0" max="5" step="1" value="1"
-                       data-i18n-aria="aria_think_time" aria-label="思考时间" />
-                <span class="think-val" id="think_time_val">1s</span>
+                       class="think-range" data-i18n-aria="aria_think_time" aria-label="思考时间" />
+              </div>
+              <div class="think-divider"></div>
+              <div class="think-section">
+                <div class="think-section-head">
+                  <span data-i18n="label_pda_style">对弈风格</span>
+                </div>
+                <input type="range" id="pda_range" class="think-range"
+                       min="-1" max="1" step="0.1" value="0.5"
+                       data-i18n-aria="aria_pda_style" aria-label="AI 对弈风格" />
+                <div class="pda-scale" aria-hidden="true">
+                  <span data-i18n="pda_conservative">保守</span>
+                  <span data-i18n="pda_balanced">平衡</span>
+                  <span data-i18n="pda_aggressive">激进</span>
+                </div>
               </div>
             </div>
           </div>
@@ -153,37 +170,104 @@
       <div class="topbar-right">
         <div class="settings-wrap">
           <button class="btn" id="settings_btn" aria-expanded="false" aria-controls="settings_pop" data-i18n="btn_settings">设置</button>
-          <div class="settings-pop hidden" id="settings_pop">
-            <div class="set-row">
-              <span class="tb-label" data-i18n="label_rule">规则</span>
-              <div class="seg-row">
-                <button class="seg-btn" id="rule_freestyle" data-rule="freestyle" aria-pressed="true"  data-i18n="rule_freestyle">无禁手</button>
-                <button class="seg-btn" id="rule_standard"  data-rule="standard"  aria-pressed="false" data-i18n="rule_standard">标准</button>
-                <button class="seg-btn" id="rule_renju"     data-rule="renju"     aria-pressed="false" data-i18n="rule_renju">连珠</button>
+          <div class="settings-modal hidden" id="settings_pop" role="dialog" aria-modal="true" aria-labelledby="settings_title">
+            <div class="settings-dialog">
+              <div class="settings-header">
+                <div class="settings-heading">
+                  <h2 class="settings-title" id="settings_title" data-i18n="settings_title">设置</h2>
+                  <p class="settings-subtitle" data-i18n="settings_subtitle">更改会立即应用</p>
+                </div>
+                <button class="settings-close" id="settings_close_btn" type="button"
+                        data-i18n-aria="aria_close_settings" aria-label="关闭设置">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                    <path d="M4.5 4.5l11 11M15.5 4.5l-11 11"/>
+                  </svg>
+                </button>
               </div>
-            </div>
-            <div class="set-row">
-              <span class="tb-label" data-i18n="label_board_size">棋盘大小</span>
-              <div class="size-control">
-                <input type="range" id="size_input" min="11" max="15" step="1" value="15" data-i18n-aria="label_board_size" aria-label="棋盘大小">
-                <span class="size-value" id="size_value">15</span>
+
+              <div class="settings-content">
+                <section class="settings-panel">
+                  <div class="settings-panel-head">
+                    <h3 class="settings-panel-title" data-i18n="settings_game_title">对局与棋盘</h3>
+                    <p class="settings-panel-desc" data-i18n="settings_game_desc">调整当前对局的棋规、棋盘尺寸与分析显示。</p>
+                  </div>
+                  <div class="settings-group">
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="label_rule">规则</span>
+                        <span class="settings-item-desc" data-i18n="settings_rule_desc">选择无禁手或连珠规则；更改后开始新对局。</span>
+                      </div>
+                      <div class="settings-control">
+                        <div class="seg-row settings-seg">
+                          <button class="seg-btn" id="rule_freestyle" data-rule="freestyle" aria-pressed="true" data-i18n="rule_freestyle">无禁手</button>
+                          <button class="seg-btn" id="rule_renju" data-rule="renju" aria-pressed="false" data-i18n="rule_renju">连珠</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="settings_candidate_display_title">棋盘候选显示</span>
+                        <span class="settings-item-desc" data-i18n="settings_candidate_display_desc">分别控制人类回合与 AI 思考时，是否在棋盘上显示候选分析；不影响右侧候选列表。</span>
+                      </div>
+                      <div class="settings-control">
+                        <label class="toggle">
+                          <span class="cand-toggle-label" data-i18n="candidate_show_human">人类回合显示</span>
+                          <input type="checkbox" id="show_analysis_human_input">
+                          <span class="track"></span>
+                        </label>
+                        <label class="toggle">
+                          <span class="cand-toggle-label" data-i18n="candidate_show_ai">AI 思考时显示</span>
+                          <input type="checkbox" id="show_analysis_ai_input" checked>
+                          <span class="track"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <label class="settings-item-title" for="size_input" data-i18n="label_board_size">棋盘大小</label>
+                        <span class="settings-item-desc" data-i18n="settings_board_desc">选择 11 至 15 路棋盘；更改后开始新对局。</span>
+                      </div>
+                      <div class="settings-control">
+                        <div class="size-control">
+                          <input type="range" id="size_input" min="11" max="15" step="1" value="15" data-i18n-aria="label_board_size" aria-label="棋盘大小">
+                          <span class="size-value" id="size_value">15</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="label_cand_palette">候选配色</span>
+                        <span class="settings-item-desc" data-i18n="settings_palette_desc">选择棋盘候选点由低到高的颜色主题。</span>
+                      </div>
+                      <div class="settings-control">
+                        <div class="seg-row palette-row settings-palette" id="palette_seg" role="group" data-i18n-aria-group="aria_cand_palette" aria-label="候选点位配色">
+                          <button class="swatch-btn" type="button" data-palette="violet" aria-pressed="true"  data-i18n-title="palette_violet" data-i18n-aria="palette_violet" title="紫罗兰" aria-label="紫罗兰"></button>
+                          <button class="swatch-btn" type="button" data-palette="amber"  aria-pressed="false" data-i18n-title="palette_amber"  data-i18n-aria="palette_amber"  title="琥珀"   aria-label="琥珀"></button>
+                          <button class="swatch-btn" type="button" data-palette="blue"   aria-pressed="false" data-i18n-title="palette_blue"   data-i18n-aria="palette_blue"   title="蓝青"   aria-label="蓝青"></button>
+                          <button class="swatch-btn" type="button" data-palette="teal"   aria-pressed="false" data-i18n-title="palette_teal"   data-i18n-aria="palette_teal"   title="翠绿"   aria-label="翠绿"></button>
+                          <button class="swatch-btn" type="button" data-palette="rose"   aria-pressed="false" data-i18n-title="palette_rose"   data-i18n-aria="palette_rose"   title="玫瑰"   aria-label="玫瑰"></button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="btn_edit_position">编辑棋形</span>
+                        <span class="settings-item-desc" data-i18n="settings_edit_desc">手动摆放棋子并从指定局面继续对弈或分析。</span>
+                      </div>
+                      <div class="settings-control">
+                        <button class="btn btn--full" id="edit_btn">
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 1.5l3 3-9 9H2.5v-3z"/></svg>
+                          <span data-i18n="btn_edit_position">编辑棋形</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
-            </div>
-            <div class="set-row">
-              <span class="tb-label" data-i18n="label_cand_palette">候选配色</span>
-              <div class="seg-row palette-row" id="palette_seg" role="group" data-i18n-aria-group="aria_cand_palette" aria-label="候选点位配色">
-                <button class="swatch-btn" type="button" data-palette="violet" aria-pressed="true"  data-i18n-title="palette_violet" data-i18n-aria="palette_violet" title="紫罗兰" aria-label="紫罗兰"></button>
-                <button class="swatch-btn" type="button" data-palette="amber"  aria-pressed="false" data-i18n-title="palette_amber"  data-i18n-aria="palette_amber"  title="琥珀"   aria-label="琥珀"></button>
-                <button class="swatch-btn" type="button" data-palette="blue"   aria-pressed="false" data-i18n-title="palette_blue"   data-i18n-aria="palette_blue"   title="蓝青"   aria-label="蓝青"></button>
-                <button class="swatch-btn" type="button" data-palette="teal"   aria-pressed="false" data-i18n-title="palette_teal"   data-i18n-aria="palette_teal"   title="翠绿"   aria-label="翠绿"></button>
-                <button class="swatch-btn" type="button" data-palette="rose"   aria-pressed="false" data-i18n-title="palette_rose"   data-i18n-aria="palette_rose"   title="玫瑰"   aria-label="玫瑰"></button>
-              </div>
-            </div>
-            <div class="set-row">
-              <button class="btn btn--full" id="edit_btn">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 1.5l3 3-9 9H2.5v-3z"/></svg>
-                <span data-i18n="btn_edit_position">编辑棋形</span>
-              </button>
             </div>
           </div>
         </div>
@@ -282,11 +366,6 @@
           <div class="card-body cand-body">
             <div class="card-title cand-head">
               <span data-i18n="cand_title">候选着法</span>
-              <label class="toggle cand-toggle" title="在棋盘上显示我方回合的分析(AI 回合始终显示)" data-i18n-title="show_on_board_aria" data-i18n-aria="show_on_board_aria" aria-label="在棋盘上显示我方回合的分析(AI 回合始终显示)">
-                <span class="cand-toggle-label" data-i18n="show_on_board">棋盘显示</span>
-                <input type="checkbox" id="show_analysis_input">
-                <span class="track"></span>
-              </label>
               <span class="cand-head-right">
                 <span class="cand-legend" data-i18n="cand_legend">胜率 · 访问</span>
                 <button class="cand-tree-btn" id="tree_analyze_btn" type="button" data-i18n-title="tree_analyze" data-i18n-aria="tree_analyze" title="搜索树分析当前局面" aria-label="搜索树分析当前局面">
@@ -435,10 +514,10 @@
     if (acol) acol.style.height = colH;
   })();
   </script>
-  <script src="i18n.js?v=20260729"></script>
+  <script src="i18n.js?v=20260802"></script>
   <script src="gomoku.js?v=20260729"></script>
   <script src="mcts.js?v=20260730"></script>
-  <script src="main.js?v=20260730"></script>
+  <script src="main.js?v=20260802"></script>
   <script src="seg-slide.js?v=20260702"></script>
 </body>
 </html>
