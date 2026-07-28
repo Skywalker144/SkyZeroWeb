@@ -154,9 +154,41 @@ def main():
         assert not page.locator("#edit_toolbar").is_visible()
 
         # Compact layout must retain usable board and controls.
-        page.set_viewport_size({"width": 390, "height": 844})
+        page.set_viewport_size({"width": 430, "height": 932})
         page.wait_for_timeout(250)
-        assert page.locator("#board").bounding_box()["width"] > 250
+        board_box = page.locator("#board").bounding_box()
+        board_card_box = page.locator(".board-card").bounding_box()
+        chart_card_box = page.locator(".chart-card").bounding_box()
+        stats_card_box = page.locator(".stats-card").bounding_box()
+        assert board_box["width"] >= 400
+        assert abs(board_card_box["x"] - stats_card_box["x"]) < 1
+        assert abs(board_card_box["width"] - stats_card_box["width"]) < 1
+        board_insets = (
+            board_box["x"] - board_card_box["x"],
+            board_box["y"] - board_card_box["y"],
+            board_card_box["x"] + board_card_box["width"]
+            - board_box["x"] - board_box["width"],
+            board_card_box["y"] + board_card_box["height"]
+            - board_box["y"] - board_box["height"],
+        )
+        assert max(board_insets) - min(board_insets) < 1
+        radii = page.locator(".board-card").evaluate(
+            """(card) => ({
+              outer: parseFloat(getComputedStyle(card).borderRadius),
+              inner: parseFloat(getComputedStyle(
+                document.getElementById("board")).borderRadius),
+            })"""
+        )
+        assert abs(
+            radii["outer"] - radii["inner"] - board_insets[0]
+        ) < 1
+        board_to_chart = (
+            chart_card_box["y"] - board_card_box["y"]
+            - board_card_box["height"])
+        chart_to_stats = (
+            stats_card_box["y"] - chart_card_box["y"]
+            - chart_card_box["height"])
+        assert abs(board_to_chart - chart_to_stats) < 1
         assert page.locator("#settings_btn").is_visible()
 
         tree_page = browser.new_page(viewport={"width": 1280, "height": 800})
