@@ -19,7 +19,7 @@ let currentRule = "renju";
 let latestSearchId = 0;
 const NN_CACHE_LIMIT = 8192;
 const nnCache = new Map();
-const PLAYOUT_DOUBLING_ADVANTAGE = 0.5;
+let currentPda = 0.5;
 const SEARCH_FACTOR_WHEN_WINNING_THRESHOLD = 0.95;
 const SEARCH_FACTOR_WHEN_WINNING = 0.30;
 let currentPdaPla = 0;
@@ -105,7 +105,7 @@ function undoSpatial(input, channels, size, rotation, flip) {
 
 function cacheKey(state, toPlay, isRoot) {
     return `${currentBoardSize}|${currentRule}|${toPlay}`
-        + `|pda=${PLAYOUT_DOUBLING_ADVANTAGE}|pdaPla=${currentPdaPla}`
+        + `|pda=${currentPda}|pdaPla=${currentPdaPla}`
         + `|${isRoot ? "root" : "child"}|`
         + Array.from(state).join("");
 }
@@ -128,7 +128,7 @@ async function inference(state, toPlay, isRoot = false) {
 
     const spatial = game.encodeState(state, toPlay);
     const globalF = game.computeGlobalFeatures(
-        ply, toPlay, 0, PLAYOUT_DOUBLING_ADVANTAGE, currentPdaPla);
+        ply, toPlay, 0, currentPda, currentPdaPla);
     const key = cacheKey(state, toPlay, isRoot);
     let raw = nnCache.get(key);
     if (raw) {
@@ -280,6 +280,18 @@ function setPdaReference(pdaPla) {
     recentAiWinLossValues = [];
 }
 
+function setPdaMagnitude(pda) {
+    if (!Number.isFinite(pda) || pda < -1 || pda > 1) {
+        throw new Error("browser search requires pda in [-1, 1]");
+    }
+    if (currentPda === pda) return;
+    if (root && mcts) mcts.clear(root);
+    root = null;
+    nnCache.clear();
+    currentPda = pda;
+    recentAiWinLossValues = [];
+}
+
 function applyMove(action, nextState, nextToPlay) {
     if (root && root.children.length > 0) {
         const child = root.children.find(c => c.actionTaken === action);
@@ -299,8 +311,9 @@ function applyMove(action, nextState, nextToPlay) {
 }
 
 async function runSearch(
-    state, toPlay, sims, gen, externalSearchId, analyze, timeMs, pdaPla
+    state, toPlay, sims, gen, externalSearchId, analyze, timeMs, pda, pdaPla
 ) {
+    setPdaMagnitude(pda);
     setPdaReference(pdaPla);
     if (!root) root = new Node(state, toPlay);
 
@@ -524,7 +537,7 @@ async function runSearch(
         iterations:    totalSims,
         searchSims:    rootVisits,   // cumulative root visits (analysis ponder depth)
         nps:           npsNow(performance.now()),
-        pda:           PLAYOUT_DOUBLING_ADVANTAGE,
+        pda:           currentPda,
         pdaPla:        currentPdaPla,
         searchFactor:  appliedSearchFactor,
         effectiveTimeMs,
@@ -546,7 +559,10 @@ onmessage = async (e) => {
             latestSearchId++;
             const gen = latestSearchId;
             await runSearch(data.state, data.toPlay, data.sims, gen,
-                data.searchId, data.analyze, data.timeMs, data.pdaPla);
+                data.searchId, data.analyze, data.timeMs, data.pda, data.pdaPla);
+        } else if (data.type === "set-pda") {
+            latestSearchId++;
+            setPdaMagnitude(data.pda);
         } else if (data.type === "swap-model") {
             latestSearchId++;
             session = null;
