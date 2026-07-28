@@ -17,6 +17,8 @@ let root = null;
 let currentBoardSize = 15;
 let currentRule = "renju";
 let latestSearchId = 0;
+const NN_CACHE_LIMIT = 8192;
+const nnCache = new Map();
 // Hard cap on the root's cumulative visits for play-mode (time-budgeted) search.
 // Tree reuse accumulates visits across moves, so near the endgame the root is
 // often already well-searched — once it hits this we stop and play, instead of
@@ -64,7 +66,52 @@ async function fetchModelWithProgress(url) {
  * current player `toPlay`. Returns the un-padded heatmap arrays the UI
  * wants, plus raw masked logits for MCTS.
  */
-async function inference(state, toPlay) {
+function transformSpatial(input, channels, size, rotation, flip) {
+    const area = size * size;
+    const output = new Float32Array(input.length);
+    for (let channel = 0; channel < channels; channel++) {
+        for (let row = 0; row < size; row++) {
+            for (let col = 0; col < size; col++) {
+                const [tr, tc] = transformCoord(
+                    row, col, size, rotation, flip);
+                output[channel * area + tr * size + tc] =
+                    input[channel * area + row * size + col];
+            }
+        }
+    }
+    return output;
+}
+
+function undoSpatial(input, channels, size, rotation, flip) {
+    const area = size * size;
+    const output = new Float32Array(input.length);
+    for (let channel = 0; channel < channels; channel++) {
+        for (let row = 0; row < size; row++) {
+            for (let col = 0; col < size; col++) {
+                const [tr, tc] = transformCoord(
+                    row, col, size, rotation, flip);
+                output[channel * area + row * size + col] =
+                    input[channel * area + tr * size + tc];
+            }
+        }
+    }
+    return output;
+}
+
+function cacheKey(state, toPlay, isRoot) {
+    return `${currentBoardSize}|${currentRule}|${toPlay}|${isRoot ? "root" : "child"}|`
+        + Array.from(state).join("");
+}
+
+function cachePut(key, value) {
+    if (nnCache.has(key)) nnCache.delete(key);
+    nnCache.set(key, value);
+    if (nnCache.size > NN_CACHE_LIMIT) {
+        nnCache.delete(nnCache.keys().next().value);
+    }
+}
+
+async function inference(state, toPlay, isRoot = false) {
     if (!session) throw new Error("session not ready");
     const M = MAX_BOARD_SIZE, A = M * M;         // padded canvas (from gomoku.js)
     const N = currentBoardSize, NA = N * N;      // game canvas
@@ -74,16 +121,36 @@ async function inference(state, toPlay) {
 
     const spatial = game.encodeState(state, toPlay);
     const globalF = game.computeGlobalFeatures(ply, toPlay);
+    const key = cacheKey(state, toPlay, isRoot);
+    let raw = nnCache.get(key);
+    if (raw) {
+        nnCache.delete(key);
+        nnCache.set(key, raw);
+    } else {
+        const transformType = Math.floor(Math.random() * 8);
+        const rotation = transformType % 4;
+        const flip = transformType >= 4;
+        const transformed = transformSpatial(
+            spatial, 5, M, rotation, flip);
+        const feeds = {
+            input_spatial: new ort.Tensor(
+                "float32", transformed, [1, 5, M, M]),
+            input_global: new ort.Tensor(
+                "float32", globalF, [1, 7]),
+        };
+        const out = await session.run(feeds);
+        raw = {
+            policy: undoSpatial(
+                out.policy_logits.data, 5, M, rotation, flip),
+            valueLogits: new Float32Array(
+                out.value_wdl_logits.data),
+            stErrorSquared: out.value_st_error_sq.data[0],
+        };
+        cachePut(key, raw);
+    }
 
-    const feeds = {
-        input_spatial: new ort.Tensor("float32", spatial, [1, 5, M, M]),
-        input_global:  new ort.Tensor("float32", globalF, [1, 12]),
-    };
-    const out = await session.run(feeds);
-
-    const policyAll = out.policy_logits.data;            // (1, 4, A)
-    const wdlLogits = out.value_wdl_logits.data;         // (1, 3)
-    const futureAll = out.value_futurepos_pretanh.data;  // (1, 2, M, M)
+    const policyAll = raw.policy;              // (5, 225)
+    const wdlLogits = raw.valueLogits;         // (3)
 
     // --- crop policy channels 0 (main) and 1 (opp) from padded → board area ---
     function cropChannel(channelIdx) {
@@ -97,39 +164,43 @@ async function inference(state, toPlay) {
     }
     const policyMainRaw = cropChannel(0);
     const policyOppRaw  = cropChannel(1);
+    const policyOptRaw  = cropChannel(4);
 
     // --- mask illegal + softmax ---
     const legal = game.getLegalActions(state, toPlay);
+    const optimism = isRoot ? 0 : 1;
     const policyMainMasked = new Float32Array(NA);
-    for (let i = 0; i < NA; i++) policyMainMasked[i] = legal[i] ? policyMainRaw[i] : -1e9;
+    for (let i = 0; i < NA; i++) {
+        const blended = policyMainRaw[i]
+            + (policyOptRaw[i] - policyMainRaw[i]) * optimism;
+        policyMainMasked[i] = legal[i] ? blended : -Infinity;
+    }
     const policyMainSoft = new Float32Array(softmax(policyMainMasked));
 
-    // Opp policy: don't mask (opponent's policy doesn't share legality), just softmax.
-    const policyOppSoft = new Float32Array(softmax(policyOppRaw));
+    const policyOppMasked = new Float32Array(NA);
+    for (let i = 0; i < NA; i++) {
+        policyOppMasked[i] = legal[i] ? policyOppRaw[i] : -Infinity;
+    }
+    const policyOppSoft = new Float32Array(
+        softmax(policyOppMasked));
+    const policyOptMasked = new Float32Array(NA);
+    for (let i = 0; i < NA; i++) {
+        policyOptMasked[i] = legal[i] ? policyOptRaw[i] : -Infinity;
+    }
+    const policyOptSoft = new Float32Array(
+        softmax(policyOptMasked));
 
     // --- value WDL: softmax 3 logits ---
     const wdl = softmax(new Float64Array([wdlLogits[0], wdlLogits[1], wdlLogits[2]]));
     const wdlF64 = new Float64Array([wdl[0], wdl[1], wdl[2]]);
 
-    // --- futurepos: tanh per cell, crop both channels ---
-    function cropTanh(channelIdx) {
-        const cropped = new Float32Array(NA);
-        for (let r = 0; r < N; r++) {
-            for (let c = 0; c < N; c++) {
-                cropped[r * N + c] = Math.tanh(futureAll[channelIdx * A + r * M + c]);
-            }
-        }
-        return cropped;
-    }
-    const future8  = cropTanh(0);
-    const future32 = cropTanh(1);
-
     return {
         policyMainSoft,                    // for MCTS expand prior
-        policyMainMaskedLogits: policyMainMasked,   // for Gumbel halving
+        policyMainMaskedLogits: policyMainMasked,
         policyOppSoft,                     // UI heatmap
+        policyOptSoft,                     // optimistic-policy UI heatmap
         wdl: wdlF64,                       // root nn value
-        future8, future32,                 // UI heatmaps
+        stError: Math.sqrt(Math.max(0, raw.stErrorSquared)),
     };
 }
 
@@ -141,18 +212,28 @@ async function initSession(modelUrl, boardSize, rule) {
         c_puct: 1.1,
         c_puct_log: 0.45,
         c_puct_base: 500,
-        fpu_reduction_max: 0.2,
+        fpu_reduction_max: 0.16,
         root_fpu_reduction_max: 0.1,
-        fpu_pow: 1.0,
+        fpu_pow: 2.0,
         fpu_loss_prop: 0.0,
         cpuct_utility_stdev_prior: 0.40,
         cpuct_utility_stdev_prior_weight: 2.0,
         cpuct_utility_stdev_scale: 0.85,
-        gumbel_m: 16,
-        gumbel_c_visit: 50,
-        gumbel_c_scale: 1.0,
+        use_uncertainty: true,
+        uncertainty_coeff: 0.25,
+        uncertainty_exponent: 1.0,
+        uncertainty_max_weight: 8.0,
+        value_weight_exponent: 0.5,
+        subtree_value_bias_factor: 0.45,
+        subtree_value_bias_weight_exponent: 0.8,
+        subtree_value_bias_free_prop: 0.8,
+        root_lcb_selection: true,
+        lcb_stdevs: 5.0,
+        min_visit_prop_for_lcb: 0.15,
+        root_symmetry_pruning: true,
     });
     root = null;
+    nnCache.clear();
     const bytes = await fetchModelWithProgress(modelUrl);
     session = await ort.InferenceSession.create(bytes, {
         executionProviders: ["wasm"],
@@ -171,45 +252,67 @@ function resetGame(boardSize, rule) {
         game = new Gomoku(currentBoardSize, currentRule);
         if (mcts) mcts.game = game;   // keep MCTS bound to the live game
     }
+    if (root && mcts) mcts.clear(root);
     root = null;
+    nnCache.clear();
 }
 
 function applyMove(action, nextState, nextToPlay) {
     if (root && root.children.length > 0) {
         const child = root.children.find(c => c.actionTaken === action);
         if (child) {
+            for (const sibling of root.children) {
+                if (sibling !== child) mcts.releaseTree(sibling);
+            }
+            mcts.releaseBias(root);
             root = child;
             root.parent = null;   // detach for GC
+            root.rootPolicyApplied = false;
             return;
         }
     }
+    if (root) mcts.releaseTree(root);
     root = new Node(nextState, nextToPlay);
 }
 
-async function runSearch(state, toPlay, sims, gumbelM, gen, externalSearchId, analyze, timeMs) {
-    if (gumbelM != null) mcts.args.gumbel_m = gumbelM;
+async function runSearch(state, toPlay, sims, gen, externalSearchId, analyze, timeMs) {
     if (!root) root = new Node(state, toPlay);
 
     // Root inference if not already expanded.
-    let oppPolicy, future8, future32;
+    let oppPolicy, optimisticPolicy;
     let nnValueWDL;
     if (!root.isExpanded()) {
-        const inf = await inference(root.state, root.toPlay);
+        const inf = await inference(
+            root.state, root.toPlay, true);
         if (latestSearchId !== gen) return;
-        mcts.expand(root, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
-        mcts.backpropagate(root, inf.wdl);
+        mcts.expand(
+            root,
+            inf.policyMainSoft,
+            inf.wdl,
+            inf.policyMainMaskedLogits,
+            inf.stError,
+            true);
         nnValueWDL = inf.wdl;
         oppPolicy = inf.policyOppSoft;
-        future8 = inf.future8;
-        future32 = inf.future32;
+        optimisticPolicy = inf.policyOptSoft;
     } else {
-        // Even on tree reuse we still run ONE inference to get fresh oppPolicy / future*.
-        const inf = await inference(root.state, root.toPlay);
+        // A promoted child was expanded with non-root policyOptimism=1. Refresh
+        // its root prior with rootPolicyOptimism=0 and root symmetry pruning
+        // while preserving visited descendants.
+        const inf = await inference(
+            root.state, root.toPlay, true);
         if (latestSearchId !== gen) return;
+        if (!root.rootPolicyApplied) {
+            mcts.refreshRoot(
+                root,
+                inf.policyMainSoft,
+                inf.wdl,
+                inf.policyMainMaskedLogits,
+                inf.stError);
+        }
         nnValueWDL = root.nnValue;   // cached
         oppPolicy = inf.policyOppSoft;
-        future8 = inf.future8;
-        future32 = inf.future32;
+        optimisticPolicy = inf.policyOptSoft;
     }
 
     // The NN-only heatmaps (network policy / opp policy / future positions) are
@@ -221,9 +324,8 @@ async function runSearch(state, toPlay, sims, gumbelM, gen, externalSearchId, an
         progress: 0,
         searchId: externalSearchId,
         nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),
+        nnOptimisticPolicy: Array.from(optimisticPolicy),
         nnOppPolicy:   Array.from(oppPolicy),
-        nnFuturepos8:  Array.from(future8),
-        nnFuturepos32: Array.from(future32),
     });
 
     let totalSims = 0;
@@ -234,64 +336,40 @@ async function runSearch(state, toPlay, sims, gumbelM, gen, externalSearchId, an
     // simulation loop's speed, not the per-chunk inference overhead.
     const npsNow = (now) => Math.round(totalSims / Math.max(0.001, (now - searchStart) / 1000));
 
-    const simulateOne = async (action) => {
-        const child = root.children.find(c => c.actionTaken === action);
-        if (!child) return;
-        let node = child;
-        while (node.isExpanded()) {
-            node = mcts.select(node);
-            if (!node) return;
-        }
-        // Evaluate leaf: terminal or NN.
-        // node.toPlay is who moves NEXT; the actor of node.actionTaken is -node.toPlay.
-        const winner = game.getWinner(node.state, node.actionTaken, -node.toPlay);
-        let value;
-        if (winner !== null) {
-            const result = winner * node.toPlay;   // winner relative to node.toPlay's POV
-            if      (result === 1)  value = new Float64Array([1, 0, 0]);
-            else if (result === -1) value = new Float64Array([0, 0, 1]);
-            else                    value = new Float64Array([0, 1, 0]);
-        } else {
-            const inf = await inference(node.state, node.toPlay);
-            if (latestSearchId !== gen) return;
-            mcts.expand(node, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
-            value = inf.wdl;
-        }
-        mcts.backpropagate(node, value);
-        totalSims++;
-
-        const now = performance.now();
-        if (now - lastProgress > 60) {
-            lastProgress = now;
-            const pct = Math.min(100, (totalSims / sims) * 100);
-            postMessage({ type: "progress", progress: pct, searchId: externalSearchId });
-        }
-    };
-
-    let gumbelAction, vMix, phases;
+    let selectedAction, rootValue, phases;
     // One plain-PUCT simulation from the root (no Gumbel / no Dirichlet noise).
     // Returns false if the search was superseded mid-inference (caller bails).
     const puctStep = async () => {
         let node = root;
+        const path = [root];
         while (node.isExpanded()) {
             const nx = mcts.select(node);
             if (!nx) break;
             node = nx;
+            path.push(node);
         }
         const winner = game.getWinner(node.state, node.actionTaken, -node.toPlay);
         let value;
+        let terminal = winner !== null;
         if (winner !== null) {
             const result = winner * node.toPlay;
             if      (result === 1)  value = new Float64Array([1, 0, 0]);
             else if (result === -1) value = new Float64Array([0, 0, 1]);
             else                    value = new Float64Array([0, 1, 0]);
         } else {
-            const inf = await inference(node.state, node.toPlay);
+            const inf = await inference(
+                node.state, node.toPlay, false);
             if (latestSearchId !== gen) return false;
-            mcts.expand(node, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
+            mcts.expand(
+                node,
+                inf.policyMainSoft,
+                inf.wdl,
+                inf.policyMainMaskedLogits,
+                inf.stError,
+                false);
             value = inf.wdl;
         }
-        mcts.backpropagate(node, value);
+        mcts.backpropagate(path, value, terminal);
         totalSims++;
         return true;
     };
@@ -305,20 +383,24 @@ async function runSearch(state, toPlay, sims, gumbelM, gen, externalSearchId, an
             progress: Math.min(100, progress),
             searchId: externalSearchId,
             mctsVisits:  Array.from(mcts.getMCTSPolicy(root)),
+            mctsPlaySelection:
+                Array.from(mcts.getPlaySelectionPolicy(root)),
             mctsWinrate: Array.from(mcts.getMCTSWinrate(root)),
             searchSims:  liveVisits,
             nps:         npsNow(now),
         });
     };
-    // Shared root readout for both PUCT paths: value = mean WDL
-    // (root.toPlay's frame), action = most-visited child.
+    // V7.19 play finalization: raw recomputed root value for reporting and
+    // LCB-adjusted play-selection value for the actual move.
     const finishPuct = () => {
-        vMix = root.n > 0
-            ? new Float64Array([root.v[0] / root.n, root.v[1] / root.n, root.v[2] / root.n])
+        rootValue = root.weightSum > 0
+            ? new Float64Array([
+                root.vRaw[0] / root.weightSum,
+                root.vRaw[1] / root.weightSum,
+                root.vRaw[2] / root.weightSum,
+            ])
             : new Float64Array(nnValueWDL);
-        gumbelAction = -1;
-        let maxN = -1;
-        for (const ch of root.children) if (ch.n > maxN) { maxN = ch.n; gumbelAction = ch.actionTaken; }
+        selectedAction = mcts.rootPlaySelection(root).action;
         phases = [];
     };
 
@@ -355,22 +437,30 @@ async function runSearch(state, toPlay, sims, gumbelM, gen, externalSearchId, an
         if (latestSearchId !== gen) return;
         finishPuct();
     } else {
-        // Search off (sims === 0): Gumbel collapses to the NN policy argmax — an
-        // instant intuition move with no tree search.
-        const res = await mcts.gumbelSequentialHalving(root, sims, simulateOne);
-        if (latestSearchId !== gen) return;
-        gumbelAction = res.gumbelAction;
-        vMix = res.vMix;
-        phases = root._gumbelPhases || [];
+        // Zero-search mode keeps the V7.19 PUCT root package and picks the
+        // strongest root prior without entering the removed legacy Gumbel path.
+        selectedAction = -1;
+        let bestPrior = -Infinity;
+        for (const child of root.children) {
+            if (child.prior > bestPrior) {
+                bestPrior = child.prior;
+                selectedAction = child.actionTaken;
+            }
+        }
+        rootValue = new Float64Array(nnValueWDL);
+        phases = [];
     }
 
     postMessage({ type: "progress", progress: 100, searchId: externalSearchId });
 
-    // Visit distribution N(s,a)/sum — matches V5 cpp label "MCTS Visits (N(s,a)/sum)".
+    // Raw visits remain a diagnostic. V7.19 move choice uses the separate,
+    // LCB-adjusted play-selection distribution.
     const visitDist = mcts.getMCTSPolicy(root);
+    const playSelectionDist = mcts.getPlaySelectionPolicy(root);
     // Per-move win rate (root player's view) for the candidate list. NaN where
     // unvisited; structured clone preserves NaN so main.js can tell "no data".
     const winrateDist = mcts.getMCTSWinrate(root);
+    const lcbData = mcts.getLcb(root);
     // Cumulative root visits across tree-reuse chunks — the analysis ponder's
     // depth so far. main.js drives the continuous search off this.
     let rootVisits = 0;
@@ -379,15 +469,18 @@ async function runSearch(state, toPlay, sims, gumbelM, gen, externalSearchId, an
     postMessage({
         type: "result",
         searchId: externalSearchId,
-        gumbelAction,
-        rootValueWDL: vMix,                   // [W, D, L] from vMix
+        selectedAction,
+        gumbelAction: selectedAction, // compatibility with cached older main.js
+        rootValueWDL: rootValue,
         nnValueWDL,                           // [W, D, L] root NN
-        mctsVisits:    Array.from(visitDist),       // V5 "MCTS Visits (N(s,a)/sum)"
+        mctsVisits:    Array.from(visitDist),
+        mctsPlaySelection: Array.from(playSelectionDist),
         mctsWinrate:   Array.from(winrateDist),     // per-move win rate for the candidate list
-        nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),  // V5 "NN Strategy"
+        mctsLcb:       Array.from(lcbData.lcb),
+        mctsLcbRadius: Array.from(lcbData.radius),
+        nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),
+        nnOptimisticPolicy: Array.from(optimisticPolicy),
         nnOppPolicy:   Array.from(oppPolicy),
-        nnFuturepos8:  Array.from(future8),
-        nnFuturepos32: Array.from(future32),
         gumbelPhases:  phases,
         iterations:    totalSims,
         searchSims:    rootVisits,   // cumulative root visits (analysis ponder depth)
@@ -408,11 +501,14 @@ onmessage = async (e) => {
         } else if (data.type === "search") {
             latestSearchId++;
             const gen = latestSearchId;
-            await runSearch(data.state, data.toPlay, data.sims, data.gumbel_m, gen, data.searchId, data.analyze, data.timeMs);
+            await runSearch(data.state, data.toPlay, data.sims, gen,
+                data.searchId, data.analyze, data.timeMs);
         } else if (data.type === "swap-model") {
             latestSearchId++;
             session = null;
+            if (root && mcts) mcts.clear(root);
             root = null;
+            nnCache.clear();
             const bytes = await fetchModelWithProgress(data.modelUrl);
             session = await ort.InferenceSession.create(bytes, {
                 executionProviders: ["wasm"],

@@ -20,7 +20,7 @@ let session = null;
 let game = null;
 let mcts = null;
 let root = null;
-let boardSize = 9;
+let boardSize = 15;
 let rule = "renju";
 let nodeIdCounter = 0;
 let seedPosition = null;   // optional {board, toPlay, lastMove} to seed the root from a live game
@@ -30,9 +30,41 @@ function nid(node) {
     return node._id;
 }
 
+function transformSpatial(input, channels, size, rotation, flip) {
+    const area = size * size;
+    const output = new Float32Array(input.length);
+    for (let channel = 0; channel < channels; channel++) {
+        for (let row = 0; row < size; row++) {
+            for (let col = 0; col < size; col++) {
+                const [tr, tc] = transformCoord(
+                    row, col, size, rotation, flip);
+                output[channel * area + tr * size + tc] =
+                    input[channel * area + row * size + col];
+            }
+        }
+    }
+    return output;
+}
+
+function undoSpatial(input, channels, size, rotation, flip) {
+    const area = size * size;
+    const output = new Float32Array(input.length);
+    for (let channel = 0; channel < channels; channel++) {
+        for (let row = 0; row < size; row++) {
+            for (let col = 0; col < size; col++) {
+                const [tr, tc] = transformCoord(
+                    row, col, size, rotation, flip);
+                output[channel * area + row * size + col] =
+                    input[channel * area + tr * size + tc];
+            }
+        }
+    }
+    return output;
+}
+
 // One ONNX forward pass — trimmed copy of worker.js::inference, keeping only
 // what MCTS expansion needs (masked-softmax prior + WDL value + masked logits).
-async function inference(state, toPlay) {
+async function inference(state, toPlay, isRoot = false) {
     const M = MAX_BOARD_SIZE, A = M * M;
     const N = boardSize, NA = N * N;
 
@@ -40,18 +72,25 @@ async function inference(state, toPlay) {
     for (let i = 0; i < state.length; i++) if (state[i] !== 0) ply++;
     const spatial = game.encodeState(state, toPlay);
     const globalF = game.computeGlobalFeatures(ply, toPlay);
+    const transformType = Math.floor(Math.random() * 8);
+    const rotation = transformType % 4;
+    const flip = transformType >= 4;
     const out = await session.run({
-        input_spatial: new ort.Tensor("float32", spatial, [1, 5, M, M]),
-        input_global: new ort.Tensor("float32", globalF, [1, 12]),
+        input_spatial: new ort.Tensor("float32",
+            transformSpatial(spatial, 5, M, rotation, flip),
+            [1, 5, M, M]),
+        input_global: new ort.Tensor("float32", globalF, [1, 7]),
     });
 
-    const policyAll = out.policy_logits.data;     // (1, 4, A)
+    const policyAll = undoSpatial(
+        out.policy_logits.data, 5, M, rotation, flip);
     const wdlLogits = out.value_wdl_logits.data;  // (1, 3)
 
     const policyMainRaw = new Float32Array(NA);
     for (let r = 0; r < N; r++)
         for (let c = 0; c < N; c++)
-            policyMainRaw[r * N + c] = policyAll[r * M + c];   // channel 0
+            policyMainRaw[r * N + c] = policyAll[
+                (isRoot ? 0 : 4) * A + r * M + c];
 
     const legal = game.getLegalActions(state, toPlay);
     const masked = new Float32Array(NA);
@@ -63,6 +102,7 @@ async function inference(state, toPlay) {
         policyMainSoft,
         policyMainMaskedLogits: masked,
         wdl: new Float64Array([wdl[0], wdl[1], wdl[2]]),
+        stError: Math.sqrt(Math.max(0, out.value_st_error_sq.data[0])),
     };
 }
 
@@ -80,20 +120,23 @@ function newRoot() {
 // Expand the root up front (like worker.js) so the very first user "step" is a
 // real select→leaf→backup, and the root already shows the network's priors.
 async function expandRoot(inferFn) {
-    const inf = await inferFn(root.state, root.toPlay);
-    mcts.expand(root, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
-    mcts.backpropagate(root, inf.wdl);
+    // Root policy optimism is 0, so use channel 0 for the first expansion.
+    const rootInf = await inferFn(root.state, root.toPlay, true);
+    mcts.expand(root, rootInf.policyMainSoft, rootInf.wdl,
+        rootInf.policyMainMaskedLogits, rootInf.stError, true);
 }
 
 // Run exactly one simulation. Returns the selection path (node ids), the leaf,
 // and what happened there — enough for the UI to animate this step.
 async function oneSimulation(inferFn) {
     let node = root;
+    const nodes = [node];
     const path = [nid(node)];
     while (node.isExpanded()) {
         const nx = mcts.select(node);
         if (!nx) break;
         node = nx;
+        nodes.push(node);
         path.push(nid(node));
     }
 
@@ -109,11 +152,12 @@ async function oneSimulation(inferFn) {
         node._term = result;
     } else {
         const inf = await inferFn(node.state, node.toPlay);
-        mcts.expand(node, inf.policyMainSoft, inf.wdl, inf.policyMainMaskedLogits);
+        mcts.expand(node, inf.policyMainSoft, inf.wdl,
+            inf.policyMainMaskedLogits, inf.stError, false);
         value = inf.wdl;
         expanded = true;
     }
-    mcts.backpropagate(node, value);
+    mcts.backpropagate(nodes, value, !expanded);
     return { path, leaf: nid(node), expanded, value: Array.from(value) };
 }
 
@@ -128,16 +172,23 @@ function serializeTree() {
         const id = nid(node);
         const n = node.n;
         let winrate = null, wdl = null, q = null;
-        if (n > 0) {
-            wdl = [node.v[0] / n, node.v[1] / n, node.v[2] / n];     // node.toPlay frame
+        if (node.weightSum > 0) {
+            wdl = [
+                node.v[0] / node.weightSum,
+                node.v[1] / node.weightSum,
+                node.v[2] / node.weightSum,
+            ];
             // winrate from node.toPlay's POV — the side to move *next* at this node.
-            winrate = ((node.v[0] - node.v[2]) / n + 1) / 2;
-            q = node.v[2] / n - node.v[0] / n;                       // parent-perspective utility
+            winrate = ((node.v[0] - node.v[2]) / node.weightSum + 1) / 2;
+            q = node.v[2] / node.weightSum - node.v[0] / node.weightSum;
         }
         let U = null, score = null, qUsed = q;
         if (parentSp) {
-            qUsed = n > 0 ? (node.v[2] / n - node.v[0] / n) : parentSp.fpuValue;
-            U = parentSp.exploreScaling * node.prior / (1 + n);
+            qUsed = node.weightSum > 0
+                ? (node.v[2] - node.v[0]) / node.weightSum
+                : parentSp.fpuValue;
+            U = parentSp.exploreScaling * node.prior
+                / (1 + node.weightSum);
             score = qUsed + U;
         }
         out.push({
@@ -156,7 +207,7 @@ function serializeTree() {
         if (node.isExpanded()) {
             let visitedMass = 0;
             for (const ch of node.children) if (ch.n > 0) visitedMass += ch.prior;
-            const sp = mcts.computeSelectParams(node, node.n, visitedMass);
+            const sp = mcts.computeSelectParams(node, node.parent === null);
             const kids = node.children.filter(c => c.n > 0).sort((a, b) => b.n - a.n);
             for (const ch of kids) emit(ch, id, depth + 1, sp);
         }
@@ -169,7 +220,7 @@ function serializeTree() {
 }
 
 async function init(modelUrl, bs, rl, seed) {
-    boardSize = bs || 9;
+    boardSize = bs || 15;
     rule = rl || "renju";
     seedPosition = seed || null;
     nodeIdCounter = 0;
@@ -191,6 +242,7 @@ async function reset(bs, rl) {
     if (rl != null) rule = rl;
     seedPosition = null;   // reset always rebuilds from the empty board
     nodeIdCounter = 0;
+    if (root) mcts.clear(root);
     game = new Gomoku(boardSize, rule);
     mcts.game = game;
     newRoot();
