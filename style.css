@@ -163,9 +163,6 @@
   .app { max-width: 2000px; margin: 0 auto; padding: 12px 24px 16px; }
   @media (max-width: 720px) {
     .app { padding: 8px 8px 12px; }
-    /* Maximize board real estate on phones — tight card padding, no
-       coordinate-label margin reservations (handled in JS). */
-    .board-card { padding: 6px; }
   }
 
   /* ---------- Mobile topbar (≤720px) ----------
@@ -648,6 +645,10 @@
     .main { grid-template-columns: 1fr; }
     .board-col { order: -1; }
   }
+  @media (max-width: 720px) {
+    /* Use the same vertical rhythm between every stacked mobile card. */
+    .main { gap: 12px; }
+  }
   .board-col {
     display: flex; flex-direction: column; align-items: center; gap: 12px;
     min-width: 0;
@@ -1084,9 +1085,23 @@
     display: inline-flex; flex-direction: column; align-items: flex-start;
     position: relative; /* anchor the loading overlay over the board */
   }
+  @media (max-width: 720px) {
+    /* Match every other card's 8px page inset, then keep only a narrow frame
+       around the canvas so the phone board can use the reclaimed width. This
+       must follow the base rule above or its padding would be overridden. */
+    .board-card {
+      width: 100%;
+      padding: 3px;
+      align-items: center;
+    }
+  }
   #board {
     background: var(--board-bg); border-radius: var(--radius-sm);
     display: block; cursor: crosshair;
+  }
+  @media (max-width: 720px) {
+    /* Outer card radius 12px minus its 4px border+padding inset: concentric. */
+    #board { border-radius: var(--radius-md); }
   }
   /* ---------- Candidate move list (right column) ---------- */
   #right_col { min-width: 0; }
