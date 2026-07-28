@@ -40,7 +40,7 @@ const elStatus = $("status"), detailTable = $("detailTable");
 
 // ---- state ----
 let worker = null, busy = false;
-let SIZE = 9, RULE = "renju", modelFile = "level3.onnx";
+let SIZE = 15, RULE = "renju", modelFile = "level3.onnx";
 let tree = null, byId = new Map(), childrenOf = new Map();
 let visKids = new Map(), prunedOf = new Map(), pos = new Map();
 let rootId = null, contentW = 0, contentH = 0;
@@ -381,7 +381,10 @@ async function loadModels() {
         const m = await r.json();
         for (const md of m.models) {
             const o = document.createElement("option");
-            o.value = md.file; o.dataset.ver = md.params || md.file; o.textContent = `${md.label} (ELO ${md.elo})`;
+            const iter = /\biter(\d+)\b/.exec(md.params || "");
+            o.value = md.file;
+            o.dataset.ver = md.params || md.file;
+            o.textContent = `${md.label}${iter ? ` (iter ${iter[1]})` : ""}`;
             if (md.id === m.default) o.selected = true;
             elModel.appendChild(o);
         }
@@ -404,7 +407,7 @@ function readSeedPosition() {
     try { p = JSON.parse(raw); } catch (_) { return; }
     if (!p || !Array.isArray(p.board)) return;
     const size = +p.size;
-    if (!(size >= 5 && size <= 19) || p.board.length !== size * size) return;
+    if (!(size >= 11 && size <= 15) || p.board.length !== size * size) return;
     SIZE = size;
     if (p.rule === "renju" || p.rule === "freestyle" || p.rule === "standard") RULE = p.rule;
     // The size dropdown only presets a few sizes; add this one if the live game used another.

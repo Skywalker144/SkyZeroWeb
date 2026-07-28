@@ -518,20 +518,20 @@ function drawBoardHeatOverlay(canvasId) {
 
 // --- Five heatmap canvases ---
 const heatCtxs = {
-    h_nn_policy:      setupCanvas(document.getElementById("h_nn_policy"),      HEAT_LOGICAL, HEAT_LOGICAL, false),
-    h_mcts_visits:    setupCanvas(document.getElementById("h_mcts_visits"),    HEAT_LOGICAL, HEAT_LOGICAL, false),
-    h_nn_opp_policy:  setupCanvas(document.getElementById("h_nn_opp_policy"),  HEAT_LOGICAL, HEAT_LOGICAL, false),
-    h_nn_futurepos_8: setupCanvas(document.getElementById("h_nn_futurepos_8"), HEAT_LOGICAL, HEAT_LOGICAL, false),
-    h_nn_futurepos_32:setupCanvas(document.getElementById("h_nn_futurepos_32"),HEAT_LOGICAL, HEAT_LOGICAL, false),
+    h_nn_policy:             setupCanvas(document.getElementById("h_nn_policy"),             HEAT_LOGICAL, HEAT_LOGICAL, false),
+    h_nn_optimistic_policy:  setupCanvas(document.getElementById("h_nn_optimistic_policy"),  HEAT_LOGICAL, HEAT_LOGICAL, false),
+    h_nn_opp_policy:         setupCanvas(document.getElementById("h_nn_opp_policy"),         HEAT_LOGICAL, HEAT_LOGICAL, false),
+    h_mcts_play_selection:   setupCanvas(document.getElementById("h_mcts_play_selection"),   HEAT_LOGICAL, HEAT_LOGICAL, false),
+    h_mcts_visits:           setupCanvas(document.getElementById("h_mcts_visits"),           HEAT_LOGICAL, HEAT_LOGICAL, false),
 };
 const HEAT_GRID_KEYS = {
-    h_nn_policy:      "nn_policy",
-    h_mcts_visits:    "mcts_visits",
-    h_nn_opp_policy:  "nn_opp_policy",
-    h_nn_futurepos_8: "nn_futurepos_8",
-    h_nn_futurepos_32:"nn_futurepos_32",
+    h_nn_policy:             "nn_policy",
+    h_nn_optimistic_policy:  "nn_optimistic_policy",
+    h_nn_opp_policy:         "nn_opp_policy",
+    h_mcts_play_selection:   "mcts_play_selection",
+    h_mcts_visits:           "mcts_visits",
 };
-const SIGNED_HEAT_IDS = new Set(["h_nn_futurepos_8", "h_nn_futurepos_32"]);
+const SIGNED_HEAT_IDS = new Set();
 
 // Pinned heatmap (radio: at most one). When set, the board mirrors it for the
 // rest of the session; hover still previews other heatmaps temporarily and
@@ -1086,7 +1086,7 @@ const candListEl = document.getElementById("cand_list");
 let candSig = "";
 const MAX_CANDS = 12;
 let searchSimsTotal = 0;        // cumulative root visits reported by the worker
-const ANALYSIS_CHUNK = 96;      // PUCT sims per continuous-ponder chunk
+const ANALYSIS_CHUNK = 128;     // V7.19 play.cfg ANALYZE_CHUNK_SIMS
 const ANALYSIS_CAP_MIN = 2000;  // analysis board deepens at least this many root visits
 // Per-move thinking time for play mode (AI move + "my-turn" analysis), in ms;
 // picked from the toolbar dropdown. Persisted in localStorage("skz_think_ms").
@@ -1100,25 +1100,33 @@ let thinkMs = (function () {
 function colLetter(c) { return String.fromCharCode(65 + c); }
 // Board notation: columns A.. left→right, rows N..1 top→bottom (H8 = center of 15).
 function coordLabel(r, c) { return colLetter(c) + (N - r); }
-// Rank the side-to-move's candidates from the engine's visit distribution
-// (mcts_visits) and per-move win rate (mcts_winrate, side-to-move view ∈ [0,1]).
-// Sorted by visits desc; capped at MAX_CANDS.
+// Rank candidates by V7.19's LCB-adjusted play-selection distribution. Raw
+// visits remain visible as a diagnostic count.
 function computeCandidates() {
     if (!state || !state.board) return [];
-    const vis = state.mcts_visits, wrG = state.mcts_winrate;
+    const vis = state.mcts_visits;
+    const rankG = state.mcts_play_selection || vis;
+    const wrG = state.mcts_winrate;
     if (!vis && !wrG) return [];
     const out = [];
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
         if (state.board[r][c] !== 0) continue;
         const vf = (vis && vis[r]) ? (vis[r][c] || 0) : 0;
+        const rank = (rankG && rankG[r]) ? (rankG[r][c] || 0) : vf;
         const wRaw = (wrG && wrG[r]) ? wrG[r][c] : null;
         const wr = (wRaw != null && Number.isFinite(wRaw)) ? wRaw : null;
-        if (vf > 0 || (wr != null && wr > 0)) out.push({ r, c, vf, wr });
+        if (rank > 0 || vf > 0 || (wr != null && wr > 0)) {
+            out.push({ r, c, vf, rank, wr });
+        }
     }
     if (out.length === 0) return [];
-    out.sort((a, b) => (b.vf - a.vf) || ((b.wr ?? -1) - (a.wr ?? -1)));
-    const maxV = out[0].vf || 0;
-    out.forEach((o, i) => { o.frac = maxV > 0 ? o.vf / maxV : 1; o.best = (i === 0); });
+    out.sort((a, b) => (b.rank - a.rank) || (b.vf - a.vf)
+        || ((b.wr ?? -1) - (a.wr ?? -1)));
+    const maxRank = out[0].rank || 0;
+    out.forEach((o, i) => {
+        o.frac = maxRank > 0 ? o.rank / maxRank : 1;
+        o.best = (i === 0);
+    });
     return out.slice(0, MAX_CANDS);
 }
 // Total root visits → turns a visit fraction back into a count for display,
@@ -1219,8 +1227,8 @@ async function loadManifest() {
     manifest = await r.json();
     const menu = document.getElementById("model_menu");
     menu.innerHTML = "";
-    // Sort by ELO ascending so "入门" sits at the top.
-    const items = manifest.models.slice().sort((a, b) => a.elo - b.elo);
+    const items = manifest.models.slice().sort(
+        (a, b) => (a.order ?? a.elo ?? 0) - (b.order ?? b.elo ?? 0));
     for (const m of items) {
         const o = document.createElement("button");
         o.type = "button";
@@ -1232,7 +1240,10 @@ async function loadManifest() {
         name.textContent = `${m.id.toUpperCase()} ${m.label}`;
         const elo = document.createElement("span");
         elo.className = "cs-opt-elo";
-        elo.textContent = "ELO " + (m.elo >= 0 ? "+" : "") + m.elo;
+        const iter = /\biter(\d+)\b/.exec(m.params || "");
+        elo.textContent = Number.isFinite(m.elo)
+            ? "ELO " + (m.elo >= 0 ? "+" : "") + m.elo
+            : (iter ? "iter " + iter[1] : "V7.19");
         o.append(name, elo);
         menu.appendChild(o);
     }
@@ -1273,8 +1284,8 @@ function modelUrl(m) {
     return `models/${m.file}?v=${v}`;
 }
 
-// --- Board size buttons (hard-coded 9-19) ---
-const BOARD_SIZES = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
+// V7.19's fixed 15x15 network canvas supports runtime boards 11..15.
+const BOARD_SIZES = [11, 12, 13, 14, 15];
 
 // --- Loading overlay (only shown for first model load) ---
 function fmtMB(bytes) { return (Number(bytes || 0) / 1048576).toFixed(1); }
@@ -1325,12 +1336,12 @@ function rerenderLoadingOverlay() {
     if (tEl) tEl.innerHTML = withBrand(t(lastLoadingMsg.key, ...lastLoadingMsg.args));
 }
 
-// --- Game state (mirrors V5 gomoku semantics, in-browser) ---
+// --- Game state (mirrors V7.19 gomoku semantics, in-browser) ---
 let game = null;          // Gomoku instance (rebuilt on size change)
 let boardState = null;    // Int8Array(N*N), +1 / -1 / 0
 let toPlay = 1;           // 1 = black, -1 = white
 let humanSide = 1;        // 1 = human is black; -1 = human is white
-let currentRule = "freestyle"; // "renju" | "freestyle"
+let currentRule = "freestyle"; // "renju" | "standard" | "freestyle"
 let lastMove = null;      // { r, c }
 let ply = 0;              // half-move counter
 let gameOver = false;
@@ -1398,21 +1409,25 @@ function publishStateForDrawing(extras = {}) {
         last_move: lastMove ? [lastMove.r, lastMove.c] : null,
         board_size: N,
         // Heat data (set by handleResult; null otherwise — drawHeat handles nulls).
-        mcts_visits:    extras.mcts_visits    || null,
-        mcts_winrate:   extras.mcts_winrate   || null,
-        nn_policy:      extras.nn_policy      || null,
-        nn_opp_policy:  extras.nn_opp_policy  || null,
-        nn_futurepos_8: extras.nn_futurepos_8 || null,
-        nn_futurepos_32:extras.nn_futurepos_32|| null,
+        mcts_visits:         extras.mcts_visits         || null,
+        mcts_play_selection: extras.mcts_play_selection || null,
+        mcts_lcb:            extras.mcts_lcb            || null,
+        mcts_lcb_radius:     extras.mcts_lcb_radius     || null,
+        mcts_winrate:        extras.mcts_winrate        || null,
+        nn_policy:            extras.nn_policy            || null,
+        nn_optimistic_policy: extras.nn_optimistic_policy || null,
+        nn_opp_policy:        extras.nn_opp_policy        || null,
     };
 }
 
 function repaintAllHeatmaps() {
-    drawHeat("h_mcts_visits",    state ? state.mcts_visits    : null);
-    drawHeat("h_nn_policy",      state ? state.nn_policy      : null);
-    drawHeat("h_nn_opp_policy",  state ? state.nn_opp_policy  : null);
-    drawHeatSigned("h_nn_futurepos_8",  state ? state.nn_futurepos_8  : null);
-    drawHeatSigned("h_nn_futurepos_32", state ? state.nn_futurepos_32 : null);
+    drawHeat("h_nn_policy", state ? state.nn_policy : null);
+    drawHeat("h_nn_optimistic_policy",
+        state ? state.nn_optimistic_policy : null);
+    drawHeat("h_nn_opp_policy", state ? state.nn_opp_policy : null);
+    drawHeat("h_mcts_play_selection",
+        state ? state.mcts_play_selection : null);
+    drawHeat("h_mcts_visits", state ? state.mcts_visits : null);
     paintHeatModal();
 }
 
@@ -1438,31 +1453,35 @@ function flatToGrid(flat) {
 // `state` and repaint the list + board overlay, so the per-move win% and sim
 // counts fill in as it thinks. Heatmaps and the win-rate chart stay untouched —
 // those still update only on the final `result`.
-function applyLiveCandidates(visitsFlat, winrateFlat, rootVisits) {
+function applyLiveCandidates(visitsFlat, playSelectionFlat, winrateFlat, rootVisits) {
     if (!state) return;
     state.mcts_visits  = flatToGrid(visitsFlat);
+    state.mcts_play_selection = playSelectionFlat
+        ? flatToGrid(playSelectionFlat) : state.mcts_play_selection;
     state.mcts_winrate = winrateFlat ? flatToGrid(winrateFlat) : state.mcts_winrate;
     if (rootVisits > 0) searchSimsTotal = rootVisits;
-    drawHeatById("h_mcts_visits", state.mcts_visits);   // live-update the visit-distribution heatmap
+    drawHeatById("h_mcts_play_selection",
+        state.mcts_play_selection);
+    drawHeatById("h_mcts_visits", state.mcts_visits);
     paintHeatModal();
     renderCandidates();
     draw();
 }
 
-// NN-only heatmaps (network/opp policy, future positions) stream in the instant
+// NN-only heatmaps stream in the instant
 // the worker (re)expands the root — before the search runs. Patch them into
 // `state` and repaint just those canvases so the panel populates on your turn too,
 // not only on a move's final `result`.
 function applyLiveNNHeatmaps(data) {
     if (!state) return;
-    state.nn_policy       = flatToGrid(data.nnPolicy);
-    state.nn_opp_policy   = flatToGrid(data.nnOppPolicy);
-    state.nn_futurepos_8  = flatToGrid(data.nnFuturepos8);
-    state.nn_futurepos_32 = flatToGrid(data.nnFuturepos32);
-    drawHeatById("h_nn_policy",       state.nn_policy);
-    drawHeatById("h_nn_opp_policy",   state.nn_opp_policy);
-    drawHeatById("h_nn_futurepos_8",  state.nn_futurepos_8);
-    drawHeatById("h_nn_futurepos_32", state.nn_futurepos_32);
+    state.nn_policy = flatToGrid(data.nnPolicy);
+    state.nn_optimistic_policy =
+        flatToGrid(data.nnOptimisticPolicy);
+    state.nn_opp_policy = flatToGrid(data.nnOppPolicy);
+    drawHeatById("h_nn_policy", state.nn_policy);
+    drawHeatById("h_nn_optimistic_policy",
+        state.nn_optimistic_policy);
+    drawHeatById("h_nn_opp_policy", state.nn_opp_policy);
     paintHeatModal();
 }
 
@@ -1530,7 +1549,6 @@ function triggerAISearch() {
         ply: ply,
         sims: sims,
         timeMs: timeMs,
-        gumbel_m: 16,
         searchId: searchId,
         // timeMs > 0 → anytime PUCT (the AI's move-search); else fixed-sims PUCT (any ponder).
         analyze: ponder,
@@ -1723,7 +1741,11 @@ worker.onmessage = (e) => {
         // live as the search deepens — including the human's-turn ponder, so the
         // analysis fills in on your turn too, not only after a move's final result.
         if (data.nnPolicy) applyLiveNNHeatmaps(data);
-        if (data.mctsVisits) applyLiveCandidates(data.mctsVisits, data.mctsWinrate, data.searchSims);
+        if (data.mctsVisits) {
+            applyLiveCandidates(
+                data.mctsVisits, data.mctsPlaySelection,
+                data.mctsWinrate, data.searchSims);
+        }
         return;
     }
     if (data.type === "result") {
@@ -1734,11 +1756,14 @@ worker.onmessage = (e) => {
         gumbelPhases = data.gumbelPhases;
         publishStateForDrawing({
             mcts_visits:    flatToGrid(data.mctsVisits),
+            mcts_play_selection: flatToGrid(data.mctsPlaySelection),
+            mcts_lcb:       flatToGrid(data.mctsLcb),
+            mcts_lcb_radius:flatToGrid(data.mctsLcbRadius),
             mcts_winrate:   flatToGrid(data.mctsWinrate),
             nn_policy:      flatToGrid(data.nnPolicy),
+            nn_optimistic_policy:
+                flatToGrid(data.nnOptimisticPolicy),
             nn_opp_policy:  flatToGrid(data.nnOppPolicy),
-            nn_futurepos_8: flatToGrid(data.nnFuturepos8),
-            nn_futurepos_32:flatToGrid(data.nnFuturepos32),
         });
         // Values are from the searched side-to-move (= toPlay here, before any
         // move is applied). Convert to Black's frame for the chart + legend.
@@ -1774,7 +1799,8 @@ worker.onmessage = (e) => {
         // searchId isn't bumped to discard the in-flight ponder chunk — without
         // this check its result would drop a ghost AI stone on the won board.
         if (gameOver) return;
-        const { winner } = applyMoveLocal(data.gumbelAction);
+        const { winner } = applyMoveLocal(
+            data.selectedAction ?? data.gumbelAction);
         if (winner === null) triggerAISearch();
     }
 };
@@ -2187,7 +2213,7 @@ document.getElementById("side_white").addEventListener("click", () => setSide(-1
 
 // Rule toggle buttons (renju / freestyle).
 function setRule(rl) {
-    if (rl !== "renju" && rl !== "freestyle") return;
+    if (!["renju", "standard", "freestyle"].includes(rl)) return;
     if (rl === currentRule) return;
     currentRule = rl;
     for (const b of document.querySelectorAll(".seg-btn[data-rule]")) {
@@ -2199,7 +2225,7 @@ for (const b of document.querySelectorAll(".seg-btn[data-rule]")) {
     b.addEventListener("click", () => setRule(b.dataset.rule));
 }
 
-// Board size slider (input range 9..19). `input` updates the display label
+// Board size slider (input range 11..15). `input` updates the display label
 // continuously during drag; `change` (release) is what actually rebuilds the
 // game so we don't fire newGame() once per intermediate value.
 //
@@ -2410,8 +2436,8 @@ registerI18nCallback(() => {
     else if (mq.addListener) mq.addListener(place);
 })();
 
-// --- Heatmap drawer: the header toggle opens/closes the whole panel; the "more"
-//     toggle reveals the 3 extra heatmaps (the first two stay shown when open). ---
+// --- Heatmap drawer: four decision-facing maps stay visible; "more" reveals
+//     the raw-visit diagnostic. ---
 (function initHeatDrawer() {
     const btn = document.getElementById("heat_drawer_btn");
     const body = document.getElementById("heat_drawer_body");

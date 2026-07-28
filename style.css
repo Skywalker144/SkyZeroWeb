@@ -1003,7 +1003,7 @@
   .cand-row.best .cand-track > span { background: var(--accent); }
   .cand-visits { color: var(--fg-subtle); text-align: right; font-size: 11.5px; }
 
-  /* ---------- Heatmap drawer (first two shown; "more" reveals the rest) ---------- */
+  /* ---------- Heatmap drawer (four primary maps; raw visits under "more") ---------- */
   .drawer { overflow: hidden; flex: 0 0 auto; }
   .drawer-toggle {
     width: 100%; display: flex; align-items: center; gap: 8px;
@@ -1017,7 +1017,7 @@
   .drawer-count { margin-left: auto; color: var(--fg-subtle); font-weight: 500; }
   .drawer-body { padding: 0 12px 12px; }
   /* Collapsed "more": hide the 3rd heatmap onward, leaving the first two. */
-  .drawer[data-more="collapsed"] .grid-card:nth-child(n+3) { display: none; }
+  .drawer[data-more="collapsed"] .grid-card:nth-child(n+5) { display: none; }
   .heat-more-toggle {
     display: flex; width: fit-content; margin: 4px auto 0;
     align-items: center; justify-content: center; gap: 4px;
