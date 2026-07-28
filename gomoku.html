@@ -43,7 +43,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260802">
+  <link rel="stylesheet" href="style.css?v=20260803">
 </head>
 <body>
   <script>
@@ -492,7 +492,8 @@
     if (!cv || !card || !col || !topbar || !app) return;
     var N = 15, DPR = window.devicePixelRatio || 1;
     var compact = window.matchMedia("(max-width: 1180px)").matches;
-    var MARGIN = compact ? 10 : 28;
+    var phone = window.matchMedia("(max-width: 720px)").matches;
+    var MARGIN = phone ? 8 : (compact ? 10 : 28);
     var cs = getComputedStyle(card);
     var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
     var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
@@ -503,6 +504,7 @@
     var cap = compact ? 560 : 900;
     var size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
     var CELL = Math.max(compact ? 12 : 18, Math.floor((size - 2 * MARGIN) / (N - 1)));
+    if (phone) MARGIN = (size - CELL * (N - 1)) / 2;
     var LOGICAL = MARGIN * 2 + CELL * (N - 1);
     cv.width = Math.round(LOGICAL * DPR);
     cv.height = Math.round(LOGICAL * DPR);
@@ -517,7 +519,7 @@
   <script src="i18n.js?v=20260802"></script>
   <script src="gomoku.js?v=20260729"></script>
   <script src="mcts.js?v=20260730"></script>
-  <script src="main.js?v=20260802"></script>
+  <script src="main.js?v=20260803"></script>
   <script src="seg-slide.js?v=20260702"></script>
 </body>
 </html>
