@@ -801,8 +801,8 @@
       return { newIds, newVals, moves, gained };
     }
 
-    function doMove(dir) {
-      if (overlayMode === 'lose') return;
+    function doMove(dir, fromAi = false) {
+      if (overlayMode === 'lose' || aiBusy || (aiAuto && !fromAi)) return;
       // Snap any in-flight animation to its committed state before we mutate.
       finalizeAnimation();
 
@@ -940,6 +940,8 @@
     }
 
     function undo() {
+      aiSeq++;
+      aiBusy = false;
       finalizeAnimation();
       const prev = history.pop();
       if (!prev) return;
@@ -952,9 +954,12 @@
       updateScoreDom();
       updateOverlay();
       saveState();
+      if (aiAuto) setTimeout(requestAiMove, 0);
     }
 
     function newGame() {
+      aiSeq++;
+      aiBusy = false;
       if (animTimer) { clearTimeout(animTimer); animTimer = 0; }
       pendingMerges = [];
       pendingSpawns = [];
@@ -973,6 +978,7 @@
       if (e2) spawnTileAt(e2[0], e2[1], Math.random() < 0.9 ? 2 : 4, 'appear');
       updateScoreDom();
       updateOverlay();
+      if (aiAuto) setTimeout(requestAiMove, 0);
       saveState();
     }
 
@@ -1215,6 +1221,7 @@
     }
 
     function onAiMove(m) {
+      if (m.id !== aiSeq) return;
       aiBusy = false;
       // Measure how long this search actually took and fold it into the EWMA of
       // ms-per-sim, so aiPlanSims() converges on the right sim count for this
@@ -1228,7 +1235,7 @@
       // Autoplay was stopped while this move was being computed: drop it rather
       // than applying a move the user no longer wants.
       if (!aiAuto) { refreshAiButtons(); return; }
-      doMove(m.dir);
+      doMove(m.dir, true);
       refreshAiButtons();
       // Hold the cadence to exactly the slider's interval: the next think fires at
       // (dispatch + interval), so each move occupies one interval regardless of how
