@@ -35,8 +35,8 @@ def main():
         page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
         page.goto(URL, wait_until="domcontentloaded", timeout=120_000)
         wait_ready(page)
-        assert page.locator("#think_trigger_val").inner_text() == "1s"
-        assert page.locator("#think_time_range").input_value() == "1"
+        assert page.locator("#think_trigger_val").inner_text() == "0.5秒"
+        assert page.locator("#think_time_range").input_value() == "0"
         page.locator("#think_trigger").click()
         assert page.locator("#think_pop").is_visible()
         trigger_box = page.locator("#think_trigger").bounding_box()
@@ -46,6 +46,16 @@ def main():
             trigger_box["x"] + trigger_box["width"] / 2
             - pop_box["x"] - pop_box["width"] / 2
         ) < 1
+        assert page.locator("#search_toggle").is_checked()
+        assert page.locator("#thinking_toggle_label").inner_text() == "启用思考"
+        page.locator("#search_toggle").click()
+        assert not page.locator("#search_toggle").is_checked()
+        assert page.locator("#thinking_toggle_label").inner_text() == "关闭"
+        assert page.locator("#think_trigger_val").inner_text() == "关闭"
+        assert page.locator("#think_time_range").is_disabled()
+        page.locator("#search_toggle").click()
+        assert page.locator("#think_trigger_val").inner_text() == "0.5秒"
+        assert not page.locator("#think_time_range").is_disabled()
         pda_range = page.locator("#pda_range")
         assert pda_range.get_attribute("min") == "-1"
         assert pda_range.get_attribute("max") == "1"
@@ -79,8 +89,39 @@ def main():
         assert page.locator("#h_mcts_visits").is_visible()
 
         page.locator("#model_trigger").click()
+        assert page.locator("#model_menu").is_visible()
+        assert not page.locator("#think_pop").is_visible()
+        trigger_display = page.locator("#model_trigger").evaluate(
+            "(el) => getComputedStyle(el).display")
+        assert trigger_display == "grid"
+        trigger_label = page.locator("#model_trigger_label").bounding_box()
+        trigger_caret = page.locator("#model_trigger .cs-caret").bounding_box()
+        assert trigger_label and trigger_caret
+        assert trigger_label["x"] + trigger_label["width"] <= trigger_caret["x"]
+        page.locator("#think_trigger").click()
+        assert page.locator("#think_pop").is_visible()
+        assert not page.locator("#model_menu").is_visible()
+        page.locator("#model_trigger").click()
         options = page.locator("#model_menu .cs-option")
         assert options.count() == 6
+        trigger_box = page.locator("#model_trigger").bounding_box()
+        menu_box = page.locator("#model_menu").bounding_box()
+        assert trigger_box and menu_box
+        assert abs(
+            trigger_box["x"] + trigger_box["width"] / 2
+            - menu_box["x"] - menu_box["width"] / 2
+        ) < 1
+        name_lefts = []
+        elo_rights = []
+        for i in range(options.count()):
+            name_box = options.nth(i).locator(".cs-opt-name").bounding_box()
+            elo_box = options.nth(i).locator(".cs-opt-elo").bounding_box()
+            assert name_box and elo_box
+            assert name_box["x"] + name_box["width"] < elo_box["x"]
+            name_lefts.append(name_box["x"])
+            elo_rights.append(elo_box["x"] + elo_box["width"])
+        assert max(name_lefts) - min(name_lefts) < 1
+        assert max(elo_rights) - min(elo_rights) < 1
         assert [options.nth(i).get_attribute("data-id") for i in range(6)] == [
             "lv1", "lv2", "lv3", "lv4", "lv5", "lv6"]
 
