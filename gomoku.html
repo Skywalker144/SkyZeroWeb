@@ -450,6 +450,15 @@
          (by initSettingsPlacement in main.js) so the top toolbar stays tidy -->
     <div class="mobile-actionbar" id="mobile_actionbar"></div>
 
+    <!-- Model loading starts only after the user chooses a difficulty. -->
+    <div class="difficulty-modal" id="difficulty_modal" role="dialog" aria-modal="true" aria-labelledby="difficulty_title" aria-describedby="difficulty_subtitle">
+      <div class="difficulty-card">
+        <h2 class="difficulty-title" id="difficulty_title" data-i18n="difficulty_title">选择对手难度</h2>
+        <p class="difficulty-subtitle" id="difficulty_subtitle" data-i18n="difficulty_subtitle">请选择 Lv1–Lv6，确认后才会下载对应模型。</p>
+        <div class="difficulty-options" id="difficulty_options"><div class="difficulty-loading" data-i18n="difficulty_loading">正在读取难度列表…</div></div>
+      </div>
+    </div>
+
     <!-- Board-size confirm modal -->
     <div class="confirm-modal hidden" id="size_confirm_modal" role="dialog" aria-modal="true" aria-labelledby="size_confirm_title">
       <div class="confirm-modal-card">
