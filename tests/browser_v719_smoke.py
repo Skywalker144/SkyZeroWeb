@@ -34,6 +34,9 @@ def main():
             f"console {msg.type}: {msg.text}") if msg.type == "error" else None)
         page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
         page.goto(URL, wait_until="domcontentloaded", timeout=120_000)
+        page.locator(".difficulty-option").first.wait_for(
+            state="visible", timeout=120_000)
+        page.locator(".difficulty-option").first.click()
         wait_ready(page)
         assert page.locator("#think_trigger_val").inner_text() == "0.5秒"
         assert page.locator("#think_time_range").input_value() == "0"
@@ -48,12 +51,44 @@ def main():
         ) < 1
         assert page.locator("#search_toggle").is_checked()
         assert page.locator("#thinking_toggle_label").inner_text() == "启用思考"
-        page.locator("#search_toggle").click()
+        page.locator("#search_toggle").evaluate("(input) => input.click()")
         assert not page.locator("#search_toggle").is_checked()
         assert page.locator("#thinking_toggle_label").inner_text() == "关闭"
         assert page.locator("#think_trigger_val").inner_text() == "关闭"
         assert page.locator("#think_time_range").is_disabled()
-        page.locator("#search_toggle").click()
+        page.wait_for_function(
+            """() => state && state.policy_only === true
+              && state.policy_prior
+              && Math.max(...state.policy_prior.flat()) > 0""",
+            timeout=120_000,
+        )
+        assert page.locator("#cand_legend").inner_text() == "策略先验"
+        assert page.locator("#cand_list .cand-row").count() > 0
+        assert page.evaluate(
+            """() => {
+              const row = document.querySelector("#cand_list .cand-row");
+              const shown = state.policy_prior[
+                Number(row.dataset.r)][Number(row.dataset.c)];
+              return Math.abs(
+                shown - Math.max(...state.policy_prior.flat())) < 1e-7;
+            }"""
+        )
+        assert page.evaluate(
+            """() => {
+              const main = state.nn_policy.flat();
+              const optimistic = state.nn_optimistic_policy.flat();
+              const prior = state.policy_prior.flat();
+              const blended = main.map((value, i) =>
+                value > 0 && optimistic[i] > 0
+                  ? Math.pow(value, 0.8)
+                    * Math.pow(optimistic[i], 0.2)
+                  : 0);
+              const total = blended.reduce((sum, value) => sum + value, 0);
+              return Math.max(...prior.map((value, i) =>
+                Math.abs(value - blended[i] / total))) < 1e-6;
+            }"""
+        )
+        page.locator("#search_toggle").evaluate("(input) => input.click()")
         assert page.locator("#think_trigger_val").inner_text() == "0.5秒"
         assert not page.locator("#think_time_range").is_disabled()
         pda_range = page.locator("#pda_range")
