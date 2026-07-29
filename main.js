@@ -1087,6 +1087,7 @@ function setCurrentValues(rootBlack, nnBlack) {
 
 // --- Candidate move list (right column) ----------------------------------
 const candListEl = document.getElementById("cand_list");
+const candLegendEl = document.getElementById("cand_legend");
 let candSig = "";
 const MAX_CANDS = 12;
 let searchSimsTotal = 0;        // cumulative root visits reported by the worker
@@ -1117,23 +1118,36 @@ let pda = (function () {
 function colLetter(c) { return String.fromCharCode(65 + c); }
 // Board notation: columns A.. left→right, rows N..1 top→bottom (H8 = center of 15).
 function coordLabel(r, c) { return colLetter(c) + (N - r); }
-// Rank candidates by V7.19's LCB-adjusted play-selection distribution. Raw
-// visits remain visible as a diagnostic count.
+// Rank searched candidates by V7.19's LCB-adjusted play-selection
+// distribution. With thinking disabled, rank by the exact effective root
+// prior used for the NN-only move (main/optimistic logits blended in worker.js).
 function computeCandidates() {
     if (!state || !state.board) return [];
     const vis = state.mcts_visits;
     const rankG = state.mcts_play_selection || vis;
     const wrG = state.mcts_winrate;
-    if (!vis && !wrG) return [];
+    const policyG = state.policy_prior;
+    const policyOnly = state.policy_only === true && !!policyG;
+    if (!policyOnly && !vis && !wrG) return [];
     const out = [];
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
         if (state.board[r][c] !== 0) continue;
+        if (policyOnly) {
+            const prior = (policyG[r] && policyG[r][c]) || 0;
+            if (prior > 0) {
+                out.push({
+                    r, c, vf: prior, rank: prior, wr: null,
+                    source: "policy",
+                });
+            }
+            continue;
+        }
         const vf = (vis && vis[r]) ? (vis[r][c] || 0) : 0;
         const rank = (rankG && rankG[r]) ? (rankG[r][c] || 0) : vf;
         const wRaw = (wrG && wrG[r]) ? wrG[r][c] : null;
         const wr = (wRaw != null && Number.isFinite(wRaw)) ? wRaw : null;
         if (rank > 0 || vf > 0 || (wr != null && wr > 0)) {
-            out.push({ r, c, vf, rank, wr });
+            out.push({ r, c, vf, rank, wr, source: "search" });
         }
     }
     if (out.length === 0) return [];
@@ -1158,6 +1172,10 @@ function fmtVisits(vf) {
         return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n);
     }
     return Math.round(vf * 100) + "%";
+}
+function fmtPrior(prior) {
+    const pct = Math.max(0, prior) * 100;
+    return (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)) + "%";
 }
 // Candidate marker palette (user-selectable in Settings; default violet). Each
 // scheme: best fill + stroke, plus a low→high RGB ramp the other moves lerp
@@ -1195,9 +1213,16 @@ function candColor(frac, best) {
 }
 function renderCandidates() {
     const cands = state ? computeCandidates() : [];
+    const policyOnly = cands.length > 0 && cands[0].source === "policy";
+    if (candLegendEl) {
+        candLegendEl.textContent = t(
+            policyOnly ? "cand_legend_policy" : "cand_legend");
+    }
     // Only rebuild when the data changed, so a row's :hover stays put.
     const sig = cands.map(o =>
-        o.r + "," + o.c + ":" + Math.round((o.wr ?? -1) * 1000) + ":" + Math.round(o.vf * 1000)).join("|");
+        o.source + ":" + o.r + "," + o.c + ":"
+        + Math.round((o.wr ?? -1) * 1000) + ":"
+        + Math.round(o.vf * 100000)).join("|");
     if (sig === candSig) return;
     candSig = sig;
     if (cands.length === 0) {
@@ -1207,14 +1232,17 @@ function renderCandidates() {
     candListEl.innerHTML = cands.map((o, i) => {
         const rank = String.fromCharCode(65 + i);            // A, B, C, …
         const wr = o.wr != null ? Math.round(o.wr * 100) + "%" : t("wdl_dash");
-        const barW = o.wr != null ? Math.round(o.wr * 100) : 0;
+        const barW = policyOnly
+            ? Math.round(o.frac * 100)
+            : (o.wr != null ? Math.round(o.wr * 100) : 0);
+        const detail = policyOnly ? fmtPrior(o.rank) : fmtVisits(o.vf);
         return '<div class="cand-row' + (o.best ? " best" : "") +
                '" data-r="' + o.r + '" data-c="' + o.c + '">' +
                '<span class="cand-rank">' + rank + "</span>" +
                '<span class="cand-coord">' + coordLabel(o.r, o.c) + "</span>" +
                '<span class="cand-wr">' + wr + "</span>" +
                '<span class="cand-track"><span style="width:' + barW + '%"></span></span>' +
-               '<span class="cand-visits">' + fmtVisits(o.vf) + "</span>" +
+               '<span class="cand-visits">' + detail + "</span>" +
                "</div>";
     }).join("");
 }
@@ -1474,6 +1502,8 @@ function publishStateForDrawing(extras = {}) {
         mcts_lcb:            extras.mcts_lcb            || null,
         mcts_lcb_radius:     extras.mcts_lcb_radius     || null,
         mcts_winrate:        extras.mcts_winrate        || null,
+        policy_only:         extras.policy_only === true,
+        policy_prior:        extras.policy_prior        || null,
         nn_policy:            extras.nn_policy            || null,
         nn_optimistic_policy: extras.nn_optimistic_policy || null,
         nn_opp_policy:        extras.nn_opp_policy        || null,
@@ -1535,6 +1565,10 @@ function applyLiveCandidates(visitsFlat, playSelectionFlat, winrateFlat, rootVis
 // not only on a move's final `result`.
 function applyLiveNNHeatmaps(data) {
     if (!state) return;
+    state.policy_only = data.policyOnly === true;
+    if (data.policyPrior) {
+        state.policy_prior = flatToGrid(data.policyPrior);
+    }
     state.nn_policy = flatToGrid(data.nnPolicy);
     state.nn_optimistic_policy =
         flatToGrid(data.nnOptimisticPolicy);
@@ -1544,6 +1578,8 @@ function applyLiveNNHeatmaps(data) {
         state.nn_optimistic_policy);
     drawHeatById("h_nn_opp_policy", state.nn_opp_policy);
     paintHeatModal();
+    renderCandidates();
+    draw();
 }
 
 function newGame() {
@@ -1616,6 +1652,7 @@ function triggerAISearch() {
         // free analysis keeps Black as the stable reference side.
         pda,
         pdaPla: currentMode === "analysis" ? 1 : -humanSide,
+        policyOnly,
         // timeMs > 0 → anytime PUCT (the AI's move-search); else fixed-sims PUCT (any ponder).
         analyze: ponder && !policyOnly,
     });
@@ -1821,6 +1858,8 @@ worker.onmessage = (e) => {
         // Update gumbel overlay + heatmaps + candidate data.
         gumbelPhases = data.gumbelPhases;
         publishStateForDrawing({
+            policy_only:   data.policyOnly === true,
+            policy_prior:  flatToGrid(data.policyPrior),
             mcts_visits:    flatToGrid(data.mctsVisits),
             mcts_play_selection: flatToGrid(data.mctsPlaySelection),
             mcts_lcb:       flatToGrid(data.mctsLcb),
