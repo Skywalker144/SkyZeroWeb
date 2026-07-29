@@ -1253,15 +1253,13 @@ async function loadManifest() {
         name.textContent = `${m.id.toUpperCase()} ${m.label}`;
         const elo = document.createElement("span");
         elo.className = "cs-opt-elo";
-        const iter = /\biter(\d+)\b/.exec(m.params || "");
-        elo.textContent = Number.isFinite(m.elo)
-            ? "ELO " + (m.elo >= 0 ? "+" : "") + m.elo
-            : (iter ? "iter " + iter[1] : "V7.19");
+        elo.textContent = formatModelElo(m);
         o.append(name, elo);
         menu.appendChild(o);
     }
-    currentModelId = manifest.default || items[0].id;
-    setModelTrigger(currentModelId);
+    currentModelId = null;
+    setModelTrigger(null);
+    populateDifficultyOptions(items);
 }
 
 // Reflect the active model on the dropdown trigger — the short "LV3 高手" only
@@ -1269,9 +1267,8 @@ async function loadManifest() {
 // mark the matching menu row as selected.
 function setModelTrigger(id) {
     const m = modelById(id);
-    if (!m) return;
     const labelEl = document.getElementById("model_trigger_label");
-    if (labelEl) labelEl.textContent = `${m.id.toUpperCase()} ${m.label}`;
+    if (labelEl) labelEl.textContent = m ? `${m.id.toUpperCase()} ${m.label}` : t("difficulty_choose");
     for (const opt of document.querySelectorAll("#model_menu .cs-option")) {
         opt.setAttribute("aria-selected", opt.dataset.id === id ? "true" : "false");
     }
@@ -1279,12 +1276,57 @@ function setModelTrigger(id) {
     // (manifest.json's per-model `rules`); models missing `rules` leave every
     // button enabled.
     for (const b of document.querySelectorAll(".seg-btn[data-rule]")) {
-        b.disabled = !!m.rules && !m.rules.includes(b.dataset.rule);
+        b.disabled = !!m && !!m.rules && !m.rules.includes(b.dataset.rule);
     }
 }
 
 function modelById(id) {
     return manifest.models.find(m => m.id === id);
+}
+
+// Build the model URL with a cache-busting query string derived from the
+function formatModelElo(m) {
+    if (!m || !Number.isFinite(m.elo)) return t("difficulty_elo", "—");
+    return t("difficulty_elo", (m.elo > 0 ? "+" : "") + m.elo);
+}
+
+function populateDifficultyOptions(items) {
+    const modal = document.getElementById("difficulty_modal");
+    const options = document.getElementById("difficulty_options");
+    if (!modal || !options) return;
+    options.innerHTML = "";
+    for (const m of items) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "difficulty-option";
+        const main = document.createElement("span");
+        main.className = "difficulty-option-main";
+        const level = document.createElement("span");
+        level.className = "difficulty-option-level";
+        level.textContent = m.id.toUpperCase();
+        const label = document.createElement("span");
+        label.className = "difficulty-option-label";
+        label.textContent = m.label;
+        const elo = document.createElement("span");
+        elo.className = "difficulty-option-elo";
+        elo.textContent = formatModelElo(m);
+        main.append(level, label);
+        button.append(main, elo);
+        button.addEventListener("click", () => chooseInitialModel(m));
+        options.appendChild(button);
+    }
+    modal.classList.remove("hidden");
+    document.body.classList.add("difficulty-open");
+}
+
+function chooseInitialModel(m) {
+    if (!m || currentModelId !== null) return;
+    currentModelId = m.id;
+    setModelTrigger(m.id);
+    document.getElementById("difficulty_modal")?.classList.add("hidden");
+    document.body.classList.remove("difficulty-open");
+    showLoadingOverlay("loading_model", m.label);
+    worker.postMessage({ type: "init", modelUrl: modelUrl(m), boardSize: N, rule: currentRule });
 }
 
 // Build the model URL with a cache-busting query string derived from the
@@ -1316,7 +1358,7 @@ function setLoadingProgress(pct, loaded, total) {
 }
 function hideLoadingOverlay() {
     const o = document.getElementById("loading_overlay");
-    if (o) o.style.display = "none";
+    if (o) { o.style.display = "none"; o.classList.add("hidden"); }
     lastLoadingMsg = null;
 }
 let lastLoadingMsg = null; // { key, args }
@@ -1328,6 +1370,7 @@ function showLoadingOverlay(key, ...args) {
     const o = document.getElementById("loading_overlay");
     if (!o) return;
     o.style.display = "";
+    o.classList.remove("hidden");
     lastLoadingMsg = { key, args };
     const tEl = document.getElementById("loading_text");
     if (tEl) tEl.innerHTML = withBrand(t(key, ...args));
@@ -2574,17 +2617,10 @@ registerI18nCallback(() => {
         setStatusRaw(t("err_manifest_load", err.message), "error");
         return;
     }
-    const startModel = modelById(currentModelId) || manifest.models[0];
-    if (!startModel) {
+    if (!manifest.models.length) {
         setStatus("err_manifest_empty", "error");
         return;
     }
-    showLoadingOverlay("loading_model", startModel.label);
-    worker.postMessage({
-        type: "init",
-        modelUrl: modelUrl(startModel),
-        boardSize: N,
-        rule: currentRule,
-    });
+    hideLoadingOverlay();
     syncBoardSize();
 })();
