@@ -22,6 +22,7 @@ class Node {
         this.biasLastDelta = 0;
         this.biasLastWeight = 0;
         this.rootPolicyApplied = false;
+        this.rootPolicyOptimismApplied = null;
     }
 
     isExpanded() {
