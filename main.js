@@ -1098,8 +1098,12 @@ const THINK_MS_OPTIONS = [500, 1000, 2000, 3000, 5000, 10000];
 let thinkMs = (function () {
     try {
         const v = parseInt(localStorage.getItem("skz_think_ms"), 10);
-        return THINK_MS_OPTIONS.includes(v) ? v : 1000;
-    } catch (_) { return 1000; }
+        return THINK_MS_OPTIONS.includes(v) ? v : 500;
+    } catch (_) { return 500; }
+})();
+let searchEnabled = (function () {
+    try { return localStorage.getItem("skz_search_enabled") !== "0"; }
+    catch (_) { return true; }
 })();
 let pda = (function () {
     try {
@@ -1589,12 +1593,13 @@ function triggerAISearch() {
     else if (ponder) setStatus("status_your_turn", "active");   // play mode: human's turn, analysis runs quietly
     else setStatus("status_ai_thinking", "thinking");
     let sims = 0, timeMs = 0;
-    if (ponder) {
+    const policyOnly = currentMode === "play" && !searchEnabled;
+    if (ponder && !policyOnly) {
         // A ponder (analysis board, or the human's turn in play mode) deepens in
         // fixed-size PUCT chunks, re-triggered after each result until the player
         // moves or the depth cap is hit (see the result handler).
         sims = ANALYSIS_CHUNK;
-    } else {
+    } else if (!policyOnly) {
         // Play mode, the AI's own turn: a single anytime-PUCT move-search for the
         // configured thinking time, then it plays.
         timeMs = thinkMs;
@@ -1612,7 +1617,7 @@ function triggerAISearch() {
         pda,
         pdaPla: currentMode === "analysis" ? 1 : -humanSide,
         // timeMs > 0 → anytime PUCT (the AI's move-search); else fixed-sims PUCT (any ponder).
-        analyze: ponder,
+        analyze: ponder && !policyOnly,
     });
 }
 
@@ -1845,7 +1850,8 @@ worker.onmessage = (e) => {
             // Both the analysis board and the human's turn keep deepening by
             // reusing the tree, up to a fixed memory-bounded depth — the human's
             // ponder runs until they move (which aborts via searchId) or the cap.
-            const ponderOn = !gameOver && searchSimsTotal < ANALYSIS_CAP_MIN;
+            const policyOnly = currentMode === "play" && !searchEnabled;
+            const ponderOn = !policyOnly && !gameOver && searchSimsTotal < ANALYSIS_CAP_MIN;
             if (currentMode === "analysis") {
                 setStatus(ponderOn ? "status_analyzing" : "status_analysis_ready",
                           ponderOn ? "thinking" : "info");
@@ -1917,13 +1923,13 @@ worker.onmessage = (e) => {
     const valEl = document.getElementById("think_time_val");
     const trigEl = document.getElementById("think_trigger_val");
     if (!range) return;
-    const fmt = (ms) => (ms / 1000) + "s";
+    const fmt = (ms) => (ms / 1000) + (getLang() === "zh" ? "秒" : "s");
     range.max = String(THINK_MS_OPTIONS.length - 1);
     function reflect(idx) {
         const ms = THINK_MS_OPTIONS[idx];
         const txt = fmt(ms);
         if (valEl) valEl.textContent = txt;       // in-popover readout
-        if (trigEl) trigEl.textContent = txt;     // collapsed trigger face
+        if (trigEl) trigEl.textContent = searchEnabled ? txt : t("thinking_off");
         range.setAttribute("aria-valuetext", txt);
         return ms;
     }
@@ -1936,6 +1942,40 @@ worker.onmessage = (e) => {
         if (!(i >= 0 && i < THINK_MS_OPTIONS.length)) return;
         thinkMs = reflect(i);
         try { localStorage.setItem("skz_think_ms", String(thinkMs)); } catch (_) {}
+    });
+    const toggle = document.getElementById("search_toggle");
+    const toggleLabel = document.getElementById("thinking_toggle_label");
+    function reflectSearch() {
+        if (toggle) toggle.checked = searchEnabled;
+        if (range) {
+            range.disabled = !searchEnabled;
+            range.setAttribute("aria-disabled", searchEnabled ? "false" : "true");
+        }
+        if (toggleLabel) toggleLabel.textContent = searchEnabled
+            ? t("enable_thinking") : t("thinking_off");
+        if (trigEl) trigEl.textContent = searchEnabled
+            ? fmt(thinkMs) : t("thinking_off");
+    }
+    reflectSearch();
+    if (toggle) toggle.addEventListener("change", () => {
+        searchEnabled = toggle.checked;
+        try { localStorage.setItem("skz_search_enabled", searchEnabled ? "1" : "0"); } catch (_) {}
+        searchId++;
+        aiThinking = false;
+        if (boardState && !gameOver && !editMode) triggerAISearch();
+    });
+    // A label-wrapped checkbox can dispatch its synthetic click/change in a
+    // browser-specific order. Re-read the final checked state after the click
+    // so the collapsed trigger cannot be overwritten with the old time value.
+    if (toggle) toggle.addEventListener("click", () => {
+        setTimeout(() => {
+            searchEnabled = toggle.checked;
+            reflectSearch();
+        }, 0);
+    });
+    registerI18nCallback(() => {
+        reflect(idx);
+        reflectSearch();
     });
 })();
 
@@ -1994,6 +2034,12 @@ worker.onmessage = (e) => {
         pop.style.top = (r.bottom + 6) + "px";
     }
     function setOpen(open) {
+        if (open) {
+            const modelMenu = document.getElementById("model_menu");
+            const modelTrigger = document.getElementById("model_trigger");
+            if (modelMenu) modelMenu.classList.add("hidden");
+            if (modelTrigger) modelTrigger.setAttribute("aria-expanded", "false");
+        }
         sel.classList.toggle("open", open);
         trigger.setAttribute("aria-expanded", open ? "true" : "false");
         if (open && mq.matches) anchorFixed();          // measured after .open shows it
@@ -2470,6 +2516,17 @@ function closeSizeConfirmModal(commit) {
     const menu = document.getElementById("model_menu");
     if (!trigger || !menu) return;
     function setOpen(open) {
+        if (open) {
+            const thinkSel = document.getElementById("think_select");
+            const thinkTrigger = document.getElementById("think_trigger");
+            const thinkPop = document.getElementById("think_pop");
+            if (thinkSel) thinkSel.classList.remove("open");
+            if (thinkTrigger) thinkTrigger.setAttribute("aria-expanded", "false");
+            if (thinkPop) {
+                thinkPop.style.left = "";
+                thinkPop.style.top = "";
+            }
+        }
         menu.classList.toggle("hidden", !open);
         trigger.setAttribute("aria-expanded", open ? "true" : "false");
     }
