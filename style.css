@@ -193,7 +193,7 @@ html {
     .topbar .tb-sep,
     .topbar .tb-label { display: none; }
     /* ...but the dropdown groups keep their labels — a bare "3s" / model select
-       reads as contextless without "思考时间" / "模型". */
+       reads as contextless without "思考" / "模型". */
     .topbar #think_time_wrap .tb-label,
     .topbar #model_wrap .tb-label { display: inline-block; }
 
@@ -219,6 +219,12 @@ html {
     .topbar #model_wrap .cs-trigger,
     .topbar #think_time_wrap .think-select,
     .topbar #think_time_wrap .cs-trigger { width: 100%; }
+    .topbar #think_time_wrap .cs-trigger {
+      position: relative; justify-content: center; text-align: center;
+    }
+    .topbar #think_time_wrap .cs-trigger .cs-caret {
+      position: absolute; right: 8px;
+    }
     .topbar #think_time_wrap .think-section { width: 100%; min-width: 0; }
     /* min-width:0 lets the range shrink below its ~132px intrinsic width — form
        controls default to min-width:auto and otherwise overflow the panel on
@@ -249,7 +255,7 @@ html {
        or how it wraps (the earlier bug: a wide brand line shoved 状态 down into
        the controls, knocking every pair off by one). Inside it, three rows:
          1) [对弈|分析]      [模型]
-         2) [黑棋|白棋]      [思考时间]   ← #play_row, play-only
+         2) [黑棋|白棋]      [思考]   ← #play_row, play-only
          3) [新对局]         [悔棋]
        #play_row groups the two play-only controls so analysis mode folds that one
        row as a vertical accordion (fold defined below). Each pair's basis sums to
@@ -263,7 +269,9 @@ html {
        anchor (it's wider than its half-cell trigger because of the ELO column)
        spilled past the screen's right edge. Anchor its right edge to the trigger
        instead so it opens leftward, into the viewport. */
-    .topbar #model_menu { left: auto; right: 0; }
+    .topbar #model_menu {
+      left: auto; right: 0; transform: none;
+    }
     .topbar #play_row {
       order: 4; display: flex; flex: 1 1 100%;
       gap: 8px 14px; overflow: hidden; max-height: 3rem;
@@ -497,11 +505,41 @@ html {
   .cs-option[aria-selected="true"] .cs-opt-elo {
     color: color-mix(in srgb, var(--accent) 70%, var(--fg-muted));
   }
+  #model_trigger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 12px;
+    column-gap: 6px;
+  }
+  #model_trigger .cs-trigger-label {
+    position: static; transform: none;
+    justify-self: center; text-align: center;
+  }
+  #model_trigger .cs-caret {
+    position: static; justify-self: end;
+  }
+  #model_menu {
+    left: 50%; transform: translateX(-50%);
+    min-width: 200px;
+  }
+  #model_menu .cs-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 64px;
+    align-items: center; column-gap: 16px;
+    width: 100%;
+  }
+  #model_menu .cs-opt-name {
+    position: static; transform: none;
+    justify-self: start; text-align: left;
+  }
+  #model_menu .cs-opt-elo {
+    width: 64px; margin-left: 0;
+    justify-self: end; text-align: right;
+  }
 
-  /* Think-time popover — an external 思考时间 label sits in the toolbar next to a
+  /* Think-time popover — an external 思考 label sits in the toolbar next to a
      fixed-width trigger showing the current seconds; the 6-stop slider lives in a
      panel reusing the .cs-menu shell (model dropdown). The fixed trigger width
-     keeps the toolbar from reflowing as the value changes (0.5s ↔ 10s). Gated by
+     keeps the toolbar from reflowing as the value changes (0.5秒 ↔ 10秒). Gated by
      .think-select.open (toggled in JS) rather than the .hidden class. On phones
      the panel switches to position:fixed (mobile block) so it escapes #play_row's
      overflow:hidden — main.js anchors it under the trigger. */
@@ -524,6 +562,7 @@ html {
     color: var(--fg); font-size: 12.5px; font-weight: 600;
   }
   .think-divider { height: 1px; background: var(--border); }
+  .think-toggle { width: 100%; padding: 0; }
   .think-val {
     min-width: 30px; font-family: var(--font-mono); font-size: 12.5px;
     color: var(--fg); font-variant-numeric: tabular-nums; text-align: right;
@@ -539,6 +578,17 @@ html {
   .think-range {
     -webkit-appearance: none; appearance: none;
     width: 100%; height: 26px; background: transparent; cursor: pointer; margin: 0;
+  }
+  .think-range:disabled {
+    opacity: 0.45; cursor: not-allowed;
+  }
+  .think-range:disabled::-webkit-slider-runnable-track {
+    background: var(--surface-sunken); border-color: var(--border);
+  }
+  .think-range:disabled::-webkit-slider-thumb,
+  .think-range:disabled::-moz-range-thumb {
+    background: var(--surface-2); border-color: var(--border);
+    box-shadow: none;
   }
   /* Rounded "groove" track — same inset language as the segmented controls.
      Content-box (the default): `height` is the inner height, so the thumb's
@@ -1406,7 +1456,7 @@ html {
      made invisible rather than removed: visibility:hidden keeps their box in the
      flex flow, so the model dropdown + action buttons to their right stay put
      instead of sliding left on the play↔analysis toggle (they sit contiguously,
-     执子 · 思考时间, so the reserved gap reads as one blank block). Phones don't
+     执子 · 思考, so the reserved gap reads as one blank block). Phones don't
      reserve — they collapse the whole #play_row as one accordion (see ≤720px) —
      so this is scoped away from them. */
   @media (min-width: 721px) {
@@ -1416,7 +1466,7 @@ html {
   /* .tb-brandrow, #play_row and .tb-controls only form rows on phones; on desktop
      all three are layout-neutral pass-throughs (display:contents), so brand,
      status and the control groups stay direct toolbar items in source order
-     (brand · status · 模式 · 执子 · 思考时间 · 模型 · actions). */
+     (brand · status · 模式 · 执子 · 思考 · 模型 · actions). */
   .tb-brandrow,
   #play_row,
   .tb-controls { display: contents; }
