@@ -22,6 +22,13 @@ const nnCache = new Map();
 let currentPda = 0.5;
 const SEARCH_FACTOR_WHEN_WINNING_THRESHOLD = 0.95;
 const SEARCH_FACTOR_WHEN_WINNING = 0.30;
+// KataGo's normal GTP/search defaults use a small optimistic-policy blend at
+// the root and the full optimistic policy below it. V7.19 searched play keeps
+// its configured root value of 0, while the explicit NN-only mode uses the
+// KataGo-style 0.2 root blend.
+const SEARCH_ROOT_POLICY_OPTIMISM = 0.0;
+const POLICY_ONLY_ROOT_OPTIMISM = 0.2;
+const TREE_POLICY_OPTIMISM = 1.0;
 let currentPdaPla = 0;
 let recentAiWinLossValues = [];
 // Hard cap on the root's cumulative visits for play-mode (time-budgeted) search.
@@ -118,7 +125,11 @@ function cachePut(key, value) {
     }
 }
 
-async function inference(state, toPlay, isRoot = false) {
+async function inference(
+    state, toPlay, isRoot = false,
+    policyOptimism = isRoot
+        ? SEARCH_ROOT_POLICY_OPTIMISM : TREE_POLICY_OPTIMISM
+) {
     if (!session) throw new Error("session not ready");
     const M = MAX_BOARD_SIZE, A = M * M;         // padded canvas (from gomoku.js)
     const N = currentBoardSize, NA = N * N;      // game canvas
@@ -176,13 +187,17 @@ async function inference(state, toPlay, isRoot = false) {
 
     // --- mask illegal + softmax ---
     const legal = game.getLegalActions(state, toPlay);
-    const optimism = isRoot ? 0 : 1;
+    const optimism = Math.max(0, Math.min(1, policyOptimism));
+    const policyPriorMasked = new Float32Array(NA);
     const policyMainMasked = new Float32Array(NA);
     for (let i = 0; i < NA; i++) {
         const blended = policyMainRaw[i]
             + (policyOptRaw[i] - policyMainRaw[i]) * optimism;
-        policyMainMasked[i] = legal[i] ? blended : -Infinity;
+        policyPriorMasked[i] = legal[i] ? blended : -Infinity;
+        policyMainMasked[i] = legal[i] ? policyMainRaw[i] : -Infinity;
     }
+    const policyPriorSoft = new Float32Array(
+        softmax(policyPriorMasked));
     const policyMainSoft = new Float32Array(softmax(policyMainMasked));
 
     const policyOppMasked = new Float32Array(NA);
@@ -203,8 +218,9 @@ async function inference(state, toPlay, isRoot = false) {
     const wdlF64 = new Float64Array([wdl[0], wdl[1], wdl[2]]);
 
     return {
-        policyMainSoft,                    // for MCTS expand prior
-        policyMainMaskedLogits: policyMainMasked,
+        policyPriorSoft,                   // effective root/tree prior
+        policyPriorMaskedLogits: policyPriorMasked,
+        policyMainSoft,                    // unblended main-policy UI heatmap
         policyOppSoft,                     // UI heatmap
         policyOptSoft,                     // optimistic-policy UI heatmap
         wdl: wdlF64,                       // root nn value
@@ -311,45 +327,55 @@ function applyMove(action, nextState, nextToPlay) {
 }
 
 async function runSearch(
-    state, toPlay, sims, gen, externalSearchId, analyze, timeMs, pda, pdaPla
+    state, toPlay, sims, gen, externalSearchId, analyze, timeMs, pda, pdaPla,
+    policyOnly
 ) {
     setPdaMagnitude(pda);
     setPdaReference(pdaPla);
     if (!root) root = new Node(state, toPlay);
+    const rootPolicyOptimism = policyOnly
+        ? POLICY_ONLY_ROOT_OPTIMISM : SEARCH_ROOT_POLICY_OPTIMISM;
 
     // Root inference if not already expanded.
-    let oppPolicy, optimisticPolicy;
+    let networkPolicy, rootPriorPolicy, oppPolicy, optimisticPolicy;
     let nnValueWDL;
     if (!root.isExpanded()) {
         const inf = await inference(
-            root.state, root.toPlay, true);
+            root.state, root.toPlay, true, rootPolicyOptimism);
         if (latestSearchId !== gen) return;
         mcts.expand(
             root,
-            inf.policyMainSoft,
+            inf.policyPriorSoft,
             inf.wdl,
-            inf.policyMainMaskedLogits,
+            inf.policyPriorMaskedLogits,
             inf.stError,
             true);
+        root.rootPolicyOptimismApplied = rootPolicyOptimism;
         nnValueWDL = inf.wdl;
+        networkPolicy = inf.policyMainSoft;
+        rootPriorPolicy = inf.policyPriorSoft;
         oppPolicy = inf.policyOppSoft;
         optimisticPolicy = inf.policyOptSoft;
     } else {
         // A promoted child was expanded with non-root policyOptimism=1. Refresh
-        // its root prior with rootPolicyOptimism=0 and root symmetry pruning
-        // while preserving visited descendants.
+        // its root prior with the active root optimism (searched or policy-only)
+        // and root symmetry pruning while preserving visited descendants.
         const inf = await inference(
-            root.state, root.toPlay, true);
+            root.state, root.toPlay, true, rootPolicyOptimism);
         if (latestSearchId !== gen) return;
-        if (!root.rootPolicyApplied) {
+        if (!root.rootPolicyApplied
+            || root.rootPolicyOptimismApplied !== rootPolicyOptimism) {
             mcts.refreshRoot(
                 root,
-                inf.policyMainSoft,
+                inf.policyPriorSoft,
                 inf.wdl,
-                inf.policyMainMaskedLogits,
+                inf.policyPriorMaskedLogits,
                 inf.stError);
+            root.rootPolicyOptimismApplied = rootPolicyOptimism;
         }
         nnValueWDL = root.nnValue;   // cached
+        networkPolicy = inf.policyMainSoft;
+        rootPriorPolicy = inf.policyPriorSoft;
         oppPolicy = inf.policyOppSoft;
         optimisticPolicy = inf.policyOptSoft;
     }
@@ -362,7 +388,9 @@ async function runSearch(
         type: "progress",
         progress: 0,
         searchId: externalSearchId,
-        nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),
+        policyOnly,
+        policyPrior:   Array.from(rootPriorPolicy),
+        nnPolicy:      Array.from(networkPolicy),
         nnOptimisticPolicy: Array.from(optimisticPolicy),
         nnOppPolicy:   Array.from(oppPolicy),
     });
@@ -400,13 +428,13 @@ async function runSearch(
             else                    value = new Float64Array([0, 1, 0]);
         } else {
             const inf = await inference(
-                node.state, node.toPlay, false);
+                node.state, node.toPlay, false, TREE_POLICY_OPTIMISM);
             if (latestSearchId !== gen) return false;
             mcts.expand(
                 node,
-                inf.policyMainSoft,
+                inf.policyPriorSoft,
                 inf.wdl,
-                inf.policyMainMaskedLogits,
+                inf.policyPriorMaskedLogits,
                 inf.stError,
                 false);
             value = inf.wdl;
@@ -489,14 +517,16 @@ async function runSearch(
         if (latestSearchId !== gen) return;
         finishPuct();
     } else {
-        // Zero-search mode keeps the V7.19 PUCT root package and picks the
-        // strongest root prior without entering the removed legacy Gumbel path.
+        // Zero-search mode performs exactly one root NN evaluation and chooses
+        // the strongest legal effective prior. It intentionally ignores any
+        // stale visits retained for tree reuse, so disabling thinking always
+        // means pure network play.
         selectedAction = -1;
         let bestPrior = -Infinity;
-        for (const child of root.children) {
-            if (child.prior > bestPrior) {
-                bestPrior = child.prior;
-                selectedAction = child.actionTaken;
+        for (let action = 0; action < rootPriorPolicy.length; action++) {
+            if (rootPriorPolicy[action] > bestPrior) {
+                bestPrior = rootPriorPolicy[action];
+                selectedAction = action;
             }
         }
         rootValue = new Float64Array(nnValueWDL);
@@ -521,6 +551,7 @@ async function runSearch(
     postMessage({
         type: "result",
         searchId: externalSearchId,
+        policyOnly,
         selectedAction,
         gumbelAction: selectedAction, // compatibility with cached older main.js
         rootValueWDL: rootValue,
@@ -530,7 +561,8 @@ async function runSearch(
         mctsWinrate:   Array.from(winrateDist),     // per-move win rate for the candidate list
         mctsLcb:       Array.from(lcbData.lcb),
         mctsLcbRadius: Array.from(lcbData.radius),
-        nnPolicy:      Array.from(root.nnPolicy || new Float32Array(currentBoardSize * currentBoardSize)),
+        policyPrior:   Array.from(rootPriorPolicy),
+        nnPolicy:      Array.from(networkPolicy),
         nnOptimisticPolicy: Array.from(optimisticPolicy),
         nnOppPolicy:   Array.from(oppPolicy),
         gumbelPhases:  phases,
@@ -559,7 +591,8 @@ onmessage = async (e) => {
             latestSearchId++;
             const gen = latestSearchId;
             await runSearch(data.state, data.toPlay, data.sims, gen,
-                data.searchId, data.analyze, data.timeMs, data.pda, data.pdaPla);
+                data.searchId, data.analyze, data.timeMs, data.pda, data.pdaPla,
+                data.policyOnly === true);
         } else if (data.type === "set-pda") {
             latestSearchId++;
             setPdaMagnitude(data.pda);
