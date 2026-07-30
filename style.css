@@ -1196,7 +1196,7 @@ html {
   .cand-row.best .cand-track > span { background: var(--accent); }
   .cand-visits { color: var(--fg-subtle); text-align: right; font-size: 11.5px; }
 
-  /* ---------- Heatmap drawer (four primary maps; raw visits under "more") ---------- */
+  /* ---------- Heatmap drawer ---------- */
   .drawer { overflow: hidden; flex: 0 0 auto; }
   .drawer-toggle {
     width: 100%; display: flex; align-items: center; gap: 8px;
@@ -1209,23 +1209,7 @@ html {
   .drawer-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
   .drawer-count { margin-left: auto; color: var(--fg-subtle); font-weight: 500; }
   .drawer-body { padding: 0 12px 12px; }
-  /* Collapsed "more": hide the 3rd heatmap onward, leaving the first two. */
-  .drawer[data-more="collapsed"] .grid-card:nth-child(n+5) { display: none; }
-  .heat-more-toggle {
-    display: flex; width: fit-content; margin: 4px auto 0;
-    align-items: center; justify-content: center; gap: 4px;
-    padding: 3px 10px; background: transparent; border: none; cursor: pointer;
-    font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
-    color: var(--fg-subtle); font-family: var(--font-sans); border-radius: 999px;
-  }
-  .heat-more-toggle:hover { color: var(--fg); background: var(--surface-2); }
-  .heat-more-toggle .chev { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; transform: rotate(90deg); }
-  .heat-more-toggle[aria-expanded="true"] .chev { transform: rotate(-90deg); }
-  .heat-more-count { color: var(--fg-subtle); font-weight: 500; }
-  .drawer[data-more="collapsed"] .more-hide { display: none; }
-  .drawer[data-more="expanded"] .more-show,
-  .drawer[data-more="expanded"] .heat-more-count { display: none; }
-  @media (prefers-reduced-motion: reduce) { .drawer-toggle .chev, .heat-more-toggle .chev { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .drawer-toggle .chev { transition: none; } }
 
   /* ---------- Heat grid (inside drawer) ---------- */
   .grids {
