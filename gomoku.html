@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/">
   <title>SkyZero · Gomoku</title>
   <link rel="preload" href="fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
@@ -327,6 +328,17 @@
               <div class="loader-pct" id="loading_pct">0%</div>
             </div>
           </div>
+          <script>
+          (function(){
+            var match = location.pathname.match(/^\/gomoku\/(lv[1-6])\/?$/);
+            var text = document.getElementById("loading_text");
+            if (!match || !text) return;
+            var id = match[1].toUpperCase();
+            text.textContent = document.documentElement.lang === "en"
+              ? "Preparing " + id + " model…"
+              : "正在准备 " + id + " 模型…";
+          })();
+          </script>
         </div>
         <div class="board-actions edit-toolbar" id="edit_toolbar">
           <div class="seg-row edit-tools" id="edit_tool_seg" role="group" data-i18n-aria="aria_edit_tool" aria-label="编辑工具">
@@ -387,11 +399,11 @@
           </div>
         </div>
 
-        <div class="card drawer" id="heat_drawer" data-more="collapsed">
+        <div class="card drawer" id="heat_drawer">
           <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="false" aria-controls="heat_drawer_body">
             <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
             <span data-i18n="heat_drawer_title">分析热力图</span>
-            <span class="drawer-count">5</span>
+            <span class="drawer-count">4</span>
           </button>
           <div class="drawer-body hidden" id="heat_drawer_body">
             <div class="grids" id="heat_grids">
@@ -431,22 +443,7 @@
                 </div>
                 <canvas class="heat" id="h_mcts_play_selection"></canvas>
               </div>
-              <div class="card grid-card">
-                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_visits_dist">访问分布</span>
-                  <span class="grid-title-actions">
-                    <button class="pin-btn" data-target="h_mcts_visits" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
-                    <button class="expand-btn" data-target="h_mcts_visits" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
-                  </span>
-                </div>
-                <canvas class="heat" id="h_mcts_visits"></canvas>
-              </div>
             </div>
-            <button class="heat-more-toggle" id="heat_more_btn" aria-expanded="false" aria-controls="heat_grids">
-              <span class="more-show" data-i18n="heat_show_all">展开全部</span>
-              <span class="heat-more-count">+1</span>
-              <span class="more-hide" data-i18n="heat_collapse">收起</span>
-              <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
-            </button>
           </div>
         </div>
       </aside>
@@ -457,7 +454,7 @@
     <div class="mobile-actionbar" id="mobile_actionbar"></div>
 
     <!-- Model loading starts only after the user chooses a difficulty. -->
-    <div class="difficulty-modal" id="difficulty_modal" role="dialog" aria-modal="true" aria-labelledby="difficulty_title" aria-describedby="difficulty_subtitle">
+    <div class="difficulty-modal hidden" id="difficulty_modal" role="dialog" aria-modal="true" aria-labelledby="difficulty_title" aria-describedby="difficulty_subtitle">
       <div class="difficulty-card">
         <h2 class="difficulty-title" id="difficulty_title" data-i18n="difficulty_title">选择对手难度</h2>
         <p class="difficulty-subtitle" id="difficulty_subtitle" data-i18n="difficulty_subtitle">请选择 Lv1–Lv6，确认后才会下载对应模型。</p>
