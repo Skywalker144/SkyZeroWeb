@@ -320,6 +320,27 @@ def main():
         assert "LV1 入门" in direct_page.locator(
             "#loading_text").inner_text()
 
+        # Session creation has no real progress API. Verify that its simulated
+        # progress advances but remains below completion, and that a slow
+        # WeChat initialization gets an actionable compatibility hint.
+        direct_page.evaluate(
+            """() => {
+              showLoadingOverlay("loading_model", "LV1", "入门");
+              startInitializationFeedback("LV1", "入门");
+            }"""
+        )
+        direct_page.wait_for_function(
+            """() => parseFloat(
+              document.getElementById("loading_fill").style.width) > 4"""
+        )
+        init_pct = direct_page.locator("#loading_pct").inner_text()
+        assert init_pct.endswith("%")
+        assert float(init_pct[:-1]) <= 92
+        direct_page.evaluate("showInitializationSlowHint(true)")
+        assert "微信内初始化时间过长" in direct_page.locator(
+            "#loading_text").inner_text()
+        direct_page.evaluate("hideLoadingOverlay()")
+
         error_context = browser.new_context()
         error_page = error_context.new_page()
         error_page.route(
