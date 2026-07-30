@@ -319,6 +319,24 @@ def main():
         assert "LV1 入门" in direct_page.locator(
             "#loading_text").inner_text()
 
+        error_context = browser.new_context()
+        error_page = error_context.new_page()
+        error_page.route(
+            "**/models/level1.onnx*",
+            lambda route: route.fulfill(
+                status=503, content_type="text/plain", body="offline"),
+        )
+        error_page.goto(
+            f"{BASE_URL}/gomoku/lv1",
+            wait_until="domcontentloaded",
+            timeout=120_000,
+        )
+        error_page.locator("#loading_text").filter(
+            has_text="错误:").wait_for(timeout=120_000)
+        assert error_page.locator(
+            "#loading_pct").inner_text() == "请刷新页面后重试"
+        error_context.close()
+
         browser.close()
 
     if errors:
