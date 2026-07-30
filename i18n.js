@@ -108,6 +108,10 @@ const I18N_STRINGS = {
         loading_initializing: (id, label) => id
             ? `Initializing ${id} ${label} model…`
             : "Initializing SkyZero engine…",
+        loading_initializing_slow:
+            "Initialization is taking longer than expected. Please keep waiting or reload the page.",
+        loading_initializing_slow_wechat:
+            "Initialization is taking too long in WeChat. Please open this page in your system browser.",
         err_manifest_load: (msg) => `manifest load failed: ${msg}`,
         err_manifest_empty: "manifest empty — add models",
         err_worker_failed: (msg, where) => `Worker failed: ${msg}${where}`,
@@ -243,6 +247,10 @@ const I18N_STRINGS = {
         loading_initializing: (id, label) => id
             ? `正在初始化 ${id} ${label}模型…`
             : "正在初始化SkyZero引擎…",
+        loading_initializing_slow:
+            "初始化时间较长，仍在处理中；如果一直没有完成，请刷新页面重试。",
+        loading_initializing_slow_wechat:
+            "微信内初始化时间过长，可能存在兼容问题，建议改用系统浏览器打开。",
         err_manifest_load: (msg) => `清单加载失败:${msg}`,
         err_manifest_empty: "清单为空 — 请添加模型",
         err_worker_failed: (msg, where) => `Worker 失败:${msg}${where}`,
