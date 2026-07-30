@@ -1851,8 +1851,16 @@ worker.onmessage = (e) => {
         return;
     }
     if (data.type === "error") {
-        setStatusRaw(t("err_prefix", data.message), "error");
+        const msg = t("err_prefix", data.message);
+        setStatusRaw(msg, "error");
         aiThinking = false;
+        // The loading overlay covers the status pill during first-model setup.
+        // Surface worker/session failures in the overlay too; otherwise an
+        // InferenceSession error looks like an endless initialization.
+        const text = document.getElementById("loading_text");
+        const progress = document.getElementById("loading_pct");
+        if (text) text.textContent = msg;
+        if (progress) progress.textContent = t("err_loading_retry");
         return;
     }
     if (data.type === "progress") {
