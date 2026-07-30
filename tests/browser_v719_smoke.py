@@ -235,7 +235,8 @@ def main():
         board_card_box = page.locator(".board-card").bounding_box()
         chart_card_box = page.locator(".chart-card").bounding_box()
         stats_card_box = page.locator(".stats-card").bounding_box()
-        assert board_box["width"] >= 400
+        assert board_box["width"] >= 414
+        assert abs(board_card_box["x"] - 4) < 1
         assert abs(board_card_box["x"] - stats_card_box["x"]) < 1
         assert abs(board_card_box["width"] - stats_card_box["width"]) < 1
         board_insets = (
