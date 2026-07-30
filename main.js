@@ -1390,6 +1390,12 @@ function modelUrl(m) {
 const BOARD_SIZES = [11, 12, 13, 14, 15];
 
 // --- Loading overlay (only shown for first model load) ---
+const INITIALIZATION_SLOW_MS = 10_000;
+const INITIALIZATION_PROGRESS_LIMIT = 92;
+let initializationFeedbackActive = false;
+let initializationProgressTimer = null;
+let initializationSlowTimer = null;
+
 function fmtMB(bytes) { return (Number(bytes || 0) / 1048576).toFixed(1); }
 function setLoadingProgress(pct, loaded, total) {
     const fill = document.getElementById("loading_fill");
@@ -1403,7 +1409,50 @@ function setLoadingProgress(pct, loaded, total) {
         text.textContent = s;
     }
 }
+function stopInitializationFeedback() {
+    initializationFeedbackActive = false;
+    if (initializationProgressTimer !== null) {
+        clearInterval(initializationProgressTimer);
+        initializationProgressTimer = null;
+    }
+    if (initializationSlowTimer !== null) {
+        clearTimeout(initializationSlowTimer);
+        initializationSlowTimer = null;
+    }
+}
+function showInitializationSlowHint(
+    isWeChat = /MicroMessenger/i.test(navigator.userAgent)
+) {
+    setLoadingHeadline(isWeChat
+        ? "loading_initializing_slow_wechat"
+        : "loading_initializing_slow");
+    setLoadingProgress(INITIALIZATION_PROGRESS_LIMIT);
+    if (initializationProgressTimer !== null) {
+        clearInterval(initializationProgressTimer);
+        initializationProgressTimer = null;
+    }
+}
+function startInitializationFeedback(id, label) {
+    // fetchModelWithProgress can emit 100% for both the last chunk and stream
+    // completion. Start the simulated session-build phase only once.
+    if (initializationFeedbackActive) return;
+    initializationFeedbackActive = true;
+    setLoadingHeadline("loading_initializing", id, label);
+    const startedAt = performance.now();
+    setLoadingProgress(4);
+    initializationProgressTimer = setInterval(() => {
+        // Session creation exposes no real progress. Ease quickly through the
+        // normal 3–4 second desktop wait, then asymptotically stop at 92%.
+        const elapsed = performance.now() - startedAt;
+        const pct = 4 + 88 * (1 - Math.exp(-elapsed / 2500));
+        setLoadingProgress(Math.min(INITIALIZATION_PROGRESS_LIMIT, pct));
+    }, 200);
+    initializationSlowTimer = setTimeout(() => {
+        if (initializationFeedbackActive) showInitializationSlowHint();
+    }, INITIALIZATION_SLOW_MS);
+}
 function hideLoadingOverlay() {
+    stopInitializationFeedback();
     const o = document.getElementById("loading_overlay");
     if (o) { o.style.display = "none"; o.classList.add("hidden"); }
     lastLoadingMsg = null;
@@ -1414,6 +1463,7 @@ let lastLoadingMsg = null; // { key, args }
 const BRAND_WM = '<span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span>';
 const withBrand = (s) => s.replace("SkyZero", BRAND_WM);
 function showLoadingOverlay(key, ...args) {
+    stopInitializationFeedback();
     const o = document.getElementById("loading_overlay");
     if (!o) return;
     o.style.display = "";
@@ -1468,6 +1518,7 @@ function refreshEditUndoBtn() {
 
 const worker = new Worker("worker.js?v=" + Date.now());
 worker.onerror = (e) => {
+    stopInitializationFeedback();
     const where = e.filename ? ` (${e.filename}:${e.lineno})` : "";
     const msg = t("err_worker_failed", e.message || t("err_unknown"), where);
     setStatusRaw(msg, "error");
@@ -1832,11 +1883,11 @@ worker.onmessage = (e) => {
     if (data.type === "model-progress") {
         if (Number.isFinite(data.percent)) setLoadingProgress(data.percent, data.loaded, data.total);
         // Download done — the worker is now building the inference session; tell
-        // the user so the full bar doesn't look stuck until "ready" arrives.
+        // the user and run simulated progress until "ready" arrives.
         if (data.percent >= 100) {
             const m = modelById(currentModelId);
-            if (m) setLoadingHeadline("loading_initializing", m.id.toUpperCase(), m.label);
-            else setLoadingHeadline("loading_initializing", "", "");
+            if (m) startInitializationFeedback(m.id.toUpperCase(), m.label);
+            else startInitializationFeedback("", "");
         }
         return;
     }
@@ -1851,6 +1902,7 @@ worker.onmessage = (e) => {
         return;
     }
     if (data.type === "error") {
+        stopInitializationFeedback();
         const msg = t("err_prefix", data.message);
         setStatusRaw(msg, "error");
         aiThinking = false;
