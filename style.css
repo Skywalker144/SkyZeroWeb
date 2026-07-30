@@ -167,6 +167,9 @@ html {
   .app { max-width: 2000px; margin: 0 auto; padding: 12px 24px 16px; }
   @media (max-width: 720px) {
     .app { padding: 8px 8px 12px; }
+    /* Give the Gomoku board and its peer panels more of the phone viewport
+       without changing the compact spacing used by the other game pages. */
+    body.gomoku-page .app { padding-inline: 4px; }
   }
 
   /* ---------- Mobile topbar (≤720px) ----------
@@ -1140,7 +1143,7 @@ html {
     position: relative; /* anchor the loading overlay over the board */
   }
   @media (max-width: 720px) {
-    /* Match every other card's 8px page inset, then keep only a narrow frame
+    /* Match every other card's 4px page inset, then keep only a narrow frame
        around the canvas so the phone board can use the reclaimed width. This
        must follow the base rule above or its padding would be overridden. */
     .board-card {
