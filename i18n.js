@@ -82,7 +82,6 @@ const I18N_STRINGS = {
         wdl_dash: "—",
         btn_new_game: "New game",
         btn_undo: "Undo",
-        heat_visits_dist: "Visits Dist",
         heat_nn_policy: "NN Policy",
         heat_nn_optimistic_policy: "Optimistic Policy",
         heat_nn_opp_policy: "NN Opp Policy",
@@ -104,8 +103,11 @@ const I18N_STRINGS = {
         stat_blunder_val: (m, d) => `#${m}, ${d}%`,
         loading_initial: "Loading model…",
         loading_manifest: "Loading SkyZero engine…",
-        loading_model: "Loading SkyZero engine…",
-        loading_initializing: "Initializing SkyZero engine…",
+        loading_route_model: (id) => `Preparing ${id} model…`,
+        loading_model: (id, label) => `Downloading ${id} ${label} model…`,
+        loading_initializing: (id, label) => id
+            ? `Initializing ${id} ${label} model…`
+            : "Initializing SkyZero engine…",
         err_manifest_load: (msg) => `manifest load failed: ${msg}`,
         err_manifest_empty: "manifest empty — add models",
         err_worker_failed: (msg, where) => `Worker failed: ${msg}${where}`,
@@ -214,7 +216,6 @@ const I18N_STRINGS = {
         wdl_dash: "—",
         btn_new_game: "新对局",
         btn_undo: "悔棋",
-        heat_visits_dist: "访问分布",
         heat_nn_policy: "网络策略",
         heat_nn_optimistic_policy: "乐观策略",
         heat_nn_opp_policy: "对手策略",
@@ -236,8 +237,11 @@ const I18N_STRINGS = {
         stat_blunder_val: (m, d) => `第${m}手 ${d}%`,
         loading_initial: "正在加载模型…",
         loading_manifest: "加载SkyZero引擎中…",
-        loading_model: "加载SkyZero引擎中…",
-        loading_initializing: "正在初始化SkyZero引擎…",
+        loading_route_model: (id) => `正在准备 ${id} 模型…`,
+        loading_model: (id, label) => `正在下载 ${id} ${label}权重…`,
+        loading_initializing: (id, label) => id
+            ? `正在初始化 ${id} ${label}模型…`
+            : "正在初始化SkyZero引擎…",
         err_manifest_load: (msg) => `清单加载失败:${msg}`,
         err_manifest_empty: "清单为空 — 请添加模型",
         err_worker_failed: (msg, where) => `Worker 失败:${msg}${where}`,
