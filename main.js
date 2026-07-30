@@ -29,7 +29,7 @@ function setupCanvas(canvas, logicalW, logicalH, setStyle = true) {
 }
 function clearLogical(ctx) { ctx.clearRect(0, 0, ctx._logicalW, ctx._logicalH); }
 
-// Board canvas + 6 heat canvases set up later in Tasks 20-21.
+// Board canvas + heat canvases set up later in Tasks 20-21.
 const cv = document.getElementById("board");
 const ctx = setupCanvas(cv, BOARD_LOGICAL, BOARD_LOGICAL);
 
@@ -520,20 +520,18 @@ function drawBoardHeatOverlay(canvasId) {
     ctx.restore();
 }
 
-// --- Five heatmap canvases ---
+// --- Four heatmap canvases ---
 const heatCtxs = {
     h_nn_policy:             setupCanvas(document.getElementById("h_nn_policy"),             HEAT_LOGICAL, HEAT_LOGICAL, false),
     h_nn_optimistic_policy:  setupCanvas(document.getElementById("h_nn_optimistic_policy"),  HEAT_LOGICAL, HEAT_LOGICAL, false),
     h_nn_opp_policy:         setupCanvas(document.getElementById("h_nn_opp_policy"),         HEAT_LOGICAL, HEAT_LOGICAL, false),
     h_mcts_play_selection:   setupCanvas(document.getElementById("h_mcts_play_selection"),   HEAT_LOGICAL, HEAT_LOGICAL, false),
-    h_mcts_visits:           setupCanvas(document.getElementById("h_mcts_visits"),           HEAT_LOGICAL, HEAT_LOGICAL, false),
 };
 const HEAT_GRID_KEYS = {
     h_nn_policy:             "nn_policy",
     h_nn_optimistic_policy:  "nn_optimistic_policy",
     h_nn_opp_policy:         "nn_opp_policy",
     h_mcts_play_selection:   "mcts_play_selection",
-    h_mcts_visits:           "mcts_visits",
 };
 const SIGNED_HEAT_IDS = new Set();
 
@@ -1316,6 +1314,19 @@ function modelById(id) {
     return manifest.models.find(m => m.id === id);
 }
 
+// Parse the model id without waiting for the manifest, so direct routes can
+// show a model-specific loading screen from the first frame.
+function modelIdFromPath() {
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    if (parts.length !== 2 || parts[0] !== "gomoku") return null;
+    return /^lv[1-6]$/.test(parts[1]) ? parts[1] : null;
+}
+
+function modelFromPath() {
+    const id = modelIdFromPath();
+    return id ? modelById(id) || null : null;
+}
+
 // Build the model URL with a cache-busting query string derived from the
 function formatModelElo(m) {
     if (!m || !Number.isFinite(m.elo)) return t("difficulty_elo", "—");
@@ -1323,9 +1334,8 @@ function formatModelElo(m) {
 }
 
 function populateDifficultyOptions(items) {
-    const modal = document.getElementById("difficulty_modal");
     const options = document.getElementById("difficulty_options");
-    if (!modal || !options) return;
+    if (!options) return;
     options.innerHTML = "";
     for (const m of items) {
         const button = document.createElement("button");
@@ -1347,6 +1357,11 @@ function populateDifficultyOptions(items) {
         button.addEventListener("click", () => chooseInitialModel(m));
         options.appendChild(button);
     }
+}
+
+function showDifficultyPicker() {
+    const modal = document.getElementById("difficulty_modal");
+    if (!modal) return;
     modal.classList.remove("hidden");
     document.body.classList.add("difficulty-open");
 }
@@ -1357,7 +1372,7 @@ function chooseInitialModel(m) {
     setModelTrigger(m.id);
     document.getElementById("difficulty_modal")?.classList.add("hidden");
     document.body.classList.remove("difficulty-open");
-    showLoadingOverlay("loading_model", m.label);
+    showLoadingOverlay("loading_model", m.id.toUpperCase(), m.label);
     worker.postMessage({ type: "init", modelUrl: modelUrl(m), boardSize: N, rule: currentRule });
 }
 
@@ -1518,7 +1533,6 @@ function repaintAllHeatmaps() {
     drawHeat("h_nn_opp_policy", state ? state.nn_opp_policy : null);
     drawHeat("h_mcts_play_selection",
         state ? state.mcts_play_selection : null);
-    drawHeat("h_mcts_visits", state ? state.mcts_visits : null);
     paintHeatModal();
 }
 
@@ -1553,7 +1567,6 @@ function applyLiveCandidates(visitsFlat, playSelectionFlat, winrateFlat, rootVis
     if (rootVisits > 0) searchSimsTotal = rootVisits;
     drawHeatById("h_mcts_play_selection",
         state.mcts_play_selection);
-    drawHeatById("h_mcts_visits", state.mcts_visits);
     paintHeatModal();
     renderCandidates();
     draw();
@@ -1820,7 +1833,11 @@ worker.onmessage = (e) => {
         if (Number.isFinite(data.percent)) setLoadingProgress(data.percent, data.loaded, data.total);
         // Download done — the worker is now building the inference session; tell
         // the user so the full bar doesn't look stuck until "ready" arrives.
-        if (data.percent >= 100) setLoadingHeadline("loading_initializing");
+        if (data.percent >= 100) {
+            const m = modelById(currentModelId);
+            if (m) setLoadingHeadline("loading_initializing", m.id.toUpperCase(), m.label);
+            else setLoadingHeadline("loading_initializing", "", "");
+        }
         return;
     }
     if (data.type === "ready") {
@@ -2582,7 +2599,7 @@ function closeSizeConfirmModal(commit) {
         if (!m || id === currentModelId) return;
         currentModelId = id;
         setModelTrigger(id);
-        showLoadingOverlay("loading_model", m.label);
+        showLoadingOverlay("loading_model", m.id.toUpperCase(), m.label);
         searchId++;
         aiThinking = false;
         worker.postMessage({ type: "swap-model", modelUrl: modelUrl(m) });
@@ -2652,16 +2669,12 @@ registerI18nCallback(() => {
     else if (mq.addListener) mq.addListener(place);
 })();
 
-// --- Heatmap drawer: four decision-facing maps stay visible; "more" reveals
-//     the raw-visit diagnostic. ---
+// --- Heatmap drawer ---
 (function initHeatDrawer() {
     const btn = document.getElementById("heat_drawer_btn");
     const body = document.getElementById("heat_drawer_body");
     const drawer = document.getElementById("heat_drawer");
-    const moreBtn = document.getElementById("heat_more_btn");
-    if (!btn || !body || !drawer || !moreBtn) return;
-    // Newly-revealed canvases measured 0 while hidden, so fit + draw them now
-    // (synchronously, to avoid the 1-frame flash the ResizeObserver would leave).
+    if (!btn || !body || !drawer) return;
     const refit = () => {
         for (const id of Object.keys(heatCtxs)) {
             fitHeatCanvas(id);
@@ -2672,12 +2685,6 @@ registerI18nCallback(() => {
         const open = body.classList.toggle("hidden") === false;
         btn.setAttribute("aria-expanded", open ? "true" : "false");
         if (open) refit();
-    });
-    moreBtn.addEventListener("click", () => {
-        const expanded = drawer.dataset.more === "expanded";
-        drawer.dataset.more = expanded ? "collapsed" : "expanded";
-        moreBtn.setAttribute("aria-expanded", expanded ? "false" : "true");
-        if (!expanded) refit();
     });
 })();
 
@@ -2706,7 +2713,9 @@ registerI18nCallback(() => {
 
 // --- Bootstrap on load ---
 (async function bootstrap() {
-    showLoadingOverlay("loading_manifest");
+    const routeId = modelIdFromPath();
+    if (routeId) showLoadingOverlay("loading_route_model", routeId.toUpperCase());
+    else showLoadingOverlay("loading_manifest");
     try {
         await loadManifest();
     } catch (err) {
@@ -2717,6 +2726,11 @@ registerI18nCallback(() => {
         setStatus("err_manifest_empty", "error");
         return;
     }
-    hideLoadingOverlay();
-    syncBoardSize();
+    const routeModel = modelFromPath();
+    if (routeModel) chooseInitialModel(routeModel);
+    else {
+        hideLoadingOverlay();
+        showDifficultyPicker();
+        syncBoardSize();
+    }
 })();
