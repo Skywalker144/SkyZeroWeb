@@ -114,14 +114,13 @@ def main():
         assert page.locator("#h_nn_futurepos_32").count() == 0
         assert page.locator("#h_nn_optimistic_policy").is_visible()
         assert page.locator("#h_mcts_play_selection").is_visible()
-        assert not page.locator("#h_mcts_visits").is_visible()
+        assert page.locator("#h_mcts_visits").count() == 0
+        assert page.locator("#heat_more_btn").count() == 0
         page.locator(
             '.pin-btn[data-target="h_mcts_play_selection"]').click()
         assert page.locator(
             '.pin-btn[data-target="h_mcts_play_selection"]').get_attribute(
                 "aria-pressed") == "true"
-        page.locator("#heat_more_btn").click()
-        assert page.locator("#h_mcts_visits").is_visible()
 
         page.locator("#model_trigger").click()
         assert page.locator("#model_menu").is_visible()
@@ -293,6 +292,32 @@ def main():
               .textContent.startsWith("1 次模拟")""",
             timeout=120_000,
         )
+
+        direct_page = browser.new_page(
+            viewport={"width": 1440, "height": 1000})
+        direct_page.add_init_script(
+            """window.__difficultyEverVisible = false;
+               document.addEventListener("DOMContentLoaded", () => {
+                 const sample = () => {
+                   const modal =
+                     document.getElementById("difficulty_modal");
+                   if (modal && getComputedStyle(modal).display !== "none")
+                     window.__difficultyEverVisible = true;
+                   requestAnimationFrame(sample);
+                 };
+                 sample();
+               });""")
+        direct_page.goto(
+            f"{BASE_URL}/gomoku/lv1",
+            wait_until="domcontentloaded",
+            timeout=120_000,
+        )
+        wait_ready(direct_page)
+        assert direct_page.locator(
+            "#model_trigger_label").inner_text() == "LV1 入门"
+        assert not direct_page.evaluate("window.__difficultyEverVisible")
+        assert "LV1 入门" in direct_page.locator(
+            "#loading_text").inner_text()
 
         browser.close()
 
