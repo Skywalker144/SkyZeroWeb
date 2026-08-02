@@ -260,7 +260,7 @@ function draw() {
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         for (let i = 0; i < N; i++) {
             ctx.fillText(colLetter(i), MARGIN + i * CELL, 12);   // top axis: columns A,B,C…
-            ctx.fillText(N - i, 10, MARGIN + i * CELL);          // left axis: rows N…1
+            ctx.fillText(rowNumber(i), 10, MARGIN + i * CELL);   // left axis: rows 1…N
         }
     }
     if (!state) return;
@@ -1114,8 +1114,9 @@ let pda = (function () {
     } catch (_) { return 0.5; }
 })();
 function colLetter(c) { return String.fromCharCode(65 + c); }
-// Board notation: columns A.. left→right, rows N..1 top→bottom (H8 = center of 15).
-function coordLabel(r, c) { return colLetter(c) + (N - r); }
+function rowNumber(r) { return r + 1; }
+// Board notation: columns A.. left→right, rows 1..N top→bottom (H8 = center of 15).
+function coordLabel(r, c) { return colLetter(c) + rowNumber(r); }
 // Rank searched candidates by V7.19's LCB-adjusted play-selection
 // distribution. With thinking disabled, rank by the exact effective root
 // prior used for the NN-only move (main/optimistic logits blended in worker.js).
