@@ -37,7 +37,7 @@ with no build step. Connect via git, point to repo root.
 ```bash
 # In the `pytorch` conda env (has torch/onnx/onnxscript installed)
 conda run -n pytorch python tools/export_v719_onnx.py \
-    --ckpt ../SkyZero/SkyZero_V7.19/data/web/models/iter1945.pt \
+    --ckpt ../SkyZero/SkyZero_V7.19/data/web/models/iter2103.pt \
     --out models/level6.onnx
 
 # Then edit models/manifest.json — add or update order / label / file / params
@@ -45,7 +45,7 @@ conda run -n pytorch python tools/export_v719_onnx.py \
 ```
 
 The six tiers are V7.19 `b9c96tflrs` checkpoints at iter
-206/300/419/654/1000/1945. They are ordered by training iteration; the UI does
+206/300/419/654/1000/2103. They are ordered by training iteration; the UI does
 not present the old V7.1 ELO numbers as if they were comparable. The exporter
 checks rebuilt-PyTorch ↔ TorchScript and ONNX Runtime parity before succeeding.
 
