@@ -67,6 +67,13 @@ def main():
         assert page.evaluate(
             """() => {
               const row = document.querySelector("#cand_list .cand-row");
+              return row.querySelector(".cand-coord").textContent
+                === coordLabel(Number(row.dataset.r), Number(row.dataset.c));
+            }"""
+        )
+        assert page.evaluate(
+            """() => {
+              const row = document.querySelector("#cand_list .cand-row");
               const shown = state.policy_prior[
                 Number(row.dataset.r)][Number(row.dataset.c)];
               return Math.abs(
@@ -203,6 +210,25 @@ def main():
             )
             page.wait_for_timeout(100)
             assert page.locator("#size_value").inner_text() == str(size)
+            assert page.evaluate(
+                """([n]) => {
+                  if (coordLabel(0, 0) !== "A1"
+                      || coordLabel(n - 1, n - 1)
+                        !== String.fromCharCode(64 + n) + n) return false;
+                  const board = document.getElementById("board");
+                  const rect = board.getBoundingClientRect();
+                  const hoverAt = (r, c) => {
+                    board.dispatchEvent(new MouseEvent("mousemove", {
+                      bubbles: true,
+                      clientX: rect.left + MARGIN + c * CELL,
+                      clientY: rect.top + MARGIN + r * CELL,
+                    }));
+                    return hoverCell && hoverCell.r === r && hoverCell.c === c;
+                  };
+                  return hoverAt(0, 0) && hoverAt(n - 1, n - 1);
+                }""",
+                [size],
+            )
 
         for rule in ("renju", "freestyle"):
             if not page.locator("#settings_pop").is_visible():
