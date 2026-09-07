@@ -1,4 +1,4 @@
-import {requestJson as api, setModelProgressListener} from './local-api.js';
+import {requestJson as api, setModelProgressListener} from './local-api.js?v=20260907';
 import {legalActionRows, ticketCountPresentation, undoAvailable} from './action_view.js';
 import {actionModeLabel} from './control_panel.js';
 import {gameCreationRequest, gameSession as session} from './game_session.js';
