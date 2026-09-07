@@ -1,22 +1,14 @@
-// MCTS tree-visualization worker.
-//
-// Reuses the real AlphaZero stack from the gomoku play page — ONNX inference,
-// gomoku.js game logic, and mcts.js's KataGo-PUCT — but exposes the search one
-// simulation at a time and serializes the whole tree after each step so the UI
-// can draw it. Nothing here is shared with worker.js; it only importScripts the
-// same pure helpers, so the play page is untouched.
-
 const IS_WORKER = (typeof self !== "undefined" && typeof importScripts === "function");
 if (IS_WORKER) {
     const _qs = self.location.search || ("?v=" + Date.now());
-    importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js");
+    importScripts("onnx-worker-runtime.js" + _qs);
+    SkyZeroOnnxRuntime.loadOnnxRuntime(self);
     importScripts("gomoku.js" + _qs);
     importScripts("mcts.js" + _qs);
-    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/";
-    ort.env.wasm.numThreads = 1;
+    importScripts("gomoku-inference.js" + _qs);
 }
 
-let session = null;
+let inferenceRuntime = null;
 let game = null;
 let mcts = null;
 let root = null;
@@ -30,79 +22,16 @@ function nid(node) {
     return node._id;
 }
 
-function transformSpatial(input, channels, size, rotation, flip) {
-    const area = size * size;
-    const output = new Float32Array(input.length);
-    for (let channel = 0; channel < channels; channel++) {
-        for (let row = 0; row < size; row++) {
-            for (let col = 0; col < size; col++) {
-                const [tr, tc] = transformCoord(
-                    row, col, size, rotation, flip);
-                output[channel * area + tr * size + tc] =
-                    input[channel * area + row * size + col];
-            }
-        }
-    }
-    return output;
-}
-
-function undoSpatial(input, channels, size, rotation, flip) {
-    const area = size * size;
-    const output = new Float32Array(input.length);
-    for (let channel = 0; channel < channels; channel++) {
-        for (let row = 0; row < size; row++) {
-            for (let col = 0; col < size; col++) {
-                const [tr, tc] = transformCoord(
-                    row, col, size, rotation, flip);
-                output[channel * area + row * size + col] =
-                    input[channel * area + tr * size + tc];
-            }
-        }
-    }
-    return output;
-}
-
-// One ONNX forward pass — trimmed copy of worker.js::inference, keeping only
-// what MCTS expansion needs (masked-softmax prior + WDL value + masked logits).
 async function inference(state, toPlay, isRoot = false) {
-    const M = MAX_BOARD_SIZE, A = M * M;
-    const N = boardSize, NA = N * N;
-
-    let ply = 0;
-    for (let i = 0; i < state.length; i++) if (state[i] !== 0) ply++;
-    const spatial = game.encodeState(state, toPlay);
-    const globalF = game.computeGlobalFeatures(ply, toPlay);
-    const transformType = Math.floor(Math.random() * 8);
-    const rotation = transformType % 4;
-    const flip = transformType >= 4;
-    const out = await session.run({
-        input_spatial: new ort.Tensor("float32",
-            transformSpatial(spatial, 5, M, rotation, flip),
-            [1, 5, M, M]),
-        input_global: new ort.Tensor("float32", globalF, [1, 7]),
+    const result = await inferenceRuntime.evaluate(state, toPlay, {
+        isRoot,
+        policyOptimism: isRoot ? 0 : 1,
     });
-
-    const policyAll = undoSpatial(
-        out.policy_logits.data, 5, M, rotation, flip);
-    const wdlLogits = out.value_wdl_logits.data;  // (1, 3)
-
-    const policyMainRaw = new Float32Array(NA);
-    for (let r = 0; r < N; r++)
-        for (let c = 0; c < N; c++)
-            policyMainRaw[r * N + c] = policyAll[
-                (isRoot ? 0 : 4) * A + r * M + c];
-
-    const legal = game.getLegalActions(state, toPlay);
-    const masked = new Float32Array(NA);
-    for (let i = 0; i < NA; i++) masked[i] = legal[i] ? policyMainRaw[i] : -1e9;
-    const policyMainSoft = new Float32Array(softmax(masked));
-
-    const wdl = softmax(new Float64Array([wdlLogits[0], wdlLogits[1], wdlLogits[2]]));
     return {
-        policyMainSoft,
-        policyMainMaskedLogits: masked,
-        wdl: new Float64Array([wdl[0], wdl[1], wdl[2]]),
-        stError: Math.sqrt(Math.max(0, out.value_st_error_sq.data[0])),
+        policyMainSoft: result.policyPriorSoft,
+        policyMainMaskedLogits: result.policyPriorMaskedLogits,
+        wdl: result.wdl,
+        stError: result.stError,
     };
 }
 
@@ -227,12 +156,15 @@ async function init(modelUrl, bs, rl, seed) {
     game = new Gomoku(boardSize, rule);
     mcts = new MCTS(game, {});   // defaults = KataGo-PUCT (see mcts.js constructor)
     newRoot();
-    const resp = await fetch(modelUrl);
-    if (!resp.ok) throw new Error(`fetch ${modelUrl} -> ${resp.status}`);
-    const bytes = new Uint8Array(await resp.arrayBuffer());
-    session = await ort.InferenceSession.create(bytes, {
-        executionProviders: ["wasm"], intraOpNumThreads: 1, interOpNumThreads: 1,
+    inferenceRuntime = new GomokuInferenceRuntime.GomokuInference({
+        ort,
+        softmax,
+        transformCoord,
+        maxBoardSize: MAX_BOARD_SIZE,
+        boardSize,
+        game,
     });
+    await inferenceRuntime.load(modelUrl);
     await expandRoot(inference);
     postMessage({ type: "ready", tree: serializeTree() });
 }
@@ -245,6 +177,7 @@ async function reset(bs, rl) {
     if (root) mcts.clear(root);
     game = new Gomoku(boardSize, rule);
     mcts.game = game;
+    inferenceRuntime.setGame(game, boardSize);
     newRoot();
     await expandRoot(inference);
     postMessage({ type: "ready", tree: serializeTree() });
