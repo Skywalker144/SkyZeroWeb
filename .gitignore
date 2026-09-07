@@ -18,7 +18,9 @@ node_modules/
 .superpowers/
 origin_models/
 
-docs/
+# Keep the repository documentation index; other local docs stay unpublished.
+docs/*
+!docs/README.md
 
 # Internal audit reports — enumerate vulnerabilities, so keep them out of the
 # public repo / "source is the product" Pages deploy. Stay local-only.
