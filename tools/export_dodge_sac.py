@@ -5,7 +5,7 @@ The Channel-Dodge autopilot. SAC's actor is a SquashedGaussianActor — a ReLU M
 ``271 -> 256 -> 256 -> 4`` (trained in ../SkyZero/DodgeSAC) whose
 first 2 outputs are the Gaussian mean (the last 2 are log-std, inference-irrelevant).
 Greedy action = ``tanh(mean)`` clamped to the unit disk, which the JS in
-channel-dodge.html does when ``DODGE_POLICY.continuous`` is set.
+The browser runtime accepts only this continuous actor format.
 
 Packed float32 blob layout (little-endian, the order the JS reads):
     net.0.weight [256,271], net.0.bias [256],
