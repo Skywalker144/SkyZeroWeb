@@ -1,16 +1,12 @@
-// Propagate main.js's `worker.js?v=<ts>` cache-bust to importScripts: without
-// it, _headers' max-age=3600 makes the browser keep serving stale gomoku.js /
-// mcts.js even when the worker itself is refreshed.
 const _qs = self.location.search || ("?v=" + Date.now());
-importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js");
+importScripts("onnx-worker-runtime.js" + _qs);
+SkyZeroOnnxRuntime.loadOnnxRuntime(self);
 importScripts("gomoku.js" + _qs);
 importScripts("mcts.js" + _qs);
-
-ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/";
-ort.env.wasm.numThreads = 1;   // SharedArrayBuffer cross-origin fragility; force single-thread
+importScripts("gomoku-inference.js" + _qs);
 
 // --- module-level state ---
-let session = null;
+let inferenceRuntime = null;
 let game = null;
 let mcts = null;
 let root = null;
@@ -18,7 +14,6 @@ let currentBoardSize = 15;
 let currentRule = "renju";
 let latestSearchId = 0;
 const NN_CACHE_LIMIT = 8192;
-const nnCache = new Map();
 let currentPda = 0.5;
 const SEARCH_FACTOR_WHEN_WINNING_THRESHOLD = 0.95;
 const SEARCH_FACTOR_WHEN_WINNING = 0.30;
@@ -35,197 +30,19 @@ let recentAiWinLossValues = [];
 // Tree reuse accumulates visits across moves, so near the endgame the root is
 // often already well-searched — once it hits this we stop and play, instead of
 // spending the full thinking time re-deepening a settled tree. Kept equal to the
-// ponder cap (main.js ANALYSIS_CAP_MIN) so the AI's move-search and the
+// ponder cap (gomoku-view.js ANALYSIS_CAP_MIN) so the AI's move-search and the
 // human's-turn analysis settle at the same depth.
 const SEARCH_VISIT_CAP = 2000;
-
-// --- helpers ---
-
-function concatChunks(chunks, total) {
-    const result = new Uint8Array(total);
-    let offset = 0;
-    for (const c of chunks) { result.set(c, offset); offset += c.length; }
-    return result;
-}
-
-async function fetchModelWithProgress(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`fetch ${url} → ${response.status}`);
-    const total = Number(response.headers.get("Content-Length")) || 0;
-    if (!response.body) {
-        const buf = await response.arrayBuffer();
-        postMessage({ type: "model-progress", percent: 100, loaded: buf.byteLength, total: buf.byteLength });
-        return new Uint8Array(buf);
-    }
-    const reader = response.body.getReader();
-    const chunks = [];
-    let loaded = 0;
-    if (total > 0) postMessage({ type: "model-progress", percent: 0, loaded: 0, total });
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        loaded += value.length;
-        const percent = total > 0 ? (loaded / total) * 100 : null;
-        postMessage({ type: "model-progress", percent, loaded, total: total || null });
-    }
-    postMessage({ type: "model-progress", percent: 100, loaded, total: total || loaded });
-    return concatChunks(chunks, total || loaded);
-}
-
-/**
- * Run one ONNX forward pass for `state` (board_size × board_size) with
- * current player `toPlay`. Returns the un-padded heatmap arrays the UI
- * wants, plus raw masked logits for MCTS.
- */
-function transformSpatial(input, channels, size, rotation, flip) {
-    const area = size * size;
-    const output = new Float32Array(input.length);
-    for (let channel = 0; channel < channels; channel++) {
-        for (let row = 0; row < size; row++) {
-            for (let col = 0; col < size; col++) {
-                const [tr, tc] = transformCoord(
-                    row, col, size, rotation, flip);
-                output[channel * area + tr * size + tc] =
-                    input[channel * area + row * size + col];
-            }
-        }
-    }
-    return output;
-}
-
-function undoSpatial(input, channels, size, rotation, flip) {
-    const area = size * size;
-    const output = new Float32Array(input.length);
-    for (let channel = 0; channel < channels; channel++) {
-        for (let row = 0; row < size; row++) {
-            for (let col = 0; col < size; col++) {
-                const [tr, tc] = transformCoord(
-                    row, col, size, rotation, flip);
-                output[channel * area + row * size + col] =
-                    input[channel * area + tr * size + tc];
-            }
-        }
-    }
-    return output;
-}
-
-function cacheKey(state, toPlay, isRoot) {
-    return `${currentBoardSize}|${currentRule}|${toPlay}`
-        + `|pda=${currentPda}|pdaPla=${currentPdaPla}`
-        + `|${isRoot ? "root" : "child"}|`
-        + Array.from(state).join("");
-}
-
-function cachePut(key, value) {
-    if (nnCache.has(key)) nnCache.delete(key);
-    nnCache.set(key, value);
-    if (nnCache.size > NN_CACHE_LIMIT) {
-        nnCache.delete(nnCache.keys().next().value);
-    }
-}
 
 async function inference(
     state, toPlay, isRoot = false,
     policyOptimism = isRoot
         ? SEARCH_ROOT_POLICY_OPTIMISM : TREE_POLICY_OPTIMISM
 ) {
-    if (!session) throw new Error("session not ready");
-    const M = MAX_BOARD_SIZE, A = M * M;         // padded canvas (from gomoku.js)
-    const N = currentBoardSize, NA = N * N;      // game canvas
-
-    let ply = 0;
-    for (let i = 0; i < state.length; i++) if (state[i] !== 0) ply++;
-
-    const spatial = game.encodeState(state, toPlay);
-    const globalF = game.computeGlobalFeatures(
-        ply, toPlay, 0, currentPda, currentPdaPla);
-    const key = cacheKey(state, toPlay, isRoot);
-    let raw = nnCache.get(key);
-    if (raw) {
-        nnCache.delete(key);
-        nnCache.set(key, raw);
-    } else {
-        const transformType = Math.floor(Math.random() * 8);
-        const rotation = transformType % 4;
-        const flip = transformType >= 4;
-        const transformed = transformSpatial(
-            spatial, 5, M, rotation, flip);
-        const feeds = {
-            input_spatial: new ort.Tensor(
-                "float32", transformed, [1, 5, M, M]),
-            input_global: new ort.Tensor(
-                "float32", globalF, [1, 7]),
-        };
-        const out = await session.run(feeds);
-        raw = {
-            policy: undoSpatial(
-                out.policy_logits.data, 5, M, rotation, flip),
-            valueLogits: new Float32Array(
-                out.value_wdl_logits.data),
-            stErrorSquared: out.value_st_error_sq.data[0],
-        };
-        cachePut(key, raw);
-    }
-
-    const policyAll = raw.policy;              // (5, 225)
-    const wdlLogits = raw.valueLogits;         // (3)
-
-    // --- crop policy channels 0 (main) and 1 (opp) from padded → board area ---
-    function cropChannel(channelIdx) {
-        const cropped = new Float32Array(NA);
-        for (let r = 0; r < N; r++) {
-            for (let c = 0; c < N; c++) {
-                cropped[r * N + c] = policyAll[channelIdx * A + r * M + c];
-            }
-        }
-        return cropped;
-    }
-    const policyMainRaw = cropChannel(0);
-    const policyOppRaw  = cropChannel(1);
-    const policyOptRaw  = cropChannel(4);
-
-    // --- mask illegal + softmax ---
-    const legal = game.getLegalActions(state, toPlay);
-    const optimism = Math.max(0, Math.min(1, policyOptimism));
-    const policyPriorMasked = new Float32Array(NA);
-    const policyMainMasked = new Float32Array(NA);
-    for (let i = 0; i < NA; i++) {
-        const blended = policyMainRaw[i]
-            + (policyOptRaw[i] - policyMainRaw[i]) * optimism;
-        policyPriorMasked[i] = legal[i] ? blended : -Infinity;
-        policyMainMasked[i] = legal[i] ? policyMainRaw[i] : -Infinity;
-    }
-    const policyPriorSoft = new Float32Array(
-        softmax(policyPriorMasked));
-    const policyMainSoft = new Float32Array(softmax(policyMainMasked));
-
-    const policyOppMasked = new Float32Array(NA);
-    for (let i = 0; i < NA; i++) {
-        policyOppMasked[i] = legal[i] ? policyOppRaw[i] : -Infinity;
-    }
-    const policyOppSoft = new Float32Array(
-        softmax(policyOppMasked));
-    const policyOptMasked = new Float32Array(NA);
-    for (let i = 0; i < NA; i++) {
-        policyOptMasked[i] = legal[i] ? policyOptRaw[i] : -Infinity;
-    }
-    const policyOptSoft = new Float32Array(
-        softmax(policyOptMasked));
-
-    // --- value WDL: softmax 3 logits ---
-    const wdl = softmax(new Float64Array([wdlLogits[0], wdlLogits[1], wdlLogits[2]]));
-    const wdlF64 = new Float64Array([wdl[0], wdl[1], wdl[2]]);
-
-    return {
-        policyPriorSoft,                   // effective root/tree prior
-        policyPriorMaskedLogits: policyPriorMasked,
-        policyMainSoft,                    // unblended main-policy UI heatmap
-        policyOppSoft,                     // UI heatmap
-        policyOptSoft,                     // optimistic-policy UI heatmap
-        wdl: wdlF64,                       // root nn value
-        stError: Math.sqrt(Math.max(0, raw.stErrorSquared)),
-    };
+    return inferenceRuntime.evaluate(state, toPlay, {
+        isRoot,
+        policyOptimism,
+    });
 }
 
 async function initSession(modelUrl, boardSize, rule) {
@@ -257,12 +74,18 @@ async function initSession(modelUrl, boardSize, rule) {
         root_symmetry_pruning: true,
     });
     root = null;
-    nnCache.clear();
-    const bytes = await fetchModelWithProgress(modelUrl);
-    session = await ort.InferenceSession.create(bytes, {
-        executionProviders: ["wasm"],
-        intraOpNumThreads: 1,
-        interOpNumThreads: 1,
+    inferenceRuntime = new GomokuInferenceRuntime.GomokuInference({
+        ort,
+        softmax,
+        transformCoord,
+        maxBoardSize: MAX_BOARD_SIZE,
+        boardSize: currentBoardSize,
+        game,
+        cacheSize: NN_CACHE_LIMIT,
+    });
+    inferenceRuntime.setConditioning(currentPda, currentPdaPla);
+    await inferenceRuntime.load(modelUrl, progress => {
+        postMessage({ type: "model-progress", ...progress });
     });
     postMessage({ type: "ready" });
 }
@@ -275,11 +98,15 @@ function resetGame(boardSize, rule) {
     if (sizeChanged || ruleChanged) {
         game = new Gomoku(currentBoardSize, currentRule);
         if (mcts) mcts.game = game;   // keep MCTS bound to the live game
+        if (inferenceRuntime) inferenceRuntime.setGame(game, currentBoardSize);
     }
     if (root && mcts) mcts.clear(root);
     root = null;
-    nnCache.clear();
+    if (inferenceRuntime) inferenceRuntime.clear();
     currentPdaPla = 0;
+    if (inferenceRuntime) {
+        inferenceRuntime.setConditioning(currentPda, currentPdaPla);
+    }
     recentAiWinLossValues = [];
 }
 
@@ -291,8 +118,8 @@ function setPdaReference(pdaPla) {
     if (currentPdaPla === pdaPla) return;
     if (root && mcts) mcts.clear(root);
     root = null;
-    nnCache.clear();
     currentPdaPla = pdaPla;
+    inferenceRuntime.setConditioning(currentPda, currentPdaPla);
     recentAiWinLossValues = [];
 }
 
@@ -303,8 +130,8 @@ function setPdaMagnitude(pda) {
     if (currentPda === pda) return;
     if (root && mcts) mcts.clear(root);
     root = null;
-    nnCache.clear();
     currentPda = pda;
+    inferenceRuntime.setConditioning(currentPda, currentPdaPla);
     recentAiWinLossValues = [];
 }
 
@@ -540,11 +367,11 @@ async function runSearch(
     const visitDist = mcts.getMCTSPolicy(root);
     const playSelectionDist = mcts.getPlaySelectionPolicy(root);
     // Per-move win rate (root player's view) for the candidate list. NaN where
-    // unvisited; structured clone preserves NaN so main.js can tell "no data".
+    // unvisited; structured clone preserves NaN so gomoku-game.js can tell "no data".
     const winrateDist = mcts.getMCTSWinrate(root);
     const lcbData = mcts.getLcb(root);
     // Cumulative root visits across tree-reuse chunks — the analysis ponder's
-    // depth so far. main.js drives the continuous search off this.
+    // depth so far. gomoku-game.js drives the continuous search off this.
     let rootVisits = 0;
     for (const ch of root.children) rootVisits += ch.n;
 
@@ -553,7 +380,6 @@ async function runSearch(
         searchId: externalSearchId,
         policyOnly,
         selectedAction,
-        gumbelAction: selectedAction, // compatibility with cached older main.js
         rootValueWDL: rootValue,
         nnValueWDL,                           // [W, D, L] root NN
         mctsVisits:    Array.from(visitDist),
@@ -598,16 +424,13 @@ onmessage = async (e) => {
             setPdaMagnitude(data.pda);
         } else if (data.type === "swap-model") {
             latestSearchId++;
-            session = null;
+            inferenceRuntime.session = null;
             if (root && mcts) mcts.clear(root);
             root = null;
-            nnCache.clear();
+            inferenceRuntime.clear();
             recentAiWinLossValues = [];
-            const bytes = await fetchModelWithProgress(data.modelUrl);
-            session = await ort.InferenceSession.create(bytes, {
-                executionProviders: ["wasm"],
-                intraOpNumThreads: 1,
-                interOpNumThreads: 1,
+            await inferenceRuntime.load(data.modelUrl, progress => {
+                postMessage({ type: "model-progress", ...progress });
             });
             postMessage({ type: "ready" });
         }
