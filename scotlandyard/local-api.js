@@ -19,7 +19,7 @@ function resetWorker(error) {
 }
 function rpc(message) {
   if (!worker) {
-    worker = new Worker(asset('./inference-worker.js'));
+    worker = new Worker(asset(`./inference-worker.js?v=${Date.now()}`));
     worker.onmessage = ({data}) => {
       const job = pending.get(data.id); if (!job) return;
       if (data.progress) { progressListener({...data.progress, model:job.model}); return; }
