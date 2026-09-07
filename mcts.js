@@ -842,6 +842,7 @@ if (typeof module !== "undefined" && module.exports) {
         uncertaintyWeight,
         valueWeightCdf,
         searchFactorWhenWinning,
+        transformCoord,
         boardSymmetries,
         rootSymmetryMask,
     };
