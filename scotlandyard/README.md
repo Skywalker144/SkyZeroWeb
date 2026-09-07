@@ -1,6 +1,6 @@
 # ScotlandYard
 
-SkyZeroWeb 的纯静态 ScotlandYard 页面，入口 `../scotlandyard.html`，地图、布局、主题、移动动画和操作模块来自 ScotlandYardRL V0.11 的统一 Web。
+SkyZeroWeb 的纯静态 ScotlandYard 页面，入口 `index.html`，地图、布局、主题、移动动画和操作模块来自 ScotlandYardRL V0.11 的统一 Web。
 
 玩家固定为 Evader，3 名 Pursuer 使用浏览器 Worker 内的 ONNX Runtime Web WASM 纯网络确定性推理。按网络选出的顺序逐个解码动作，动态避让其他 Pursuer；无搜索。模型只接收公开信息，不包含 Evader 私有位置，也不导出训练用 critic。
 
@@ -14,7 +14,7 @@ SkyZeroWeb 的纯静态 ScotlandYard 页面，入口 `../scotlandyard.html`，�
 
 ## 本地运行
 
-在 SkyZeroWeb 根目录执行 `python3 serve.py`，打开 `/scotlandyard.html`。也可用任意静态 HTTP 服务。需要 HTTP localhost 或 HTTPS；首次使用需联网获取固定版本 `onnxruntime-web@1.17.0` 的 CDN JS/WASM 和本站 ONNX 权重。无需 Python 游戏服务器或 GPU。文件直接兼容现有 Cloudflare Pages 静态部署；本次没有发布站点。
+在 SkyZeroWeb 根目录执行 `python3 serve.py`，打开 `/scotlandyard/`。也可用任意静态 HTTP 服务。需要 HTTP localhost 或 HTTPS；首次使用需联网获取固定版本 `onnxruntime-web@1.17.0` 的 CDN JS/WASM 和本站 ONNX 权重。无需 Python 游戏服务器或 GPU。文件直接兼容现有 Cloudflare Pages 静态部署。
 
 ## 导出与验证
 
