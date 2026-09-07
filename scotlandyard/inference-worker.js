@@ -1,7 +1,6 @@
-// Dedicated worker keeps ONNX model initialization and inference off the UI thread.
-importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js');
-ort.env.wasm.numThreads = 1;
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
+const assetQuery = self.location.search || `?v=${Date.now()}`;
+importScripts('../onnx-worker-runtime.js' + assetQuery);
+SkyZeroOnnxRuntime.loadOnnxRuntime(self);
 let session = null;
 let model = null;
 function tensor(spec, values) {
