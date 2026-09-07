@@ -654,26 +654,44 @@ async function replaceGame(request, {busyKind: nextBusyKind, loadingMessage, suc
     if (oldGameId && oldGameId !== session.gameId) {
       api(`/api/games/${oldGameId}`, {method: 'DELETE'}).catch(() => {});
     }
+    return true;
   } catch (error) {
     showError(error);
+    return false;
   } finally {
     setBusy(null);
   }
 }
 
-async function start() {
+async function start(seed = nextSeed, {
+  loadingMessage = '正在加载对手。',
+  successMessage = () => '对局已开始。',
+} = {}) {
   if (actionInFlight || !session.catalogReady) return;
-  await replaceGame(gameCreationRequest({
+  return replaceGame(gameCreationRequest({
     ruleset: 'finite_tickets_v0',
     pursuer_strategy: $('quick-pursuer').value,
     evader_strategy: 'human',
     pursuer_action_mode: 'deterministic_argmax',
     az_simulations: 0,
-  }, nextSeed), {
+  }, seed), {
     busyKind: 'start',
-    loadingMessage: '正在加载对手。',
-    successMessage: () => '对局已开始。',
+    loadingMessage,
+    successMessage,
   });
+}
+
+async function switchPursuer() {
+  if (actionInFlight || !session.catalogReady) return;
+  const currentModel = session.gameMetadata?.selection.pursuer_strategy;
+  const selectedModel = $('quick-pursuer').value;
+  if (selectedModel === currentModel) return;
+  const selectedLabel = $('quick-pursuer').selectedOptions[0]?.textContent || selectedModel;
+  const switched = await start(session.gameMetadata?.seed ?? nextSeed, {
+    loadingMessage: `正在切换到 ${selectedLabel}。`,
+    successMessage: () => `已切换到 ${selectedLabel}，对局已重置。`,
+  });
+  if (!switched && currentModel) $('quick-pursuer').value = currentModel;
 }
 
 async function startNewSeedGame() {
@@ -743,7 +761,7 @@ async function loadCatalog() {
     option.textContent = model.id.startsWith('az-') ? 'AZ' : 'PPO GNN';
     return option;
   }));
-  $('quick-pursuer').value = 'az-selfplay-000330';
+  $('quick-pursuer').value = 'az-selfplay-000360';
   session.catalogReady = true;
 }
 
@@ -753,7 +771,7 @@ function syncQuickStrategies() {
 }
 
 function bindEvents() {
-  $('quick-pursuer').addEventListener('change', refreshActionAvailability);
+  $('quick-pursuer').addEventListener('change', switchPursuer);
   $('error-dismiss').addEventListener('click', clearError);
   $('error-recover').addEventListener('click', () => location.reload());
   $('loading-retry').addEventListener('click', () => location.reload());
