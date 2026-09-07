@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>SkyZero · 2048</title>
+  <link rel="preload" href="/shared/fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/shared/fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/shared/fonts/Manrope-Bold.woff2"  as="font" type="font/woff2" crossorigin>
+  <!-- Kick off the onnxruntime-web WASM runtime download in parallel with page
+       boot; otherwise it's fetched late (worker spins up -> ort.min.js loads ->
+       model downloads -> only then the wasm), serializing the two big cold-cache
+       downloads. Only helps the first visit — the file is immutable for a year.
+       SIMD build covers all modern browsers; a non-SIMD one just wastes this hint
+       and falls back to ort-wasm.wasm. Version MUST match worker.js's @1.17.0. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preload" as="fetch" crossorigin
+        href="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort-wasm-simd.wasm">
+  <script>
+    // Reuse the same theme/lang prefs as the Gomoku page so style stays
+    // consistent across the two games.
+    (function(){
+      try {
+        var saved = localStorage.getItem('skz_theme');
+        var mode = (saved === 'light' || saved === 'dark') ? saved : 'auto';
+        var resolved = (mode === 'auto')
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : mode;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.dataset.themeMode = mode;
+      } catch(e) {
+        document.documentElement.dataset.theme = 'light';
+        document.documentElement.dataset.themeMode = 'auto';
+      }
+    })();
+    (function(){
+      try {
+        var lang = localStorage.getItem('skz_lang');
+        if (lang !== 'zh' && lang !== 'en') lang = 'zh';
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+      } catch(e) {
+        document.documentElement.lang = 'zh-CN';
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/shared/base.css?v=20260907">
+  <!-- Pin the leaderboard to 2048 so the dodge board doesn't show here. -->
+  <script>window.SKZ_LB_GAME = '2048';</script>
+  <script defer src="/shared/leaderboard.js?v=20260703"></script>
+  <link rel="stylesheet" href="/2048/style.css?v=20260907">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <a class="brand-title" href="/" title="返回首页" id="brand_link"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · 2048</span></a>
+      </div>
+    </header>
+
+    <div class="g2048-app">
+      <div class="g2048-scores">
+        <div class="g2048-score">
+          <div class="g2048-score-label" id="lbl_score">分数</div>
+          <div class="g2048-score-value" id="score">0</div>
+        </div>
+        <div class="g2048-score">
+          <div class="g2048-score-label" id="lbl_best">最高分</div>
+          <div class="g2048-score-value" id="best">0</div>
+        </div>
+      </div>
+      <div class="g2048-actions">
+        <button class="btn primary" id="new_btn">新对局</button>
+        <button class="btn danger-ghost" id="undo_btn" disabled>撤销</button>
+        <button class="btn" id="ai_auto_btn" aria-pressed="false" disabled><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管</button>
+      </div>
+      <div class="g2048-ai-speed" id="ai_speed_row">
+        <div class="g2048-speed-track">
+          <span class="g2048-speed-end" id="ai_speed_fast">更快 更弱</span>
+          <span class="g2048-speed-wrap">
+            <input type="range" id="ai_speed" min="50" max="2000" step="10" value="330"
+                   aria-label="AI 速度 / 强度" aria-describedby="ai_speed_val">
+            <span class="g2048-speed-default" aria-hidden="true"></span>
+          </span>
+          <span class="g2048-speed-end" id="ai_speed_strong">更慢 更强</span>
+        </div>
+        <output class="g2048-speed-val" id="ai_speed_val" for="ai_speed"></output>
+      </div>
+      <div class="g2048-ai-status" id="ai_status"></div>
+      <div class="g2048-board" id="g2048_board" tabindex="0" aria-label="2048 board">
+        <div class="g2048-grid" id="grid"></div>
+        <div class="g2048-tiles" id="tiles"></div>
+        <div class="g2048-overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlay_title">
+          <div class="g2048-overlay-title" id="overlay_title">游戏结束</div>
+          <div class="g2048-overlay-note" id="overlay_note" hidden></div>
+          <button class="btn primary" id="overlay_btn">再来一局</button>
+        </div>
+      </div>
+      <!-- Mobile leaderboard mount: leaderboard.js fills this in below the
+           board on narrow screens (desktop uses the left dock instead). -->
+      <div class="skz-lb-inline" id="skz-lb-inline"></div>
+    </div>
+  </div>
+
+  <script src="/2048/app.js?v=20260907"></script>
+</body>
+</html>
