@@ -44,7 +44,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260730-2">
+  <link rel="stylesheet" href="style.css?v=20260907">
 </head>
 <body class="gomoku-page">
   <script>
@@ -110,7 +110,7 @@
              (mirrors 模型) + a fixed-width trigger showing the current seconds, which
              opens the slider in a popover — so the toolbar no longer carries the full
              inline slider, and the fixed width stops the bar reflowing as the value
-             changes. On phones the panel is position:fixed (anchored by main.js) so
+             changes. On phones the panel is position:fixed (anchored by gomoku-controls.js) so
              it escapes #play_row's overflow:hidden instead of being clipped. -->
         <div class="tb-group" id="think_time_wrap">
           <span class="tb-label" data-i18n="tb_label_think">思考</span>
@@ -450,7 +450,7 @@
     </div>
 
     <!-- Mobile-only bottom bar: the Settings control is relocated here on ≤720px
-         (by initSettingsPlacement in main.js) so the top toolbar stays tidy -->
+         (by initSettingsPlacement in gomoku-controls.js) so the top toolbar stays tidy -->
     <div class="mobile-actionbar" id="mobile_actionbar"></div>
 
     <!-- Model loading starts only after the user chooses a difficulty. -->
@@ -489,11 +489,11 @@
   </div>
 
   <!-- Size the board canvas to its final dimensions BEFORE the blocking game
-       scripts below (i18n/gomoku/mcts/main, ~100ms to load) run. Otherwise the
-       browser paints the canvas at its 300×150 default first, then main.js's
+       scripts below load. Otherwise the
+       browser paints the canvas at its 300×150 default first, then gomoku-view.js's
        syncBoardSize() resizes it once it finally executes — jumping the board
        box and the side columns pinned to its height. This mirrors the first run
-       of syncBoardSize() in main.js; keep the formula in sync with it. -->
+       of syncBoardSize() in gomoku-view.js; keep the formula in sync with it. -->
   <script>
   (function(){
     var cv = document.getElementById("board");
@@ -530,8 +530,11 @@
   </script>
   <script src="i18n.js?v=20260730-2"></script>
   <script src="gomoku.js?v=20260729"></script>
-  <script src="mcts.js?v=20260730"></script>
-  <script src="main.js?v=20260802-1"></script>
+  <script src="gomoku-context.js?v=20260907"></script>
+  <script src="gomoku-view.js?v=20260907"></script>
+  <script src="gomoku-game.js?v=20260907"></script>
+  <script src="gomoku-controls.js?v=20260907"></script>
+  <script src="main.js?v=20260907"></script>
   <script src="seg-slide.js?v=20260702"></script>
 </body>
 </html>
