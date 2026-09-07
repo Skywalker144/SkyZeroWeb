@@ -1,0 +1,5 @@
+/gomoku /gomoku/index.html 200
+/gomoku/:model /gomoku/index.html 200
+/2048 /2048/index.html 200
+/channel-dodge /channel-dodge/index.html 200
+/mcts-tree /gomoku/tree/index.html 200

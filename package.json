@@ -2,8 +2,9 @@
   "name": "skyzeroweb",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-    "dev": "python3 serve.py",
+  "scripts": {
+    "dev": "python3 scripts/serve.py",
+    "dev:cloudflare": "wrangler pages dev",
     "test": "node --test 'tests/test_*.mjs'"
   }
 }

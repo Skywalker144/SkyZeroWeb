@@ -1,0 +1,20 @@
+/api/*
+  Cache-Control: no-store
+
+/gomoku/models/*.onnx
+  Cache-Control: public, max-age=31536000, immutable
+
+/2048/models/*.onnx
+  Cache-Control: public, max-age=31536000, immutable
+
+/scotlandyard/models/*.onnx
+  Cache-Control: public, max-age=31536000, immutable
+
+/gomoku/models/manifest.json
+  Cache-Control: public, max-age=300
+
+/*.js
+  Cache-Control: public, max-age=3600
+
+/*.css
+  Cache-Control: public, max-age=3600

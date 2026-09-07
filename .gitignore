@@ -4,7 +4,7 @@
 .vscode/
 *.swp
 
-# Python (export_onnx.py byproducts)
+# Python
 __pycache__/
 *.pyc
 
@@ -18,10 +18,6 @@ node_modules/
 .superpowers/
 origin_models/
 
-# Keep the repository documentation index; other local docs stay unpublished.
-docs/*
-!docs/README.md
-
-# Internal audit reports — enumerate vulnerabilities, so keep them out of the
-# public repo / "source is the product" Pages deploy. Stay local-only.
+# Internal audit reports stay local-only.
 AUDIT_*.md
+docs/audits/
