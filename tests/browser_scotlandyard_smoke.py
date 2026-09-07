@@ -46,15 +46,26 @@ with sync_playwright() as p:
     page.wait_for_function("document.querySelector('#app').classList.contains('has-game')",timeout=120000)
     page.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)
     print('RESTORED',page.locator('#turn-label').inner_text(),flush=True)
+    previous_game=json.loads(page.evaluate("sessionStorage.getItem('skz_scotland_game_v1')"))
     page.locator('#quick-pursuer').select_option('ppo-gnn-000500')
-    page.locator('#new-seed-game').click()
+    page.locator('#model-loading:not([hidden])').wait_for(timeout=10000)
+    assert page.locator('#loading-title').inner_text()=='正在下载 PPO GNN 权重'
     page.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)
+    switched_game=json.loads(page.evaluate("sessionStorage.getItem('skz_scotland_game_v1')"))
+    assert switched_game['id'] != previous_game['id']
+    assert switched_game['metadata']['seed'] == previous_game['metadata']['seed']
+    assert switched_game['model']['id']=='ppo-gnn-000500'
+    assert switched_game['game']['state']['round']==1
     assert page.locator('#match-pursuer').inner_text()=='PPO Pursuer'
     print('PPO',page.locator('#match-pursuer').inner_text(),page.locator('#error').inner_text(),flush=True)
     page.locator('.move-btn').first.click()
     page.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)
     assert not page.locator('#error').is_visible()
     print('PPO MOVE',page.locator('#turn-label').inner_text(),page.locator('#error').inner_text(),flush=True)
+    page.locator('#quick-pursuer').select_option('az-selfplay-000360')
+    page.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)
+    assert page.locator('#match-pursuer').inner_text()=='AZ Pursuer'
+    assert json.loads(page.evaluate("sessionStorage.getItem('skz_scotland_game_v1')"))['game']['state']['round']==1
     # Verify browser WASM actions against the original PyTorch regression fixtures.
     catalog=json.loads((root/'scotlandyard/models.json').read_text())
     for model in catalog['pursuer']:
