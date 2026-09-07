@@ -64,7 +64,7 @@ function boot() {
     setBusy(true);
     elStatus.textContent = `加载模型 ${modelFile} …`;
     // _headers marks *.onnx immutable; version by the model's stable `params`
-    // (not Date.now) so the multi-MB blob is cached across loads, like main.js.
+    // (not Date.now) so the multi-MB blob is cached across loads, like gomoku-game.js.
     const ver = (elModel.selectedOptions[0] && elModel.selectedOptions[0].dataset.ver) || modelFile;
     worker.postMessage({
         type: "init",
