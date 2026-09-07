@@ -1,0 +1,406 @@
+{
+  "format_version": 1,
+  "pursuer": [
+    {
+      "id": "az-selfplay-000360",
+      "label": "AZ Selfplay · 360（默认）",
+      "kind": "onnx",
+      "game": {
+        "ruleset": "finite_tickets_v0",
+        "num_pursuers": 3,
+        "evader_start_mode": "random",
+        "evader_start_locations": [],
+        "pursuer_start_mode": "random",
+        "pursuer_start_locations": [],
+        "pursuer_history_length": 0,
+        "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+        "resolved_ruleset": {
+          "ruleset_id": "finite_tickets_v0",
+          "num_pursuers": 3,
+          "max_rounds": 23,
+          "reveal_rounds": [
+            3,
+            8,
+            13,
+            18
+          ],
+          "pursuer_initial_tickets": [
+            11,
+            8,
+            4
+          ],
+          "evader_initial_tickets": [
+            1000000,
+            1000000,
+            1000000,
+            5
+          ],
+          "double_move_enabled": false,
+          "forced_pass": "required-when-no-unoccupied-destination-v1",
+          "public_information": "ticket-reveal-uniform-support-v1",
+          "capture": "after-pursuer-joint-action-v1",
+          "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+          "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
+          "resource_fingerprint": "c62af59b214421e3",
+          "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+        },
+        "max_rounds": 23,
+        "reveal_rounds": [
+          3,
+          8,
+          13,
+          18
+        ]
+      },
+      "url": "./models/az-selfplay-000360.onnx",
+      "bytes": 1076427,
+      "sha256": "8599c123ebcf86ca234ab0c8675117032c8973fdad76c7203e2daf8e719c8920",
+      "source": "az_selfplay/data/finite_tickets_p3/checkpoints/checkpoint_000360.pth",
+      "source_sha256": "5deb4075ef3e9cd9116ff34e345a78d0cb213aa2c226b0688ce190e8b0ae9e15",
+      "inputs": [
+        {
+          "name": "history_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            23
+          ]
+        },
+        {
+          "name": "reveal_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "pursuer_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            3
+          ]
+        },
+        {
+          "name": "pursuer_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            3,
+            3
+          ]
+        },
+        {
+          "name": "evader_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "possible_mask",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            201
+          ]
+        },
+        {
+          "name": "round_scalar",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            1
+          ]
+        },
+        {
+          "name": "search_context",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "candidate_destinations",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            3,
+            13
+          ]
+        },
+        {
+          "name": "candidate_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            3,
+            13
+          ]
+        },
+        {
+          "name": "candidate_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            3,
+            13
+          ]
+        }
+      ],
+      "parity_decisions": 120
+    },
+    {
+      "id": "ppo-gnn-000500",
+      "label": "PPO GNN · 500",
+      "kind": "onnx",
+      "game": {
+        "ruleset": "finite_tickets_v0",
+        "num_pursuers": 3,
+        "evader_start_mode": "random",
+        "evader_start_locations": [],
+        "pursuer_start_mode": "random",
+        "pursuer_start_locations": [],
+        "pursuer_history_length": 0,
+        "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+        "resolved_ruleset": {
+          "ruleset_id": "finite_tickets_v0",
+          "num_pursuers": 3,
+          "max_rounds": 23,
+          "reveal_rounds": [
+            3,
+            8,
+            13,
+            18
+          ],
+          "pursuer_initial_tickets": [
+            11,
+            8,
+            4
+          ],
+          "evader_initial_tickets": [
+            1000000,
+            1000000,
+            1000000,
+            5
+          ],
+          "double_move_enabled": false,
+          "forced_pass": "required-when-no-unoccupied-destination-v1",
+          "public_information": "ticket-reveal-uniform-support-v1",
+          "capture": "after-pursuer-joint-action-v1",
+          "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+          "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
+          "resource_fingerprint": "c62af59b214421e3",
+          "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+        },
+        "max_rounds": 23,
+        "reveal_rounds": [
+          3,
+          8,
+          13,
+          18
+        ]
+      },
+      "url": "./models/ppo-gnn-000500.onnx",
+      "bytes": 2968894,
+      "sha256": "f39b41d8cbf89bda2ed6b81b4c7661e41c1d510c89af3514cd2bb4323a84ac9f",
+      "source": "ppo_pursuer/data/finite_tickets_p3_gnn_external/checkpoints/update_000500.pt",
+      "source_sha256": "a3b62a41022e1286606dcae20d66962b4aae88f9ef68dacfc2b50f85f525000c",
+      "inputs": [
+        {
+          "name": "history_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            23
+          ]
+        },
+        {
+          "name": "reveal_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "pursuer_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            3
+          ]
+        },
+        {
+          "name": "pursuer_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            3,
+            3
+          ]
+        },
+        {
+          "name": "evader_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "possible_mask",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            201
+          ]
+        },
+        {
+          "name": "round_scalar",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            1
+          ]
+        },
+        {
+          "name": "search_context",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "candidate_destinations",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            3,
+            13
+          ]
+        },
+        {
+          "name": "candidate_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            3,
+            13
+          ]
+        },
+        {
+          "name": "candidate_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            3,
+            13
+          ]
+        }
+      ],
+      "parity_decisions": 93
+    }
+  ],
+  "evader": [],
+  "default_game": {
+    "ruleset": "finite_tickets_v0",
+    "num_pursuers": 3,
+    "evader_start_mode": "random",
+    "evader_start_locations": [],
+    "pursuer_start_mode": "random",
+    "pursuer_start_locations": [],
+    "pursuer_history_length": 0,
+    "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+    "resolved_ruleset": {
+      "ruleset_id": "finite_tickets_v0",
+      "num_pursuers": 3,
+      "max_rounds": 23,
+      "reveal_rounds": [
+        3,
+        8,
+        13,
+        18
+      ],
+      "pursuer_initial_tickets": [
+        11,
+        8,
+        4
+      ],
+      "evader_initial_tickets": [
+        1000000,
+        1000000,
+        1000000,
+        5
+      ],
+      "double_move_enabled": false,
+      "forced_pass": "required-when-no-unoccupied-destination-v1",
+      "public_information": "ticket-reveal-uniform-support-v1",
+      "capture": "after-pursuer-joint-action-v1",
+      "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+      "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
+      "resource_fingerprint": "c62af59b214421e3",
+      "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+    },
+    "max_rounds": 23,
+    "reveal_rounds": [
+      3,
+      8,
+      13,
+      18
+    ]
+  },
+  "rulesets": {
+    "finite_tickets_v0": {
+      "ruleset": "finite_tickets_v0",
+      "num_pursuers": 3,
+      "evader_start_mode": "random",
+      "evader_start_locations": [],
+      "pursuer_start_mode": "random",
+      "pursuer_start_locations": [],
+      "pursuer_history_length": 0,
+      "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+      "resolved_ruleset": {
+        "ruleset_id": "finite_tickets_v0",
+        "num_pursuers": 3,
+        "max_rounds": 23,
+        "reveal_rounds": [
+          3,
+          8,
+          13,
+          18
+        ],
+        "pursuer_initial_tickets": [
+          11,
+          8,
+          4
+        ],
+        "evader_initial_tickets": [
+          1000000,
+          1000000,
+          1000000,
+          5
+        ],
+        "double_move_enabled": false,
+        "forced_pass": "required-when-no-unoccupied-destination-v1",
+        "public_information": "ticket-reveal-uniform-support-v1",
+        "capture": "after-pursuer-joint-action-v1",
+        "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+        "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
+        "resource_fingerprint": "c62af59b214421e3",
+        "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+      },
+      "max_rounds": 23,
+      "reveal_rounds": [
+        3,
+        8,
+        13,
+        18
+      ]
+    }
+  }
+}
