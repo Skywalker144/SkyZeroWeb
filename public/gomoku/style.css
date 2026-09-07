@@ -1,0 +1,1118 @@
+
+@media (max-width: 720px) {
+  body.gomoku-page .app { padding-inline: 4px; }
+}
+
+  /* ---------- Mobile topbar (≤720px) ----------
+     Desktop layout is untouched. Phones drop the language/theme toggles
+     entirely (system theme + default language are used instead); that frees
+     enough width to keep the brand suffix. The gomoku toolbar — which packs far
+     more controls — is also reflowed from a chaotic flex-wrap into three tidy
+     rows. The reorder/hide rules target gomoku-only classes (.tb-group/.tb-sep/
+     .tb-actions/.topbar-right), so the 2048/dodge headers stay a single brand
+     row. */
+  @media (max-width: 720px) {
+
+    /* divider + "模式"/"执子" labels: redundant once the segments stand alone */
+    .topbar .tb-sep,
+    .topbar .tb-label { display: none; }
+    /* ...but the dropdown groups keep their labels — a bare "3s" / model select
+       reads as contextless without "思考" / "模型". */
+    .topbar #think_time_wrap .tb-label,
+    .topbar #model_wrap .tb-label { display: inline-block; }
+
+    /* Brand row:  [SkyZero · Gomoku  状态] ............ [设置]
+       brand + status are a nowrap unit (.tb-brandrow) so 状态 can never wrap below
+       the brand — it shrinks instead (the pill ellipsizes; the brand keeps its
+       full suffix). 设置 (.topbar-right) parks at the far right via margin-left:auto
+       (so its popover anchors flush to the screen edge). The control rows sit below
+       in .tb-controls (its own flex-basis:100% block), so nothing here can shove
+       them around. */
+    .topbar .tb-brandrow {
+      order: 0; flex: 0 1 auto; min-width: 0;
+      display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 14px;
+    }
+    .topbar .tb-brandrow .brand-title { flex: 0 0 auto; }
+    .topbar .topbar-right { order: 1; margin-left: auto; }
+    .topbar .tb-group     { order: 2; flex: 1 1 auto; min-width: 0; }
+    .topbar .tb-group .seg-row { width: 100%; }
+    /* Custom dropdowns / trigger fill their group on phones, matching the seg-rows.
+       Think-time keeps the button + popover on phones too; the trigger fills its
+       half-cell, overriding the desktop fixed width. */
+    .topbar #model_wrap .custom-select,
+    .topbar #model_wrap .cs-trigger,
+    .topbar #think_time_wrap .think-select,
+    .topbar #think_time_wrap .cs-trigger { width: 100%; }
+    .topbar #think_time_wrap .cs-trigger {
+      position: relative; justify-content: center; text-align: center;
+    }
+    .topbar #think_time_wrap .cs-trigger .cs-caret {
+      position: absolute; right: 8px;
+    }
+    .topbar #think_time_wrap .think-section { width: 100%; min-width: 0; }
+    /* min-width:0 lets the range shrink below its ~132px intrinsic width — form
+       controls default to min-width:auto and otherwise overflow the panel on
+       narrow phones (e.g. 390px). */
+    .topbar #think_time_range { flex: 1 1 auto; width: auto; min-width: 0; }
+    /* The think-time panel is fixed-position (anchored under the trigger by
+       gomoku-controls.js) so it escapes #play_row's overflow:hidden instead of being clipped
+       by it; width clamps to the viewport on narrow screens. ID selector so it
+       beats .cs-menu's position:absolute / min-width:100% (same specificity, but
+       defined later in the file — it would otherwise win and re-clip the panel). */
+    #think_pop {
+      position: fixed; width: min(260px, calc(100vw - 24px)); min-width: 0;
+      transform: none;
+    }
+    .topbar .tb-actions   { order: 5; width: 100%; margin: 0; }
+    .topbar .tb-actions .btn { flex: 1; }
+
+    /* Status text is short + fixed-width now, so the pill keeps its width on row 1
+       (settings is parked far right by topbar-right's margin-left:auto); it may
+       shrink on very narrow screens rather than wrap the brand row. It must NOT
+       grow — flex-basis:0 + grow gets starved to 0 width by that auto margin, which
+       is what collapsed the pill. */
+    .topbar .status-pill { flex: 0 1 auto; min-width: 0; }
+
+    /* All controls live in .tb-controls, a flex-basis:100% block that owns its
+       own rows below the brand line — fully isolated from the brand/status/设置
+       row, so the controls always pair 2-up no matter how wide the brand line is
+       or how it wraps (the earlier bug: a wide brand line shoved 状态 down into
+       the controls, knocking every pair off by one). Inside it, three rows:
+         1) [对弈|分析]      [模型]
+         2) [黑棋|白棋]      [思考]   ← #play_row, play-only
+         3) [新对局]         [悔棋]
+       #play_row groups the two play-only controls so analysis mode folds that one
+       row as a vertical accordion (fold defined below). Each pair's basis sums to
+       100% with the gap, so it's always exactly two-up. */
+    .topbar .tb-controls {
+      order: 2; flex: 1 1 100%;
+      display: flex; flex-wrap: wrap; gap: 8px 14px; min-width: 0;
+    }
+    .topbar #model_wrap { order: 3; }
+    /* #model_wrap sits in the right half of row 1, so the menu's default left:0
+       anchor (it's wider than its half-cell trigger because of the ELO column)
+       spilled past the screen's right edge. Anchor its right edge to the trigger
+       instead so it opens leftward, into the viewport. */
+    .topbar #model_menu {
+      left: auto; right: 0; transform: none;
+    }
+    .topbar #play_row {
+      order: 4; display: flex; flex: 1 1 100%;
+      gap: 8px 14px; overflow: hidden; max-height: 3rem;
+    }
+    .tb-controls > .tb-group,
+    .topbar #play_row > .tb-group { flex: 1 1 calc(50% - 7px); }
+    /* #play_row stays in the layout (display:flex) and folds via plain
+       max-height/opacity/margin transitions — NOT display:none + @starting-style,
+       which setMode()'s synchronous syncBoardSize() (a forced layout flush right
+       after the class toggle) would skip, snapping instead of animating. A plain
+       property transition interpolates from the last painted value, so the flush
+       doesn't defeat it. margin-top:-8px swallows the row-gap so the actions row
+       meets the controls row with no end-snap. visibility flips to hidden only
+       AFTER the fold (delay = duration) to drop the clipped controls from the tab
+       order; expanding back, it's immediate. Gated on .tb-anim-ready (added
+       post-first-paint by gomoku-view.js) so it doesn't fold in on initial load. */
+    body.tb-anim-ready .topbar #play_row {
+      transition: max-height 0.28s ease, opacity 0.22s ease,
+                  margin-top 0.28s ease, visibility 0s;
+    }
+    body.tb-anim-ready.mode-analysis .topbar #play_row {
+      transition: max-height 0.28s ease, opacity 0.22s ease,
+                  margin-top 0.28s ease, visibility 0s 0.28s;
+    }
+    body.mode-analysis .topbar #play_row {
+      max-height: 0; opacity: 0; margin-top: -8px; visibility: hidden;
+    }
+  }
+
+  /* Respect reduced-motion: fold instantly instead of animating. */
+  @media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+    body.tb-anim-ready .topbar #play_row,
+    body.tb-anim-ready.mode-analysis .topbar #play_row { transition: none; }
+  }
+
+  .tb-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .tb-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--fg-subtle); white-space: nowrap;
+  }
+  .tb-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
+  .tb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Settings sits flush right; the action buttons (new/undo) pack left next to the
+     control groups rather than floating in the middle. */
+  .topbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  /* Mobile-only bottom bar holding the relocated Settings control (moved here by
+     initSettingsPlacement in gomoku-controls.js). */
+  .mobile-actionbar { display: none; }
+  @media (max-width: 720px) {
+    .mobile-actionbar { display: flex; margin-top: 12px; }
+    .mobile-actionbar .settings-wrap { width: 100%; }
+    .mobile-actionbar #settings_btn { width: 100%; }
+  }
+  /* Settings dialog — mirrors play_web.py's visual language without the
+     category sidebar: every current setting lives in one continuous panel. */
+  .settings-wrap { position: relative; }
+  body.settings-open { overflow: hidden; }
+  .settings-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    display: grid; place-items: center;
+    padding: 24px;
+    background: rgba(1, 4, 9, 0.52);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .settings-dialog {
+    width: min(680px, calc(100vw - 48px));
+    max-height: min(680px, calc(100dvh - 48px));
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.32);
+  }
+  .settings-header {
+    min-height: 68px; padding: 0 22px 0 26px;
+    display: flex; align-items: center; gap: 14px;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .settings-heading { min-width: 0; }
+  .settings-title {
+    margin: 0;
+    font-size: 19px; line-height: 1.25; font-weight: 650;
+    letter-spacing: -0.01em; color: var(--fg);
+  }
+  .settings-subtitle {
+    margin: 3px 0 0;
+    color: var(--fg-muted); font-size: 12px; line-height: 1.35;
+  }
+  .settings-close {
+    width: 34px; height: 34px; margin-left: auto; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--fg-muted); background: transparent;
+    border: 1px solid transparent; border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .settings-close:hover {
+    color: var(--fg); background: var(--surface-2);
+    border-color: var(--border);
+  }
+  .settings-close:focus-visible {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .settings-close svg { width: 17px; height: 17px; }
+  .settings-content {
+    min-width: 0; min-height: 0;
+    padding: 28px 32px 36px;
+    overflow-y: auto; overscroll-behavior: contain;
+    background: var(--surface);
+  }
+  .settings-panel { max-width: 610px; margin: 0 auto; }
+  .settings-panel-head { margin-bottom: 22px; }
+  .settings-panel-title {
+    margin: 0;
+    font-size: 22px; line-height: 1.25; font-weight: 650;
+    letter-spacing: -0.015em; color: var(--fg);
+  }
+  .settings-panel-desc {
+    margin: 6px 0 0; max-width: 560px;
+    color: var(--fg-muted); font-size: 13px; line-height: 1.55;
+  }
+  .settings-group {
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs, 0 1px 2px rgba(0,0,0,0.06));
+  }
+  .settings-item {
+    padding: 17px 18px;
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(210px, 1.15fr);
+    align-items: center; gap: 24px;
+  }
+  .settings-item + .settings-item { border-top: 1px solid var(--border); }
+  .settings-item-copy { min-width: 0; }
+  .settings-item-title {
+    display: block;
+    color: var(--fg); font-size: 13.5px; line-height: 1.35;
+    font-weight: 600;
+  }
+  .settings-item-desc {
+    display: block; margin-top: 4px;
+    color: var(--fg-muted); font-size: 11.5px; line-height: 1.45;
+  }
+  .settings-control {
+    min-width: 0;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .settings-seg,
+  .settings-palette,
+  .settings-control .size-control { width: 100%; }
+  .settings-palette { justify-content: center; }
+  @media (min-width: 721px) and (max-width: 860px) {
+    .settings-content { padding: 24px; }
+    .settings-item {
+      grid-template-columns: 1fr;
+      align-items: stretch; gap: 12px;
+    }
+  }
+  @media (max-width: 720px) {
+    .settings-modal { padding: 0; place-items: stretch; }
+    .settings-dialog {
+      width: 100%; height: 100dvh; max-height: none;
+      border: 0; border-radius: 0;
+    }
+    .settings-header { min-height: 62px; padding: 0 14px 0 18px; }
+    .settings-subtitle { display: none; }
+    .settings-content { flex: 1 1 auto; padding: 22px 16px 30px; }
+    .settings-panel-head { margin-bottom: 17px; }
+    .settings-panel-title { font-size: 20px; }
+    .settings-item {
+      padding: 16px;
+      grid-template-columns: 1fr;
+      align-items: stretch; gap: 12px;
+    }
+  }
+  /* Custom model dropdown — replaces the native <select>; the trigger shows the
+     short "LV3 高手" (each ELO lives in the menu rows) so it reads far narrower
+     than the full "LV3 高手 · ELO +1132" the native control rendered. */
+  .custom-select { position: relative; }
+  .cs-trigger {
+    display: inline-flex; align-items: center; justify-content: space-between; gap: 6px;
+    height: 32px; padding: 0 8px 0 10px;
+    background: var(--surface); color: var(--fg);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: var(--font-mono); font-size: 12.5px; cursor: pointer;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .cs-trigger:hover { border-color: var(--border-strong); }
+  .cs-trigger[aria-expanded="true"] {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .cs-trigger-label { white-space: nowrap; }
+  .cs-caret { width: 12px; height: 12px; color: var(--fg-muted); flex-shrink: 0; transition: transform 0.12s; }
+  .cs-trigger[aria-expanded="true"] .cs-caret { transform: rotate(180deg); }
+  .cs-menu {
+    position: absolute; left: 0; top: calc(100% + 6px); z-index: 500;
+    min-width: 100%; padding: 4px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .cs-option {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    height: 32px; padding: 0 10px;
+    background: transparent; border: none; border-radius: var(--radius-sm);
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--fg);
+    cursor: pointer; white-space: nowrap; text-align: left;
+    transition: background 0.12s;
+  }
+  .cs-option:hover { background: var(--surface-2); }
+  .cs-option[aria-selected="true"] { background: var(--surface-2); color: var(--accent); }
+  .cs-opt-elo { color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+  .cs-option[aria-selected="true"] .cs-opt-elo {
+    color: color-mix(in srgb, var(--accent) 70%, var(--fg-muted));
+  }
+  #model_trigger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 12px;
+    column-gap: 6px;
+  }
+  #model_trigger .cs-trigger-label {
+    position: static; transform: none;
+    justify-self: center; text-align: center;
+  }
+  #model_trigger .cs-caret {
+    position: static; justify-self: end;
+  }
+  #model_menu {
+    left: 50%; transform: translateX(-50%);
+    min-width: 200px;
+  }
+  #model_menu .cs-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 64px;
+    align-items: center; column-gap: 16px;
+    width: 100%;
+  }
+  #model_menu .cs-opt-name {
+    position: static; transform: none;
+    justify-self: start; text-align: left;
+  }
+  #model_menu .cs-opt-elo {
+    width: 64px; margin-left: 0;
+    justify-self: end; text-align: right;
+  }
+
+  /* Think-time popover — an external 思考 label sits in the toolbar next to a
+     fixed-width trigger showing the current seconds; the 6-stop slider lives in a
+     panel reusing the .cs-menu shell (model dropdown). The fixed trigger width
+     keeps the toolbar from reflowing as the value changes (0.5秒 ↔ 10秒). Gated by
+     .think-select.open (toggled in JS) rather than the .hidden class. On phones
+     the panel switches to position:fixed (mobile block) so it escapes #play_row's
+     overflow:hidden — gomoku-game.js anchors it under the trigger. */
+  .think-trigger { width: 70px; font-variant-numeric: tabular-nums; }
+  /* Reserve the model trigger's width too, so populating the label from its "—"
+     placeholder to "LVx 级名" once the manifest/model loads doesn't widen the
+     group and reflow the whole toolbar (the big load-time layout jump). */
+  #model_trigger { min-width: 100px; }
+  .think-pop {
+    left: 50%; transform: translateX(-50%);
+    width: 260px; min-width: 260px;
+    display: none; gap: 12px; padding: 13px 14px;
+  }
+  .think-select.open .think-pop { display: flex; }
+
+  /* Thinking-time and PDA style sliders. */
+  .think-section { display: flex; flex-direction: column; gap: 8px; }
+  .think-section-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    color: var(--fg); font-size: 12.5px; font-weight: 600;
+  }
+  .think-divider { height: 1px; background: var(--border); }
+  .think-toggle { width: 100%; padding: 0; }
+  .think-val {
+    min-width: 30px; font-family: var(--font-mono); font-size: 12.5px;
+    color: var(--fg); font-variant-numeric: tabular-nums; text-align: right;
+  }
+  .pda-scale {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    color: var(--fg-muted); font-size: 10.5px; line-height: 1;
+  }
+  .pda-scale span:last-child { text-align: right; }
+  .pda-scale span:nth-child(2) {
+    color: var(--fg); font-weight: 600;
+  }
+  .think-range {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 26px; background: transparent; cursor: pointer; margin: 0;
+  }
+  .think-range:disabled {
+    opacity: 0.45; cursor: not-allowed;
+  }
+  .think-range:disabled::-webkit-slider-runnable-track {
+    background: var(--surface-sunken); border-color: var(--border);
+  }
+  .think-range:disabled::-webkit-slider-thumb,
+  .think-range:disabled::-moz-range-thumb {
+    background: var(--surface-2); border-color: var(--border);
+    box-shadow: none;
+  }
+  /* Rounded "groove" track — same inset language as the segmented controls.
+     Content-box (the default): `height` is the inner height, so the thumb's
+     margin-top centering below stays simple. 24 inner + 2*1px border = 26,
+     matching the input height. */
+  .think-range::-webkit-slider-runnable-track {
+    height: 24px; border-radius: 8px;
+    background: var(--surface-sunken); border: 1px solid var(--border);
+  }
+  .think-range::-moz-range-track {
+    height: 24px; border-radius: 8px;
+    background: var(--surface-sunken); border: 1px solid var(--border);
+  }
+  /* Neutral rounded-rectangle thumb — the raised-pill look from the segmented
+     controls. Vertical centering (webkit): thumb total height = 18 + 2*1px
+     border = 20; track inner height = 24; margin-top = (24 − 20) / 2 = 2px.
+     Firefox centers ::-moz-range-thumb on its own, so no margin there. */
+  .think-range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 26px; height: 18px; margin-top: 2px;
+    border-radius: 6px; background: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 1px 2px var(--stone-shadow);
+  }
+  .think-range::-moz-range-thumb {
+    width: 26px; height: 18px;
+    border-radius: 6px; background: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 1px 2px var(--stone-shadow);
+  }
+  /* Dark mode: a near-black sunken groove reads as a harsh pit, so use the
+     gentler page bg for the track and a lighter raised thumb (matching the
+     segmented-control treatment). */
+  html[data-theme="dark"] .think-range::-webkit-slider-runnable-track,
+  html[data-theme="dark"] .think-range::-moz-range-track { background: var(--bg); }
+  html[data-theme="dark"] .think-range::-webkit-slider-thumb,
+  html[data-theme="dark"] .think-range::-moz-range-thumb { background: var(--surface-2); }
+  .think-range:focus { outline: none; }
+  .think-range:focus-visible::-webkit-slider-thumb {
+    border-color: var(--accent);
+    box-shadow: 0 1px 2px var(--stone-shadow), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .think-range:focus-visible::-moz-range-thumb {
+    border-color: var(--accent);
+    box-shadow: 0 1px 2px var(--stone-shadow), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  /* ---------- Main: win-rate chart · board · candidates + heatmaps ---------- */
+  .main {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr) 340px;
+    gap: 16px; align-items: start;
+  }
+  @media (max-width: 1180px) {
+    .main { grid-template-columns: 1fr; }
+    .board-col { order: -1; }
+  }
+  @media (max-width: 720px) {
+    /* Use the same vertical rhythm between every stacked mobile card. */
+    .main { gap: 12px; }
+  }
+  .board-col {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    min-width: 0;
+  }
+  /* Left column: win-rate chart (grows to fill) over a fixed-content stats card.
+     Column height is pinned to the board (syncBoardSize), so the chart takes
+     whatever the stats card leaves. */
+  .winrate-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; overflow-y: auto; }
+  .winrate-col .card { display: flex; flex-direction: column; min-height: 0; }
+  .winrate-col .chart-card { flex: 1 1 auto; min-height: 200px; }
+  .winrate-col .stats-card { flex: 0 0 auto; }
+  .winrate-col .card-body {
+    display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+    padding: 10px 14px; gap: 8px;
+  }
+  /* Right column: candidate list (fills) + collapsible heatmap drawer.
+     Its height is pinned to the board (syncBoardSize), so expanding the drawer
+     shrinks the candidate list rather than stretching the page. */
+  .analysis-col {
+    display: flex; flex-direction: column; gap: 12px;
+    min-width: 0; min-height: 0; overflow-y: auto;
+  }
+  /* Candidate marker palette swatches (Settings); background filled by JS. */
+  .swatch-btn {
+    flex: 1; height: 30px; padding: 0; cursor: pointer; background: #888;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    transition: box-shadow 0.12s, border-color 0.12s;
+  }
+  .swatch-btn:hover { border-color: var(--border-strong); }
+  /* Selected swatch: speak the same language as the segmented-control thumb —
+     an inset surface "pad" with the same lift shadow, plus a thin accent border
+     instead of a heavy halo. Padding stays at the track default so the swatch
+     corners stay concentric with the track (9px track − 3px pad = 6px). */
+  .swatch-btn[aria-pressed="true"] {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 2px var(--surface), 0 1px 2px var(--stone-shadow);
+  }
+  /* Palette row: keep the standard track padding (concentric corners); just a
+     hair more gap so a selected swatch's border/shadow has room to breathe. */
+  .seg-row.palette-row { gap: 4px; }
+  .seg-stone {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid var(--stone-outline);
+    flex-shrink: 0;
+  }
+  .seg-stone.black { background: radial-gradient(circle at 30% 30%, var(--stone-black-0), var(--stone-black-1)); }
+  .seg-stone.white { background: radial-gradient(circle at 30% 30%, var(--stone-white-0), var(--stone-white-1)); }
+  /* "Alternate" tool icon: left half black, right half white. */
+  .seg-stone.alt {
+    background: linear-gradient(90deg,
+      var(--stone-black-1) 0%, var(--stone-black-1) 50%,
+      var(--stone-white-1) 50%, var(--stone-white-1) 100%);
+  }
+  .board-actions {
+    display: flex; gap: 8px; width: 100%; max-width: 560px; justify-content: center;
+  }
+
+  /* Move-review bar (below the board while scrubbing past plies). */
+  .review-bar { align-items: center; }
+  .review-bar .btn { height: 32px; padding: 0 10px; flex: 0 0 auto; }
+  .review-bar .btn svg { width: 14px; height: 14px; display: block; }
+  .review-bar .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .review-bar .review-label {
+    flex: 1 1 auto; text-align: center;
+    font-family: var(--font-mono); font-size: 12px; color: var(--fg-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  }
+
+  /* Edit-position mode: swap the standard play actions for the edit toolbar.
+     Toolbar holds a 3-way tool palette (black / white / erase) plus the
+     done & cancel buttons, all on one row (wraps on narrow viewports). */
+  body:not(.editing) .edit-toolbar { display: none; }
+  .edit-toolbar { flex-wrap: wrap; }
+  .edit-toolbar .edit-tools {
+    flex: 1 1 220px;
+    display: flex; gap: 4px;
+  }
+  .edit-toolbar .edit-tools .seg-btn {
+    height: 34px; font-size: 13px; padding: 0 10px;
+  }
+  /* Three action buttons (undo / done / cancel) share the bottom row.
+     Tighter padding keeps the row roughly as wide as the previous two-button
+     layout while still fitting two-character Chinese / short English labels. */
+  .edit-toolbar #edit_undo_btn,
+  .edit-toolbar #edit_done_btn,
+  .edit-toolbar #edit_cancel_btn {
+    padding: 0 8px;
+  }
+  .edit-toolbar #edit_undo_btn[disabled] {
+    opacity: 0.5; cursor: not-allowed;
+  }
+  /* SVG inside the edit button + erase tool button has no intrinsic size,
+     so browsers default to 300×150 and blow out the button. */
+  #edit_btn svg {
+    width: 12px; height: 12px;
+    display: block; flex-shrink: 0;
+  }
+  .edit-toolbar .seg-btn svg {
+    width: 14px; height: 14px;
+    display: block; flex-shrink: 0;
+  }
+  /* While editing, lock the toolbar controls (mode / side / actions / settings):
+     changing those mid-edit would reset the board or desync the worker. The
+     user must commit or cancel first. */
+  body.editing #mode_seg,
+  body.editing #side_row,
+  body.editing .tb-actions,
+  body.editing .settings-wrap {
+    pointer-events: none;
+    opacity: 0.55;
+  }
+
+  /* ---------- Card ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+    min-width: 0;
+  }
+  /* Canvases must not blow out their grid/flex parents before JS sizes them. */
+  canvas { max-width: 100%; }
+  .card-body { padding: 8px 14px; }
+  .card-title {
+    font-size: 14px; line-height: 18px;
+    font-weight: 600; letter-spacing: 0.01em;
+    color: var(--fg-subtle);
+    margin: 0 0 4px;
+  }
+  .card-title-hint {
+    margin-left: 6px;
+    font-size: 11px; font-weight: 400; letter-spacing: 0;
+    text-transform: none; color: var(--fg-muted);
+  }
+  /* ---------- Status pill (in the toolbar) ---------- */
+  .status-pill {
+    display: inline-flex; align-items: center; justify-content: center; position: relative;
+    padding: 4px 12px 4px 10px;
+    border-radius: 999px;
+    font-size: 12.5px; font-weight: 500;
+    background: var(--surface-2); color: var(--fg);
+    border: 1px solid var(--border);
+    /* Fixed width so swapping between statuses ("空闲" / "AI 思考中…" / …) never
+       resizes the pill and shoves the toolbar controls sideways. Sized to the
+       longest normal CN label; English is wider (see the [lang=en] override).
+       The rare edit-invalid warning still ellipsizes. Mobile overrides this with
+       flex:1 1 0 below (flex-basis:0 makes this width inert there). */
+    width: 120px; flex-shrink: 0; overflow: hidden;
+  }
+  /* English labels ("Editing position", "Analysis ready") need more room than CN. */
+  html[lang="en"] .status-pill { width: 160px; }
+  .status-pill #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-pill .dot {
+    /* Absolutely pinned at its old spot (left padding, vertically centered) so it
+       stays put while the label centers across the full pill via justify-content.
+       Centered with margin (not transform) so the "thinking" pulse animation —
+       which animates transform:scale — doesn't clobber the vertical offset. */
+    position: absolute; left: 10px; top: 50%; margin-top: -4px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--fg-subtle);
+  }
+  .status-pill[data-variant="active"] { background: var(--success-bg); color: var(--success); border-color: transparent; }
+  .status-pill[data-variant="active"] .dot { background: var(--success); }
+  .status-pill[data-variant="thinking"] { background: var(--info-bg); color: var(--info); border-color: transparent; }
+  .status-pill[data-variant="thinking"] .dot { background: var(--info); animation: pulse 1.2s ease-in-out infinite; }
+  .status-pill[data-variant="info"] { background: var(--info-bg); color: var(--info); border-color: transparent; }
+  .status-pill[data-variant="info"] .dot { background: var(--info); }
+  .status-pill[data-variant="done"] { background: var(--done-bg); color: var(--done); border-color: transparent; }
+  .status-pill[data-variant="done"] .dot { background: var(--done); }
+  .status-pill[data-variant="warn"] { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+  .status-pill[data-variant="warn"] .dot { background: var(--warn); }
+  .status-pill[data-variant="error"] { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+  .status-pill[data-variant="error"] .dot { background: var(--danger); }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.35); opacity: 0.55; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .status-pill .dot { animation: none !important; }
+  }
+
+
+  /* ---------- Toggle ---------- */
+  .toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; cursor: pointer; user-select: none;
+    font-size: 13px; color: var(--fg);
+    padding: 6px 0;
+  }
+  .toggle input { position: absolute; opacity: 0; pointer-events: none; }
+  .toggle .track {
+    width: 30px; height: 18px; background: var(--border-strong); border-radius: 999px;
+    position: relative; transition: background 0.15s; flex-shrink: 0;
+  }
+  .toggle .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: transform 0.15s;
+  }
+  .toggle input:checked + .track { background: var(--accent); }
+  .toggle input:checked + .track::after { transform: translateX(12px); }
+  @media (prefers-reduced-motion: reduce) {
+    .toggle .track, .toggle .track::after { transition: none; }
+  }
+
+  /* ---------- Number input ---------- */
+  .field-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 2px 0;
+  }
+  .field-row label {
+    font-size: 13px; color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+  .num {
+    width: 104px; height: 32px; padding: 0 12px; font-size: 13px;
+    background: var(--surface); color: var(--fg);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .num:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .divider {
+    height: 1px; background: var(--border); margin: 4px 0;
+  }
+
+  .size-control {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 10px;
+  }
+  /* Board-size slider: neutral gray rail + ink knob, no left-side fill — matches
+     the 2048 #ai_speed slider and keeps saturated colour reserved for the brand
+     (the old accent-color:var(--accent) left it the lone blue control here). */
+  .size-control input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; min-width: 0; height: 30px; margin: 0;
+    background: transparent; cursor: pointer;
+  }
+  .size-control input[type="range"]::-webkit-slider-runnable-track {
+    height: 8px; border-radius: 999px;
+    background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .size-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; margin-top: -5px;   /* (8-18)/2 — ride on rail */
+    border-radius: 50%; background: var(--fg);
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .size-control input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 1px 5px rgba(0,0,0,.38); }
+  .size-control input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.15); }
+  .size-control input[type="range"]::-moz-range-track {
+    height: 8px; border-radius: 999px;
+    background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .size-control input[type="range"]::-moz-range-progress {
+    height: 8px; border-radius: 999px; background: var(--surface-2);
+  }
+  .size-control input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px; border: none; border-radius: 50%;
+    background: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  }
+  .size-control input[type="range"]:focus { outline: none; }
+  .size-control input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--fg) 30%, transparent);
+  }
+  .size-control input[type="range"]:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--fg) 30%, transparent);
+  }
+  .size-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px; color: var(--fg);
+    min-width: 20px; text-align: right;
+  }
+
+  /* ---------- Win-rate stacked-area chart (left column) ---------- */
+  .vc-legend {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+    font-size: 11px; color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+  .vc-legend .sw {
+    width: 10px; height: 10px; border-radius: 3px;
+    display: inline-block; vertical-align: middle; margin-right: 5px;
+  }
+  .vc-legend .sw.blk { background: var(--stone-black-1); }
+  .vc-legend .sw.drw { background: var(--fg-subtle); }
+  .vc-legend .sw.wht { background: var(--stone-white-0); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .vc-legend b { color: var(--fg); font-weight: 600; }
+  /* Desktop: the column height is pinned to the board (syncBoardSize), so the
+     chart fills via flex. Single-column: give it an explicit height range. */
+  #value_chart { display: block; width: 100%; flex: 1 1 auto; min-height: 0; }
+  @media (max-width: 1180px) {
+    #value_chart { min-height: 150px; max-height: 220px; }
+  }
+  /* ---------- Per-game stats (left column, below the chart) ---------- */
+  .stats-body { gap: 10px; }
+  .stats-head {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12.5px; font-weight: 600; color: var(--fg);
+  }
+  .stats-persp {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 500; color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+  .stats-persp .sw {
+    width: 9px; height: 9px; border-radius: 50%; display: inline-block;
+  }
+  .stats-persp .sw.blk { background: var(--stone-black-1); }
+  .stats-persp .sw.wht { background: var(--stone-white-0); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+  }
+  .stat {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 7px 10px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); min-width: 0;
+  }
+  .stat-k { font-size: 11px; color: var(--fg-muted); white-space: nowrap; }
+  .stat-v {
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: 15px; font-weight: 600; color: var(--fg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* ---------- Board ---------- */
+  .board-card {
+    padding: 10px;
+    display: inline-flex; flex-direction: column; align-items: flex-start;
+    position: relative; /* anchor the loading overlay over the board */
+  }
+  @media (max-width: 720px) {
+    /* Match every other card's 4px page inset, then keep only a narrow frame
+       around the canvas so the phone board can use the reclaimed width. This
+       must follow the base rule above or its padding would be overridden. */
+    .board-card {
+      width: 100%;
+      padding: 3px;
+      align-items: center;
+    }
+  }
+  #board {
+    background: var(--board-bg); border-radius: var(--radius-sm);
+    display: block; cursor: crosshair;
+  }
+  @media (max-width: 720px) {
+    /* Outer card radius 12px minus its 4px border+padding inset: concentric. */
+    #board { border-radius: var(--radius-md); }
+  }
+  /* ---------- Candidate move list (right column) ---------- */
+  #right_col { min-width: 0; }
+  .cand-card { display: flex; flex-direction: column; min-height: 160px; flex: 1 1 auto; }
+  .cand-body { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; padding: 12px 14px; }
+  .cand-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; margin-bottom: 8px;
+  }
+  .cand-legend {
+    font-size: 10.5px; color: var(--fg-subtle); font-family: var(--font-mono);
+    text-transform: none; letter-spacing: 0; font-weight: 500;
+  }
+  .cand-toggle-label { font-size: 11.5px; color: var(--fg-muted); white-space: nowrap; }
+  /* Legend + "open in search tree" button, kept together at the head's far right. */
+  .cand-head-right { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .cand-list {
+    display: flex; flex-direction: column; gap: 2px;
+    overflow-y: auto; min-height: 0; flex: 1 1 auto;
+    scrollbar-gutter: stable;
+  }
+  .cand-empty { color: var(--fg-subtle); font-size: 12px; text-align: center; padding: 18px 0; }
+  .cand-row {
+    display: grid; grid-template-columns: 16px 42px 40px minmax(0,1fr) 46px;
+    align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: var(--radius-sm); cursor: pointer;
+    font-family: var(--font-mono); font-size: 12.5px;
+    border: 1px solid transparent;
+  }
+  .cand-row:hover { background: var(--surface-2); border-color: var(--border); }
+  .cand-row.best { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .cand-rank { font-weight: 600; color: var(--fg-muted); text-align: center; }
+  .cand-row.best .cand-rank { color: var(--accent); }
+  .cand-coord { color: var(--fg-muted); }
+  .cand-wr { font-weight: 600; color: var(--fg); text-align: right; }
+  .cand-track { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .cand-track > span { display: block; height: 100%; background: var(--fg-subtle); }
+  .cand-row.best .cand-track > span { background: var(--accent); }
+  .cand-visits { color: var(--fg-subtle); text-align: right; font-size: 11.5px; }
+
+  /* ---------- Heatmap drawer ---------- */
+  .drawer { overflow: hidden; flex: 0 0 auto; }
+  .drawer-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; background: transparent; border: none; cursor: pointer;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--fg-subtle); font-family: var(--font-sans);
+  }
+  .drawer-toggle:hover { color: var(--fg); }
+  .drawer-toggle .chev { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; }
+  .drawer-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+  .drawer-count { margin-left: auto; color: var(--fg-subtle); font-weight: 500; }
+  .drawer-body { padding: 0 12px 12px; }
+  @media (prefers-reduced-motion: reduce) { .drawer-toggle .chev { transition: none; } }
+
+  /* ---------- Heat grid (inside drawer) ---------- */
+  .grids {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  @media (max-width: 520px) {
+    .grids { grid-template-columns: 1fr; }
+  }
+  .grid-card {
+    padding: 10px; text-align: center;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .grid-card .grid-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--fg-subtle);
+    margin-bottom: 8px; text-align: left;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .heat {
+    background: var(--heat-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: block;
+    margin: auto;
+  }
+
+  .expand-btn, .pin-btn, .cand-tree-btn {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--fg-subtle); padding: 0;
+    width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+    transition: background 0.12s, color 0.12s;
+    flex-shrink: 0;
+  }
+  .expand-btn:hover, .pin-btn:hover, .cand-tree-btn:hover { background: var(--surface-2); color: var(--fg); }
+  .expand-btn svg, .pin-btn svg, .cand-tree-btn svg { width: 12px; height: 12px; display: block; }
+  .pin-btn.active { color: var(--accent); }
+  .pin-btn.active:hover { color: var(--accent-hover); }
+  .pin-btn.active svg circle { fill: currentColor; }
+  .grid-title-actions {
+    display: inline-flex; align-items: center; gap: 4px;
+    flex-shrink: 0;
+  }
+
+  /* ---------- Heat modal ---------- */
+  .heat-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .heat-modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+    padding: 16px 20px 20px;
+    max-width: 95vw; max-height: 95vh;
+    display: flex; flex-direction: column; gap: 12px;
+    min-width: 0; min-height: 0;
+  }
+  .heat-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .heat-modal-header .heat-modal-title {
+    font-size: 13px; font-weight: 600; color: var(--fg);
+    letter-spacing: 0.01em;
+  }
+  .heat-modal-close {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--fg-muted); cursor: pointer;
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .heat-modal-close:hover { background: var(--surface-2); color: var(--fg); border-color: var(--border-strong); }
+  .heat-modal-close svg { width: 14px; height: 14px; }
+  #heat_modal_canvas {
+    background: var(--heat-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: block;
+    margin: auto;
+  }
+
+  /* ---------- Confirm modal ---------- */
+  /* Difficulty is the only entry gate for the Gomoku engine. Keep it above the
+     board loading overlay so the first model request cannot happen implicitly. */
+  .difficulty-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    width: 100vw;
+    min-height: 100dvh;
+    margin: 0;
+    background: rgba(1, 4, 9, 0.72);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+  body.difficulty-open { overflow: hidden; }
+  .difficulty-card {
+    width: min(430px, calc(100vw - 48px));
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 64px rgba(0, 0, 0, 0.38);
+    padding: 24px;
+  }
+  .difficulty-title {
+    margin: 0; color: var(--fg); font-size: 20px; font-weight: 700;
+  }
+  .difficulty-subtitle {
+    margin: 7px 0 18px; color: var(--fg-muted); font-size: 13px; line-height: 1.5;
+  }
+  .difficulty-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .difficulty-option {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 66px; padding: 12px 13px;
+    background: var(--surface-2); color: var(--fg);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    cursor: pointer; text-align: left;
+    transition: border-color 0.12s, background 0.12s, transform 0.12s;
+  }
+  .difficulty-option:hover,
+  .difficulty-option:focus-visible {
+    background: var(--surface); border-color: var(--accent);
+    outline: none; transform: translateY(-1px);
+  }
+  .difficulty-option-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .difficulty-option-level { font: 600 13px var(--font-mono); color: #fff; }
+  .difficulty-option-label { font-size: 12px; color: var(--fg-muted); }
+  .difficulty-option-elo {
+    flex-shrink: 0; color: var(--fg-subtle); font: 11px var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .difficulty-loading { color: var(--fg-muted); font-size: 13px; padding: 10px 0; }
+  @media (max-width: 560px) {
+    .difficulty-card { padding: 20px 16px; }
+    .difficulty-options { grid-template-columns: minmax(0, 1fr); }
+  }
+  .confirm-modal {
+    position: fixed; inset: 0; z-index: 1100;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .confirm-modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+    padding: 20px 22px 18px;
+    width: min(420px, 92vw);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .confirm-modal-title {
+    font-size: 14px; font-weight: 600; color: var(--fg);
+    letter-spacing: 0.01em;
+  }
+  .confirm-modal-body {
+    font-size: 13px; color: var(--fg-muted);
+    line-height: 1.55;
+  }
+  .confirm-modal-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 4px;
+  }
+
+
+/* Centered card shown while the first ONNX model downloads. */
+#loading_overlay {
+    position: absolute; inset: 0; z-index: 30;
+    background: transparent;
+    border-radius: var(--radius-lg);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-sans);
+}
+.loader-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 22px 26px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    width: min(248px, calc(100% - 24px));
+}
+.loader-spin {
+    width: 28px; height: 28px;
+    border: 3px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loader-spin { animation: none; } }
+.loader-text {
+    font-size: 11px; line-height: 1.5; color: var(--fg); text-align: center;
+}
+.loader-bar { width: 100%; height: 6px; background: var(--surface-2);
+              border-radius: 999px; overflow: hidden; }
+.loader-fill { height: 100%; background: var(--accent); width: 0;
+               transition: width 0.15s linear; }
+.loader-pct { font-family: var(--font-mono); font-size: 9px; color: var(--fg-muted); }
+
+  /* ---------- Play / Analysis mode ---------- */
+  /* Both modes show the full analysis surfaces (win-rate chart, candidate
+     list, heatmaps); the toggle only changes interaction (play-vs-AI vs a
+     free-placement board the engine continuously analyzes). Mode wiring is
+     in gomoku-view.js (setMode). */
+  /* Analysis mode drives both colors itself (so the side picker is meaningless)
+     and never plays (so think-time is meaningless). On DESKTOP both groups are
+     made invisible rather than removed: visibility:hidden keeps their box in the
+     flex flow, so the model dropdown + action buttons to their right stay put
+     instead of sliding left on the play↔analysis toggle (they sit contiguously,
+     执子 · 思考, so the reserved gap reads as one blank block). Phones don't
+     reserve — they collapse the whole #play_row as one accordion (see ≤720px) —
+     so this is scoped away from them. */
+  @media (min-width: 721px) {
+    body.mode-analysis #side_row,
+    body.mode-analysis #think_time_wrap { visibility: hidden; }
+  }
+  /* .tb-brandrow, #play_row and .tb-controls only form rows on phones; on desktop
+     all three are layout-neutral pass-throughs (display:contents), so brand,
+     status and the control groups stay direct toolbar items in source order
+     (brand · status · 模式 · 执子 · 思考 · 模型 · actions). */
+  .tb-brandrow,
+  #play_row,
+  .tb-controls { display: contents; }

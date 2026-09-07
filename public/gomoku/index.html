@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/gomoku/">
+  <title>SkyZero · Gomoku</title>
+  <link rel="preload" href="/shared/fonts/Inter-Regular.woff2"  as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/shared/fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/shared/fonts/Manrope-Bold.woff2"  as="font" type="font/woff2" crossorigin>
+  <!-- Kick off the onnxruntime-web WASM runtime download in parallel with page
+       boot; otherwise it's fetched late (worker spins up -> ort.min.js loads ->
+       model downloads -> only then the wasm), serializing the two big cold-cache
+       downloads. Only helps the first visit — the file is immutable for a year.
+       SIMD build covers all modern browsers; a non-SIMD one just wastes this hint
+       and falls back to ort-wasm.wasm. Version MUST match worker.js's @1.17.0. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preload" as="fetch" crossorigin
+        href="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort-wasm-simd.wasm">
+  <script>
+    // Set theme before first paint to avoid flash. Tri-state: auto/light/dark.
+    (function(){
+      try {
+        var saved = localStorage.getItem('skz_theme');
+        var mode = (saved === 'light' || saved === 'dark') ? saved : 'auto';
+        var resolved = (mode === 'auto')
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : mode;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.dataset.themeMode = mode;
+      } catch(e) {
+        document.documentElement.dataset.theme = 'light';
+        document.documentElement.dataset.themeMode = 'auto';
+      }
+    })();
+    // Set lang before first paint so static fallback content is in the right language.
+    (function(){
+      try {
+        var lang = localStorage.getItem('skz_lang');
+        if (lang !== 'zh' && lang !== 'en') lang = 'zh';
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+      } catch(e) {
+        document.documentElement.lang = 'zh-CN';
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/shared/base.css?v=20260907">
+  <link rel="stylesheet" href="/gomoku/style.css?v=20260907">
+</head>
+<body class="gomoku-page">
+  <script>
+    // Apply the play/analysis mode class before first paint so the analysis-only
+    // surfaces (free-board placement, sims-count label) don't flash on load.
+    (function(){
+      try {
+        if (localStorage.getItem('skz_mode') === 'analysis')
+          document.body.classList.add('mode-analysis');
+      } catch(e) {}
+    })();
+  </script>
+
+  <div class="app">
+    <!-- Top toolbar: brand · status · mode/side segments · actions · settings · lang/theme -->
+    <header class="topbar">
+      <!-- Brand + status kept together on one line by .tb-brandrow (a nowrap
+           flex unit on phones, so 状态 can never wrap below the brand). Desktop
+           uses display:contents, so both stay direct toolbar items. -->
+      <div class="tb-brandrow">
+      <a class="brand-title" href="/" data-i18n-title="back_home" title="返回首页"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · Gomoku</span></a>
+
+      <div class="status-pill" id="status_pill" data-variant="idle">
+        <span class="dot"></span>
+        <span id="status" data-i18n="status_idle">空闲</span>
+      </div>
+      </div><!-- /.tb-brandrow -->
+
+      <div class="tb-sep"></div>
+
+      <!-- All toolbar controls in one wrapper. On phones it's a flex-basis:100%
+           block that owns its own rows below the brand line, fully isolated from
+           the brand/status/settings row (so the controls always pair 2-up no
+           matter how the brand line wraps). On desktop it's display:contents — a
+           no-op pass-through — so the groups stay direct toolbar items. -->
+      <div class="tb-controls">
+      <div class="tb-group">
+        <span class="tb-label" data-i18n="tb_label_mode">模式</span>
+        <div class="seg-row seg-slide" id="mode_seg" role="group" data-i18n-aria="tb_label_mode" aria-label="模式">
+          <button class="seg-btn" id="mode_play" aria-pressed="true" data-i18n="mode_play">对弈</button>
+          <button class="seg-btn" id="mode_analysis" aria-pressed="false" data-i18n="mode_analysis">分析</button>
+        </div>
+      </div>
+
+      <!-- Play-only controls. On phones these wrap into one collapsible row
+           (#play_row) so analysis mode folds them away as a unit; on desktop the
+           wrapper is display:contents (a no-op), keeping 执子/思考 as normal
+           toolbar groups. -->
+      <div class="tb-playrow" id="play_row">
+        <div class="tb-group" id="side_row">
+          <span class="tb-label" data-i18n="tb_label_side">执子</span>
+          <div class="seg-row seg-slide">
+            <button class="seg-btn" id="side_black" aria-pressed="true">
+              <span class="seg-stone black"></span><span data-i18n="side_black">黑棋</span>
+            </button>
+            <button class="seg-btn" id="side_white" aria-pressed="false">
+              <span class="seg-stone white"></span><span data-i18n="side_white">白棋</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Thinking controls collapsed into a compact dropdown: an external 思考 label
+             (mirrors 模型) + a fixed-width trigger showing the current seconds, which
+             opens the slider in a popover — so the toolbar no longer carries the full
+             inline slider, and the fixed width stops the bar reflowing as the value
+             changes. On phones the panel is position:fixed (anchored by gomoku-controls.js) so
+             it escapes #play_row's overflow:hidden instead of being clipped. -->
+        <div class="tb-group" id="think_time_wrap">
+          <span class="tb-label" data-i18n="tb_label_think">思考</span>
+          <div class="custom-select think-select" id="think_select">
+            <button type="button" class="cs-trigger think-trigger" id="think_trigger"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="think_pop"
+                    data-i18n-aria="aria_think_time" aria-label="思考">
+              <span class="cs-trigger-label" id="think_trigger_val">0.5秒</span>
+              <svg class="cs-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="cs-menu think-pop" id="think_pop">
+              <label class="toggle think-toggle">
+                <span id="thinking_toggle_label">启用思考</span>
+                <input type="checkbox" id="search_toggle" checked>
+                <span class="track"></span>
+              </label>
+              <div class="think-divider"></div>
+              <div class="think-section">
+                <div class="think-section-head">
+                  <span data-i18n="tb_label_think">思考</span>
+                  <span class="think-val" id="think_time_val">0.5秒</span>
+                </div>
+                <input type="range" id="think_time_range" min="0" max="5" step="1" value="0"
+                       class="think-range" data-i18n-aria="aria_think_time" aria-label="思考" />
+              </div>
+              <div class="think-divider"></div>
+              <div class="think-section">
+                <div class="think-section-head">
+                  <span data-i18n="label_pda_style">对弈风格</span>
+                </div>
+                <input type="range" id="pda_range" class="think-range"
+                       min="-1" max="1" step="0.1" value="0.5"
+                       data-i18n-aria="aria_pda_style" aria-label="AI 对弈风格" />
+                <div class="pda-scale" aria-hidden="true">
+                  <span data-i18n="pda_conservative">保守</span>
+                  <span data-i18n="pda_balanced">平衡</span>
+                  <span data-i18n="pda_aggressive">激进</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tb-group" id="model_wrap">
+        <span class="tb-label" data-i18n="label_model">模型</span>
+        <div class="custom-select" id="model_select">
+          <button type="button" class="cs-trigger" id="model_trigger"
+                  aria-haspopup="listbox" aria-expanded="false"
+                  data-i18n-aria="label_model" aria-label="模型">
+            <span class="cs-trigger-label" id="model_trigger_label">—</span>
+            <svg class="cs-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="cs-menu hidden" id="model_menu" role="listbox" data-i18n-aria="label_model" aria-label="模型"></div>
+        </div>
+      </div>
+
+      <div class="tb-actions">
+        <button class="btn primary" id="new_btn" data-i18n="btn_new_game">新对局</button>
+        <button class="btn danger-ghost" id="undo_btn" data-i18n="btn_undo">悔棋</button>
+      </div>
+      </div><!-- /.tb-controls -->
+
+      <div class="topbar-right">
+        <div class="settings-wrap">
+          <button class="btn" id="settings_btn" aria-expanded="false" aria-controls="settings_pop" data-i18n="btn_settings">设置</button>
+          <div class="settings-modal hidden" id="settings_pop" role="dialog" aria-modal="true" aria-labelledby="settings_title">
+            <div class="settings-dialog">
+              <div class="settings-header">
+                <div class="settings-heading">
+                  <h2 class="settings-title" id="settings_title" data-i18n="settings_title">设置</h2>
+                  <p class="settings-subtitle" data-i18n="settings_subtitle">更改会立即应用</p>
+                </div>
+                <button class="settings-close" id="settings_close_btn" type="button"
+                        data-i18n-aria="aria_close_settings" aria-label="关闭设置">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                    <path d="M4.5 4.5l11 11M15.5 4.5l-11 11"/>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="settings-content">
+                <section class="settings-panel">
+                  <div class="settings-panel-head">
+                    <h3 class="settings-panel-title" data-i18n="settings_game_title">对局与棋盘</h3>
+                    <p class="settings-panel-desc" data-i18n="settings_game_desc">调整当前对局的棋规、棋盘尺寸与分析显示。</p>
+                  </div>
+                  <div class="settings-group">
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="label_rule">规则</span>
+                        <span class="settings-item-desc" data-i18n="settings_rule_desc">选择无禁手或连珠规则；更改后开始新对局。</span>
+                      </div>
+                      <div class="settings-control">
+                        <div class="seg-row settings-seg">
+                          <button class="seg-btn" id="rule_freestyle" data-rule="freestyle" aria-pressed="true" data-i18n="rule_freestyle">无禁手</button>
+                          <button class="seg-btn" id="rule_renju" data-rule="renju" aria-pressed="false" data-i18n="rule_renju">连珠</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="settings_candidate_display_title">棋盘候选显示</span>
+                        <span class="settings-item-desc" data-i18n="settings_candidate_display_desc">分别控制人类回合与 AI 思考时，是否在棋盘上显示候选分析；不影响右侧候选列表。</span>
+                      </div>
+                      <div class="settings-control">
+                        <label class="toggle">
+                          <span class="cand-toggle-label" data-i18n="candidate_show_human">人类回合显示</span>
+                          <input type="checkbox" id="show_analysis_human_input">
+                          <span class="track"></span>
+                        </label>
+                        <label class="toggle">
+                          <span class="cand-toggle-label" data-i18n="candidate_show_ai">AI 思考时显示</span>
+                          <input type="checkbox" id="show_analysis_ai_input" checked>
+                          <span class="track"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <label class="settings-item-title" for="size_input" data-i18n="label_board_size">棋盘大小</label>
+                        <span class="settings-item-desc" data-i18n="settings_board_desc">选择 11 至 15 路棋盘；更改后开始新对局。</span>
+                      </div>
+                      <div class="settings-control">
+                        <div class="size-control">
+                          <input type="range" id="size_input" min="11" max="15" step="1" value="15" data-i18n-aria="label_board_size" aria-label="棋盘大小">
+                          <span class="size-value" id="size_value">15</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="label_cand_palette">候选配色</span>
+                        <span class="settings-item-desc" data-i18n="settings_palette_desc">选择棋盘候选点由低到高的颜色主题。</span>
+                      </div>
+                      <div class="settings-control">
+                        <div class="seg-row palette-row settings-palette" id="palette_seg" role="group" data-i18n-aria-group="aria_cand_palette" aria-label="候选点位配色">
+                          <button class="swatch-btn" type="button" data-palette="violet" aria-pressed="true"  data-i18n-title="palette_violet" data-i18n-aria="palette_violet" title="紫罗兰" aria-label="紫罗兰"></button>
+                          <button class="swatch-btn" type="button" data-palette="amber"  aria-pressed="false" data-i18n-title="palette_amber"  data-i18n-aria="palette_amber"  title="琥珀"   aria-label="琥珀"></button>
+                          <button class="swatch-btn" type="button" data-palette="blue"   aria-pressed="false" data-i18n-title="palette_blue"   data-i18n-aria="palette_blue"   title="蓝青"   aria-label="蓝青"></button>
+                          <button class="swatch-btn" type="button" data-palette="teal"   aria-pressed="false" data-i18n-title="palette_teal"   data-i18n-aria="palette_teal"   title="翠绿"   aria-label="翠绿"></button>
+                          <button class="swatch-btn" type="button" data-palette="rose"   aria-pressed="false" data-i18n-title="palette_rose"   data-i18n-aria="palette_rose"   title="玫瑰"   aria-label="玫瑰"></button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-item">
+                      <div class="settings-item-copy">
+                        <span class="settings-item-title" data-i18n="btn_edit_position">编辑棋形</span>
+                        <span class="settings-item-desc" data-i18n="settings_edit_desc">手动摆放棋子并从指定局面继续对弈或分析。</span>
+                      </div>
+                      <div class="settings-control">
+                        <button class="btn btn--full" id="edit_btn">
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 1.5l3 3-9 9H2.5v-3z"/></svg>
+                          <span data-i18n="btn_edit_position">编辑棋形</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- Left column: win-rate stacked-area chart (top) + per-game stats (bottom) -->
+      <aside class="winrate-col" id="winrate_col">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div class="vc-legend">
+              <span><span class="sw blk"></span><span data-i18n="legend_black_win">黑胜</span> <b id="vc_w_black">—</b></span>
+              <span><span class="sw drw"></span><span data-i18n="legend_draw">平局</span> <b id="vc_w_draw">—</b></span>
+              <span><span class="sw wht"></span><span data-i18n="legend_white_win">白胜</span> <b id="vc_w_white">—</b></span>
+            </div>
+            <canvas id="value_chart"></canvas>
+          </div>
+        </div>
+        <!-- Per-game stats, derived from the win-rate history + move clock.
+             每手失分 (skill) is a rolling cross-game mean of per-move win% loss
+             kept in localStorage; worst-move and avg-time are this game, play
+             mode only. -->
+        <div class="card stats-card">
+          <div class="card-body stats-body">
+            <div class="stats-head">
+              <span data-i18n="stats_title">本局统计</span>
+              <span class="stats-persp" id="stats_persp"></span>
+            </div>
+            <div class="stats-grid">
+              <div class="stat"><span class="stat-k" data-i18n="stat_skill">每手失分</span><span class="stat-v" id="gs_skill">—</span></div>
+              <div class="stat"><span class="stat-k" data-i18n="stat_moves">总手数</span><span class="stat-v" id="gs_moves">0</span></div>
+              <div class="stat"><span class="stat-k" data-i18n="stat_blunder">最大失误</span><span class="stat-v" id="gs_blunder">—</span></div>
+              <div class="stat"><span class="stat-k" data-i18n="stat_avgtime">平均每手用时</span><span class="stat-v" id="gs_avgtime">—</span></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center column: board -->
+      <section class="board-col">
+        <div class="card board-card">
+          <canvas id="board"></canvas>
+          <!-- Loading overlay: floats over the board with a masked backdrop
+               while the first ONNX model downloads -->
+          <div id="loading_overlay">
+            <div class="loader-card">
+              <div class="loader-spin"></div>
+              <div class="loader-text" id="loading_text">加载<span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span>引擎中…</div>
+              <div class="loader-bar"><div class="loader-fill" id="loading_fill"></div></div>
+              <div class="loader-pct" id="loading_pct">0%</div>
+            </div>
+          </div>
+          <script>
+          (function(){
+            var match = location.pathname.match(/^\/gomoku\/(lv[1-6])\/?$/);
+            var text = document.getElementById("loading_text");
+            if (!match || !text) return;
+            var id = match[1].toUpperCase();
+            text.textContent = document.documentElement.lang === "en"
+              ? "Preparing " + id + " model…"
+              : "正在准备 " + id + " 模型…";
+          })();
+          </script>
+        </div>
+        <div class="board-actions edit-toolbar" id="edit_toolbar">
+          <div class="seg-row edit-tools" id="edit_tool_seg" role="group" data-i18n-aria="aria_edit_tool" aria-label="编辑工具">
+            <button class="seg-btn" data-edit-tool="alternate" aria-pressed="true">
+              <span class="seg-stone alt"></span><span data-i18n="edit_tool_alternate">轮流</span>
+            </button>
+            <button class="seg-btn" data-edit-tool="black" aria-pressed="false">
+              <span class="seg-stone black"></span><span data-i18n="edit_tool_black">放黑</span>
+            </button>
+            <button class="seg-btn" data-edit-tool="white" aria-pressed="false">
+              <span class="seg-stone white"></span><span data-i18n="edit_tool_white">放白</span>
+            </button>
+            <button class="seg-btn" data-edit-tool="erase" aria-pressed="false">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12.5l9-9 1 1-9 9zM2 14h12"/></svg>
+              <span data-i18n="edit_tool_erase">擦除</span>
+            </button>
+          </div>
+          <button class="btn" id="edit_undo_btn" data-i18n="btn_edit_undo" disabled>撤回</button>
+          <button class="btn primary" id="edit_done_btn" data-i18n="btn_edit_done">完成</button>
+          <button class="btn" id="edit_cancel_btn" data-i18n="btn_cancel">取消</button>
+        </div>
+        <!-- Move-review bar: appears below the board while scrubbing past plies
+             (←/→ keys or a click on the win-rate chart). Read-only — it never
+             mutates the live game; "返回对局" jumps back to the current position. -->
+        <div class="board-actions review-bar hidden" id="review_bar">
+          <button class="btn" id="review_first" data-i18n-title="review_first" data-i18n-aria="review_first" title="回到开局" aria-label="回到开局">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 3L6 8l5 5M5 3v10"/></svg>
+          </button>
+          <button class="btn" id="review_prev" data-i18n-title="review_prev" data-i18n-aria="review_prev" title="上一手" aria-label="上一手">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+          </button>
+          <span class="review-label" id="review_label"></span>
+          <button class="btn" id="review_next" data-i18n-title="review_next" data-i18n-aria="review_next" title="下一手" aria-label="下一手">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+          </button>
+          <button class="btn primary" id="review_live" data-i18n="review_live">返回对局</button>
+        </div>
+      </section>
+
+      <!-- Right column: candidate move list + collapsible heatmap drawer -->
+      <aside class="analysis-col" id="right_col">
+        <div class="card cand-card">
+          <div class="card-body cand-body">
+            <div class="card-title cand-head">
+              <span data-i18n="cand_title">候选着法</span>
+              <span class="cand-head-right">
+                <span class="cand-legend" id="cand_legend" data-i18n="cand_legend">胜率 · 访问</span>
+                <button class="cand-tree-btn" id="tree_analyze_btn" type="button" data-i18n-title="tree_analyze" data-i18n-aria="tree_analyze" title="搜索树分析当前局面" aria-label="搜索树分析当前局面">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="8" cy="3" r="1.7"/><circle cx="3.5" cy="13" r="1.7"/><circle cx="12.5" cy="13" r="1.7"/><path d="M8 4.7L3.5 11.3M8 4.7l4.5 6.6"/>
+                  </svg>
+                </button>
+              </span>
+            </div>
+            <div class="cand-list" id="cand_list">
+              <div class="cand-empty" data-i18n="cand_empty">暂无分析</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card drawer" id="heat_drawer">
+          <button class="drawer-toggle" id="heat_drawer_btn" aria-expanded="false" aria-controls="heat_drawer_body">
+            <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+            <span data-i18n="heat_drawer_title">分析热力图</span>
+            <span class="drawer-count">4</span>
+          </button>
+          <div class="drawer-body hidden" id="heat_drawer_body">
+            <div class="grids" id="heat_grids">
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_policy">网络策略</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_nn_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_nn_policy"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_optimistic_policy">乐观策略</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_nn_optimistic_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_optimistic_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_nn_optimistic_policy"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_nn_opp_policy">对手策略</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_nn_opp_policy" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_nn_opp_policy" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_nn_opp_policy"></canvas>
+              </div>
+              <div class="card grid-card">
+                <div class="grid-title"><span class="grid-title-text" data-i18n="heat_mcts_play_selection">LCB 权重</span>
+                  <span class="grid-title-actions">
+                    <button class="pin-btn" data-target="h_mcts_play_selection" data-i18n-aria="aria_pin_heat" aria-label="固定到棋盘" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="3"/><line x1="8" y1="9" x2="8" y2="13.5"/></svg></button>
+                    <button class="expand-btn" data-target="h_mcts_play_selection" data-i18n-aria="aria_expand" aria-label="展开"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5h3.5M13.5 6V2.5H10M2.5 10v3.5h3.5M13.5 10v3.5H10"/></svg></button>
+                  </span>
+                </div>
+                <canvas class="heat" id="h_mcts_play_selection"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Mobile-only bottom bar: the Settings control is relocated here on ≤720px
+         (by initSettingsPlacement in gomoku-controls.js) so the top toolbar stays tidy -->
+    <div class="mobile-actionbar" id="mobile_actionbar"></div>
+
+    <!-- Model loading starts only after the user chooses a difficulty. -->
+    <div class="difficulty-modal hidden" id="difficulty_modal" role="dialog" aria-modal="true" aria-labelledby="difficulty_title" aria-describedby="difficulty_subtitle">
+      <div class="difficulty-card">
+        <h2 class="difficulty-title" id="difficulty_title" data-i18n="difficulty_title">选择对手难度</h2>
+        <p class="difficulty-subtitle" id="difficulty_subtitle" data-i18n="difficulty_subtitle">请选择 Lv1–Lv6，确认后才会下载对应模型。</p>
+        <div class="difficulty-options" id="difficulty_options"><div class="difficulty-loading" data-i18n="difficulty_loading">正在读取难度列表…</div></div>
+      </div>
+    </div>
+
+    <!-- Board-size confirm modal -->
+    <div class="confirm-modal hidden" id="size_confirm_modal" role="dialog" aria-modal="true" aria-labelledby="size_confirm_title">
+      <div class="confirm-modal-card">
+        <div class="confirm-modal-title" id="size_confirm_title" data-i18n="size_confirm_title">切换棋盘大小?</div>
+        <div class="confirm-modal-body" id="size_confirm_body"></div>
+        <div class="confirm-modal-actions">
+          <button class="btn" id="size_confirm_cancel" data-i18n="btn_cancel">取消</button>
+          <button class="btn primary" id="size_confirm_ok" data-i18n="btn_confirm_reset">重置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heat modal (fullscreen single heatmap) -->
+    <div class="heat-modal hidden" id="heat_modal" role="dialog" aria-modal="true">
+      <div class="heat-modal-card">
+        <div class="heat-modal-header">
+          <span class="heat-modal-title" id="heat_modal_title">热力图</span>
+          <button class="heat-modal-close" id="heat_modal_close" data-i18n-aria="aria_close" aria-label="关闭">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l10 10M13 3L3 13"/></svg>
+          </button>
+        </div>
+        <canvas id="heat_modal_canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Size the board canvas to its final dimensions BEFORE the blocking game
+       scripts below load. Otherwise the
+       browser paints the canvas at its 300×150 default first, then gomoku-view.js's
+       syncBoardSize() resizes it once it finally executes — jumping the board
+       box and the side columns pinned to its height. This mirrors the first run
+       of syncBoardSize() in gomoku-view.js; keep the formula in sync with it. -->
+  <script>
+  (function(){
+    var cv = document.getElementById("board");
+    var card = document.querySelector(".board-card");
+    var col = document.querySelector(".board-col");
+    var topbar = document.querySelector(".topbar");
+    var app = document.querySelector(".app");
+    if (!cv || !card || !col || !topbar || !app) return;
+    var N = 15, DPR = window.devicePixelRatio || 1;
+    var compact = window.matchMedia("(max-width: 1180px)").matches;
+    var phone = window.matchMedia("(max-width: 720px)").matches;
+    var MARGIN = phone ? 8 : (compact ? 10 : 28);
+    var cs = getComputedStyle(card);
+    var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    var availW = Math.max(0, col.clientWidth - padX);
+    var acs = getComputedStyle(app), tcs = getComputedStyle(topbar);
+    var reserved = parseFloat(acs.paddingTop) + parseFloat(acs.paddingBottom) + topbar.offsetHeight + (parseFloat(tcs.marginBottom) || 0) + padY + 12;
+    var availH = window.innerHeight - reserved;
+    var cap = compact ? 560 : 900;
+    var size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
+    var CELL = Math.max(compact ? 12 : 18, Math.floor((size - 2 * MARGIN) / (N - 1)));
+    if (phone) MARGIN = (size - CELL * (N - 1)) / 2;
+    var LOGICAL = MARGIN * 2 + CELL * (N - 1);
+    cv.width = Math.round(LOGICAL * DPR);
+    cv.height = Math.round(LOGICAL * DPR);
+    cv.style.width = LOGICAL + "px";
+    cv.style.height = LOGICAL + "px";
+    var colH = compact ? "" : card.offsetHeight + "px";
+    var wcol = document.getElementById("winrate_col"), acol = document.getElementById("right_col");
+    if (wcol) wcol.style.height = colH;
+    if (acol) acol.style.height = colH;
+  })();
+  </script>
+  <script src="/gomoku/app/i18n.js?v=20260730-2"></script>
+  <script src="/gomoku/engine/game.js?v=20260729"></script>
+  <script src="/gomoku/app/context.js?v=20260907"></script>
+  <script src="/gomoku/app/view.js?v=20260907"></script>
+  <script src="/gomoku/app/game.js?v=20260907"></script>
+  <script src="/gomoku/app/controls.js?v=20260907"></script>
+  <script src="/gomoku/app/main.js?v=20260907"></script>
+  <script src="/shared/ui/seg-slide.js?v=20260702"></script>
+</body>
+</html>
