@@ -6,12 +6,12 @@
 
 | 游戏 | 页面 | AI | 主要入口 |
 |---|---|---|---|
-| 五子棋 | `/gomoku` | AlphaZero 风格神经网络与 MCTS | `gomoku.html`、`main.js`、`worker.js`、`mcts.js`、`gomoku.js` |
+| 五子棋 | `/gomoku` | AlphaZero 风格神经网络与 MCTS | `gomoku.html`、`gomoku-game.js`、`gomoku-view.js`、`worker.js` |
 | 2048 | `/2048` | Stochastic Gumbel AlphaZero value net 与搜索 | `2048.html`、`worker2048.js`、`mcts2048.js`、`ai2048.js` |
-| 躲避 | `/channel-dodge` | SAC 连续策略 | `channel-dodge.html`、`dodge-policy.js` |
-| ScotlandYard | `/scotlandyard` | AZ Selfplay / PPO GNN 纯网络策略 | `scotlandyard.html`、`scotlandyard/` |
+| 躲避 | `/channel-dodge` | SAC 连续策略 | `channel-dodge.html`、`channel-dodge.js`、`dodge-ai.js` |
+| ScotlandYard | `/scotlandyard/` | AZ Selfplay / PPO GNN 纯网络策略 | `scotlandyard/index.html`、`scotlandyard/` |
 
-躲避游戏的「AI 托管」使用连续 SAC actor，网络为 `271→256→256→4`，前两维高斯均值经 `tanh` 后得到移动向量。权重以 little-endian float32 base64 打包在 `dodge-policy.js` 中，由页面内的同步 JavaScript 前向运行，不依赖 ONNX、WASM 或 Worker。271 维观测包含最近 32 个威胁、3 条激光、3 颗炸弹、2 个血包、玩家状态与四向墙距，并与 `../SkyZero/DodgeSAC/env_dodge.py` 的 `_obs_vector` 对齐；决策频率为 30 Hz。游戏物理固定在 `450×600` 逻辑坐标系中，页面缩放只影响渲染，敌人弹幕仍由手写行为脚本控制。
+躲避游戏的「AI 托管」使用连续 SAC actor，网络为 `271→256→256→4`，前两维高斯均值经 `tanh` 后得到移动向量。权重以 little-endian float32 base64 打包在 `dodge-policy.js` 中，由 `dodge-ai.js` 同步前向运行，不依赖 ONNX、WASM 或 Worker。271 维观测包含最近 32 个威胁、3 条激光、3 颗炸弹、2 个血包、玩家状态与四向墙距，并与 `../SkyZero/DodgeSAC/env_dodge.py` 的 `_obs_vector` 对齐；决策频率为 30 Hz。游戏物理固定在 `450×600` 逻辑坐标系中，页面缩放只影响渲染，敌人弹幕仍由手写行为脚本控制。
 
 ScotlandYard 的模型、规则、导出和验证约定见 [`scotlandyard/README.md`](scotlandyard/README.md)。
 
@@ -56,12 +56,18 @@ python tests/gen_mcts2048_puct_fixture.py
 - `index.html`：游戏入口页。
 - `gomoku.html`、`style.css`：五子棋界面。
 - `2048.html`：2048 界面和 AI 控制。
-- `channel-dodge.html`、`dodge-policy.js`：躲避游戏与 SAC actor。
-- `scotlandyard.html`、`scotlandyard/`：ScotlandYard 入口与独立模块。
-- `main.js`：五子棋 UI、Canvas 渲染和 Worker 调度。
-- `worker.js`：五子棋 ONNX Runtime 与 MCTS Worker。
+- `channel-dodge.html`、`channel-dodge.css`、`channel-dodge.js`：躲避页面与游戏。
+- `dodge-ai.js`、`dodge-policy.js`：SAC actor 运行时与导出权重。
+- `scotlandyard/index.html`、`scotlandyard/`：ScotlandYard 入口与独立模块。
+- `main.js`：五子棋启动入口。
+- `gomoku-context.js`：五子棋视图与控制器共享的实时对局状态。
+- `gomoku-game.js`：五子棋对局状态、交互与 Worker 调度。
+- `gomoku-view.js`：五子棋 Canvas、分析图表和候选视图。
+- `gomoku-controls.js`：五子棋页面级弹层和选择控件。
+- `worker.js`、`worker-tree.js`：五子棋搜索 Worker。
+- `gomoku-inference.js`：两个五子棋 Worker 共用的 ONNX 推理适配。
 - `worker2048.js`：2048 value net 与 expectimax Worker。
-- `mcts.js`：V7.19 单线程 PUCT、加权回传、SVB 和 LCB 选着。
+- `mcts.js`：V7.19 单线程 PUCT、加权回传、SVB 和 LCB 选择。
 - `ai2048.js`：2048 afterstate 与一层 value-net expectimax。
 - `gomoku.js`：V7.19 Renju、Standard、Freestyle 规则及输入协议。
 - `models/manifest.json`：五子棋模型目录。
@@ -116,7 +122,7 @@ conda run -n pytorch python tools/export_dodge_sac.py \
 
 ## 五子棋搜索循环
 
-五子棋在 ponder 与 move-search 之间交替，并通过 `worker.js` 的 `applyMove` 将落子对应的子节点提升为新根，持续复用搜索树。`main.js` 的 `triggerAISearch()` 通过 `isPonderTurn()` 选择路径。
+五子棋在 ponder 与 move-search 之间交替，并通过 `worker.js` 的 `applyMove` 将落子对应的子节点提升为新根，持续复用搜索树。`gomoku-game.js` 的 `triggerAISearch()` 通过 `isPonderTurn()` 选择路径。
 
 - Ponder：对弈模式下用于玩家回合，分析模式下用于任意一方。每块固定 `ANALYSIS_CHUNK = 128` 次 simulation，复用树继续搜索，直到累计根访问达到 `ANALYSIS_CAP_MIN = 2000`。对弈时状态栏保持“轮到你”，候选、胜率和热力图继续刷新；玩家落子时以 `searchId++` 中止在途块。
 - Move-search：AI 回合使用 anytime PUCT，运行至 `thinkMs` 或累计根访问达到 `SEARCH_VISIT_CAP = 2000`，以先到者为准，再使用 V7.19 retrospective weight 与 LCB 选着。连续三次 AI 落子搜索处于极优局面时，`searchFactorWhenWinning = 0.30` 会将时间和访问上限平滑降至 30%；ponder 不参与统计。`thinkMs` 只控制 AI 回合，不增加 ponder 深度。
