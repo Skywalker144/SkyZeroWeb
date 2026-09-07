@@ -1,73 +1,10 @@
-/* Self-hosted fonts (latin subset). Keeps local dev visually identical to
-   the deployed site without depending on fonts.googleapis.com. */
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 400;
-  font-display: optional;
-  src: url("fonts/Inter-Regular.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 500;
-  font-display: optional;
-  src: url("fonts/Inter-Medium.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 600;
-  font-display: optional;
-  src: url("fonts/Inter-SemiBold.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 700;
-  font-display: optional;
-  src: url("fonts/Inter-Bold.woff2") format("woff2");
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: optional;
-  src: url("fonts/JetBrainsMono-Regular.woff2") format("woff2");
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 500;
-  font-display: optional;
-  src: url("fonts/JetBrainsMono-Medium.woff2") format("woff2");
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 600;
-  font-display: optional;
-  src: url("fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Manrope";
-  font-style: normal;
-  font-weight: 700;
-  font-display: optional;
-  src: url("fonts/Manrope-Bold.woff2") format("woff2");
-}
+@import url("/fonts.css?v=20260907");
 
 html {
     touch-action: manipulation;
 }
 
 :root {
-    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                 "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
-                 "Microsoft YaHei", system-ui, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono",
-                 Menlo, Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono",
-                 "Noto Sans Mono", "Courier New", monospace;
     --bg: #ffffff;
     --surface: #ffffff;
     --surface-2: #f6f8fa;
@@ -234,7 +171,7 @@ html {
        narrow phones (e.g. 390px). */
     .topbar #think_time_range { flex: 1 1 auto; width: auto; min-width: 0; }
     /* The think-time panel is fixed-position (anchored under the trigger by
-       main.js) so it escapes #play_row's overflow:hidden instead of being clipped
+       gomoku-controls.js) so it escapes #play_row's overflow:hidden instead of being clipped
        by it; width clamps to the viewport on narrow screens. ID selector so it
        beats .cs-menu's position:absolute / min-width:100% (same specificity, but
        defined later in the file — it would otherwise win and re-clip the panel). */
@@ -290,7 +227,7 @@ html {
        meets the controls row with no end-snap. visibility flips to hidden only
        AFTER the fold (delay = duration) to drop the clipped controls from the tab
        order; expanding back, it's immediate. Gated on .tb-anim-ready (added
-       post-first-paint by main.js) so it doesn't fold in on initial load. */
+       post-first-paint by gomoku-view.js) so it doesn't fold in on initial load. */
     body.tb-anim-ready .topbar #play_row {
       transition: max-height 0.28s ease, opacity 0.22s ease,
                   margin-top 0.28s ease, visibility 0s;
@@ -332,7 +269,7 @@ html {
      HTML only — was once wrongly dropped as an "orphaned" rule. */
   .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   /* Mobile-only bottom bar holding the relocated Settings control (moved here by
-     initSettingsPlacement in main.js). */
+     initSettingsPlacement in gomoku-controls.js). */
   .mobile-actionbar { display: none; }
   @media (max-width: 720px) {
     .mobile-actionbar { display: flex; margin-top: 12px; }
@@ -545,7 +482,7 @@ html {
      keeps the toolbar from reflowing as the value changes (0.5秒 ↔ 10秒). Gated by
      .think-select.open (toggled in JS) rather than the .hidden class. On phones
      the panel switches to position:fixed (mobile block) so it escapes #play_row's
-     overflow:hidden — main.js anchors it under the trigger. */
+     overflow:hidden — gomoku-game.js anchors it under the trigger. */
   .think-trigger { width: 70px; font-variant-numeric: tabular-nums; }
   /* Reserve the model trigger's width too, so populating the label from its "—"
      placeholder to "LVx 级名" once the manifest/model loads doesn't widen the
@@ -653,7 +590,7 @@ html {
      so the camel-case "SkyZero" tops align), neutral "Sky" + rainbow "Zero".
      Gradient = 120deg (red upper-left -> violet lower-right), red held to 15%,
      vivid 7-stop via OKLab + Catmull-Rom spline, baked into stops. Pure CSS. */
-  .brand-wm { font-family: "Manrope", var(--font-sans); font-weight: 700; letter-spacing: -0.01em; }
+  .brand-wm { font-family: var(--font-brand); font-weight: 700; letter-spacing: -0.01em; }
   .brand-wm .bw-sky { color: var(--fg); }
   .brand-wm .bw-zero {
     background: linear-gradient(120deg,
@@ -665,7 +602,7 @@ html {
     -webkit-text-fill-color: transparent; color: transparent;
   }
   /* Game-page topbar brand link: whole link in Manrope; suffix accent on hover. */
-  .brand-title { font-family: "Manrope", var(--font-sans); }
+  .brand-title { font-family: var(--font-brand); }
   .brand-suffix { color: var(--fg); }
   a.brand-title:hover .brand-suffix { color: var(--accent); }
   .icon-btn {
@@ -1400,9 +1337,7 @@ html {
 
   .hidden { display: none !important; }
 
-/* Loading overlay (Task 23 — not in V5 since the C++ engine is local).
-   No backdrop — just a centered card while the first ONNX model downloads; the
-   board stays fully visible, the transparent layer only blocks clicks meanwhile. */
+/* Centered card shown while the first ONNX model downloads. */
 #loading_overlay {
     position: absolute; inset: 0; z-index: 30;
     background: transparent;
@@ -1439,7 +1374,7 @@ html {
   /* Both modes show the full analysis surfaces (win-rate chart, candidate
      list, heatmaps); the toggle only changes interaction (play-vs-AI vs a
      free-placement board the engine continuously analyzes). Mode wiring is
-     in main.js (setMode). */
+     in gomoku-view.js (setMode). */
   /* Analysis mode drives both colors itself (so the side picker is meaningless)
      and never plays (so think-time is meaningless). On DESKTOP both groups are
      made invisible rather than removed: visibility:hidden keeps their box in the
