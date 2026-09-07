@@ -11,12 +11,10 @@
 //                                                          dir, qs, value, terminal }
 //   any failure                                  -> out { type:'error', message }
 const _qs = self.location.search || ('?v=' + Date.now());
-importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js');
+importScripts('onnx-worker-runtime.js' + _qs);
+SkyZeroOnnxRuntime.loadOnnxRuntime(self);
 importScripts('ai2048.js' + _qs);
 importScripts('mcts2048.js' + _qs);
-
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
-ort.env.wasm.numThreads = 1;   // SharedArrayBuffer cross-origin fragility; force single-thread
 
 var session = null;
 // Search config (overrides MCTS2048.DEFAULTS); mirrors configs/baseline/run.cfg.
