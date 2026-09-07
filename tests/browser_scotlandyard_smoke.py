@@ -14,7 +14,7 @@ with sync_playwright() as p:
     page.on('console',lambda m:print('CONSOLE',m.type,m.text,flush=True) if m.type=='error' else None)
     page.add_init_script("""localStorage.setItem('skz_theme','dark');window.downloadProgress=[];
       new MutationObserver(records=>{for(const r of records){if(r.target.id==='model-progress')window.downloadProgress.push(Number(r.target.value));}}).observe(document,{subtree:true,attributes:true,attributeFilter:['value']});""")
-    page.goto(args.url.rstrip('/')+'/scotlandyard.html')
+    page.goto(args.url.rstrip('/')+'/scotlandyard/')
     assert page.locator('#setup-panel, .advanced-card, #quick-ruleset, #quick-evader, #quick-downloads').count()==0
     page.wait_for_function("document.querySelector('#app').classList.contains('has-game')",timeout=120000)
     page.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)
@@ -60,7 +60,7 @@ with sync_playwright() as p:
     for model in catalog['pursuer']:
         fixtures=json.loads((root/f"tests/{model['id']}-fixtures.json").read_text())
         result=page.evaluate("""async ({model,fixtures}) => {
-          const worker=new Worker(new URL('./scotlandyard/inference-worker.js',location.href));
+          const worker=new Worker(new URL('./inference-worker.js',location.href));
           let id=0;
           const call=message=>new Promise((resolve,reject)=>{
             const timer=setTimeout(()=>reject(new Error('fixture timeout')),60000);
@@ -69,7 +69,7 @@ with sync_playwright() as p:
             worker.postMessage({id:++id,...message});
           });
           try {
-            await call({kind:'load',model,url:new URL('./models/scotlandyard/'+model.id+'.onnx',location.href).href});
+            await call({kind:'load',model,url:new URL('../models/scotlandyard/'+model.id+'.onnx',location.href).href});
             const outputs=[];
             for (const fixture of fixtures) outputs.push(await call({kind:'run',inputs:Object.fromEntries(Object.entries(fixture.inputs).map(([key,v])=>[key,v.data]))}));
             return outputs;
@@ -88,7 +88,7 @@ with sync_playwright() as p:
     context=browser.new_context()
     context.route('**/models/scotlandyard/*.onnx',lambda route:route.abort())
     failed=context.new_page()
-    failed.goto(args.url.rstrip('/')+'/scotlandyard.html')
+    failed.goto(args.url.rstrip('/')+'/scotlandyard/')
     failed.locator('#error:not([hidden])').wait_for(timeout=60000)
     failed.locator('#loading-retry:not([hidden])').wait_for()
     assert not failed.locator('#app').evaluate("el=>el.classList.contains('has-game')")
