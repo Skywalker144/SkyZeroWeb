@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <base href="./scotlandyard/">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScotlandYard · SkyZero</title>
+  <script>
+    (() => {
+      let mode = 'auto';
+      try { mode = localStorage.getItem('skz_theme') || 'auto'; } catch (_) {}
+      if (!['auto', 'light', 'dark'].includes(mode)) mode = 'auto';
+      const systemDark = matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.themeMode = mode;
+      document.documentElement.dataset.theme = mode === 'auto'
+        ? (systemDark ? 'dark' : 'light')
+        : mode;
+    })();
+  </script>
+  <link rel="preload" href="./fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./fonts/NotoSansSC-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <section id="model-loading" class="model-loading" aria-labelledby="loading-title">
+    <div class="loading-card" role="status" aria-live="polite">
+      <h1 id="loading-title">正在下载 AZ 权重</h1>
+      <progress id="model-progress" max="100" value="0" aria-label="权重下载进度"></progress>
+      <p id="loading-detail">0%</p>
+      <button id="loading-retry" class="btn primary" type="button" hidden>重试下载</button>
+    </div>
+  </section>
+  <div class="app" id="app">
+    <p id="status-live" class="sr-only" aria-live="polite"></p>
+    <div id="error" class="global-alert" role="alert" hidden>
+      <span id="error-message"></span>
+      <span class="alert-actions">
+        <button id="error-recover" class="btn" type="button" hidden>重新载入</button>
+        <button id="error-dismiss" class="btn quiet-btn" type="button" aria-label="关闭错误提示">关闭</button>
+      </span>
+    </div>
+
+    <main class="layout" id="layout">
+      <section class="board-card">
+        <div class="map-stage">
+          <div id="board-area" class="board-area">
+            <div id="board-wrap">
+              <svg id="board" viewBox="0 0 1000 795" preserveAspectRatio="xMidYMid meet"
+                   role="img" tabindex="0" aria-label="Scotland Yard 地图"
+                   aria-describedby="map-help"></svg>
+              <div id="map-move-picker" class="map-move-picker" role="group" hidden></div>
+            </div>
+          </div>
+          <p id="map-help" class="sr-only">点击地图上的合法目的地选择移动，也可使用右侧合法动作按钮。</p>
+        </div>
+      </section>
+
+      <aside class="action-panel" id="action-panel">
+        <section class="card match-control" aria-labelledby="control-title">
+          <div class="card-heading"><h2 id="control-title">对局控制</h2></div>
+          <div class="quick-strategies">
+            <label><span>Pursuer</span><select id="quick-pursuer" aria-label="下一局 Pursuer"></select></label>
+          </div>
+            <div class="match-actions">
+              <div class="toolbar-group" role="group" aria-label="对局操作">
+                <button class="btn" id="undo" type="button">撤回</button>
+                <button class="btn" id="reset-game" type="button" title="使用当前 seed 重置对局">重置对局</button>
+                <button class="btn" id="new-seed-game" type="button" title="使用所选策略和新 seed 开始对局"><span id="new-seed-game-label" class="stable-toolbar-label">新对局</span></button>
+              </div>
+              <button class="btn" id="autoplay" type="button" aria-pressed="false" hidden>自动播放</button>
+              <button class="btn primary" id="advance" type="button" hidden>执行本轮</button>
+            </div>
+              <div id="search-overlay" class="search-overlay" role="status" aria-live="polite" hidden>
+                <div class="search-card">
+                  <div class="search-copy">
+                    <strong id="search-title">正在加载对手</strong>
+                    <span id="search-detail">正在评估候选行动</span>
+                    <span id="search-elapsed" class="search-elapsed">已用时 0.0 秒</span>
+                  </div>
+                  <span class="search-scan" aria-hidden="true"></span>
+                </div>
+              </div>
+        </section>
+
+        <section class="card action-dock" aria-labelledby="actions-title">
+          <div class="card-heading action-heading">
+            <div>
+              <h2 id="actions-title">当前操作</h2>
+              <span id="actions-hint" class="muted">开局后显示合法动作</span>
+            </div>
+          </div>
+          <div id="ticket-bar" class="ticket-bar" aria-label="Evader 剩余车票"></div>
+          <div id="search-feedback" class="search-feedback" role="status" hidden></div>
+          <button id="retry-pursuers" class="btn primary" type="button" hidden>重试 Pursuer 行动</button>
+          <div id="action-list" class="action-list"></div>
+        </section>
+
+      </aside>
+
+      <aside class="panel">
+        <section class="card state-card">
+          <section id="match-card" class="match-card" aria-labelledby="match-title" hidden>
+            <h2 id="match-title" class="match-copy">
+              <span id="match-pursuer">正在准备 Pursuer</span>
+              <span class="match-opponent"><span class="match-versus" aria-hidden="true">×</span><span id="match-evader">等待 Evader</span></span>
+            </h2>
+
+          </section>
+          <p id="turn-label" class="round-caption">正在加载地图与策略…</p>
+          <div id="round-track" class="round-track"></div>
+          <h3>Pursuer 剩余车票</h3>
+          <div id="pursuer-ticket-table" class="pursuer-ticket-table"><span class="empty">等待开始。</span></div>
+        </section>
+
+
+      </aside>
+    </main>
+  </div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
