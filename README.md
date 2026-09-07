@@ -1,155 +1,160 @@
 # SkyZeroWeb
 
-Static webpage that runs SkyZero self-trained AI models in the browser via
-`onnxruntime-web` — gomoku (`SkyZero_V7.19`), 2048 (`SkyZero_2048_V2`), and a
-dodge game (`DodgeSAC`). No server, no C++ engine — everything runs client-side.
+聚合游戏平台，最初是 AI 五子棋页面，随后加入了多个自训练 AI。游戏逻辑和 AI 推理全部在浏览器本地运行；仅排行榜使用 Cloudflare Pages Functions 和 D1，不存在后端推理服务器。
 
-## Quick start
+## 当前游戏
 
-### Local dev
+| 游戏 | 页面 | AI | 主要入口 |
+|---|---|---|---|
+| 五子棋 | `/gomoku` | AlphaZero 风格神经网络与 MCTS | `gomoku.html`、`main.js`、`worker.js`、`mcts.js`、`gomoku.js` |
+| 2048 | `/2048` | Stochastic Gumbel AlphaZero value net 与搜索 | `2048.html`、`worker2048.js`、`mcts2048.js`、`ai2048.js` |
+| 躲避 | `/channel-dodge` | SAC 连续策略 | `channel-dodge.html`、`dodge-policy.js` |
+| ScotlandYard | `/scotlandyard` | AZ Selfplay / PPO GNN 纯网络策略 | `scotlandyard.html`、`scotlandyard/` |
+
+躲避游戏的「AI 托管」使用连续 SAC actor，网络为 `271→256→256→4`，前两维高斯均值经 `tanh` 后得到移动向量。权重以 little-endian float32 base64 打包在 `dodge-policy.js` 中，由页面内的同步 JavaScript 前向运行，不依赖 ONNX、WASM 或 Worker。271 维观测包含最近 32 个威胁、3 条激光、3 颗炸弹、2 个血包、玩家状态与四向墙距，并与 `../SkyZero/DodgeSAC/env_dodge.py` 的 `_obs_vector` 对齐；决策频率为 30 Hz。游戏物理固定在 `450×600` 逻辑坐标系中，页面缩放只影响渲染，敌人弹幕仍由手写行为脚本控制。
+
+ScotlandYard 的模型、规则、导出和验证约定见 [`scotlandyard/README.md`](scotlandyard/README.md)。
+
+## 本地开发
 
 ```bash
 cd /home/sky/RL/SkyZeroWeb
-python3 -m http.server 8000
+python3 serve.py
 # Open http://localhost:8000
 ```
 
-(`file://` won't work — Worker `importScripts` and `fetch('models/...')`
-need an HTTP server.)
+页面必须通过 HTTP 访问；Worker 的 `importScripts` 和模型 `fetch` 无法在 `file://` 下工作。`serve.py` 在 `:8000` 提供静态服务，并模拟 Cloudflare Pages clean URL。
 
-### Tests
+需要排行榜 API 和本地 D1 时运行完整 Cloudflare 栈：
+
+```bash
+npx wrangler pages dev .
+```
+
+## 测试
 
 ```bash
 export PATH=/home/sky/.nvm/versions/node/v24.16.0/bin:$PATH
 npm test
+
+# 单个测试文件
+node --test tests/test_gomoku.mjs
+node --test tests/test_mcts2048.mjs
 ```
 
-Runs the Node 18+ builtin test runner against `gomoku.js` / `mcts.js` /
-`ai2048.js` / `mcts2048.js` (pure-logic units; UI is verified in a browser).
+测试使用 Node 18+ 内置 test runner，覆盖 `gomoku.js`、`mcts.js`、`ai2048.js` 和 `mcts2048.js` 等纯逻辑模块。UI 需要在真实浏览器中验证。项目无构建步骤，也没有 ESLint 或 Prettier 配置。
 
-### Deploy
-
-This repo is set up for [Cloudflare Pages](https://pages.cloudflare.com/)
-with no build step. Connect via git, point to repo root.
-
-## Adding / updating a model
+`mcts2048.js` 测试使用由训练侧 `python/mcts.py` 生成的 Gumbel 根与 PUCT 根 fixture，双方共享写死的 synthetic evaluator。训练侧搜索逻辑变化后，在包含 PyTorch 和 NumPy 的环境中重新生成：
 
 ```bash
-# In the `pytorch` conda env (has torch/onnx/onnxscript installed)
+python tests/gen_mcts2048_fixture.py
+python tests/gen_mcts2048_puct_fixture.py
+```
+
+## 架构入口
+
+- `index.html`：游戏入口页。
+- `gomoku.html`、`style.css`：五子棋界面。
+- `2048.html`：2048 界面和 AI 控制。
+- `channel-dodge.html`、`dodge-policy.js`：躲避游戏与 SAC actor。
+- `scotlandyard.html`、`scotlandyard/`：ScotlandYard 入口与独立模块。
+- `main.js`：五子棋 UI、Canvas 渲染和 Worker 调度。
+- `worker.js`：五子棋 ONNX Runtime 与 MCTS Worker。
+- `worker2048.js`：2048 value net 与 expectimax Worker。
+- `mcts.js`：V7.19 单线程 PUCT、加权回传、SVB 和 LCB 选着。
+- `ai2048.js`：2048 afterstate 与一层 value-net expectimax。
+- `gomoku.js`：V7.19 Renju、Standard、Freestyle 规则及输入协议。
+- `models/manifest.json`：五子棋模型目录。
+- `tools/`：模型导出与验证脚本。
+- `functions/api/`：排行榜 API。
+
+其他任务文档由 [`docs/README.md`](docs/README.md) 路由。
+
+## 五子棋模型
+
+五子棋模型来自 `../SkyZero/SkyZero_V7.19/data/web/models/`。当前六档是 V7.19 `b9c96tflrs` 的 iter 206、300、419、654、1000、2448，按训练迭代排序，不复用不可比较的旧 V7.1 ELO。
+
+```bash
 conda run -n pytorch python tools/export_v719_onnx.py \
     --ckpt ../SkyZero/SkyZero_V7.19/data/web/models/iter2448.pt \
     --out models/level6.onnx
-
-# Then edit models/manifest.json — add or update order / label / file / params
-# git add + commit + push → Cloudflare auto-deploys
 ```
 
-The six tiers are V7.19 `b9c96tflrs` checkpoints at iter
-206/300/419/654/1000/2448. They are ordered by training iteration; the UI does
-not present the old V7.1 ELO numbers as if they were comparable. The exporter
-checks rebuilt-PyTorch ↔ TorchScript and ONNX Runtime parity before succeeding.
+导出器会验证重建 PyTorch、TorchScript 与 ONNX Runtime 数值一致。导出后更新 `models/manifest.json` 的顺序、标签、文件和参数。`/gomoku/lv1` 到 `/gomoku/lv6` 可直接选择对应档位；`/gomoku` 保留普通模型选择器。
 
-Open `/gomoku/lv1` through `/gomoku/lv6` to select and download a tier directly.
-Opening `/gomoku` keeps the normal model picker.
+导出环境除 PyTorch 外需要 `onnx`、`onnxscript` 和 `onnxruntime`。
 
-### Python prerequisites for export
+## 2048 模型
 
-The export script needs these packages (in addition to torch):
+2048 模型来自 `../SkyZero/SkyZero_2048_V2`。发布最新网络时，以 `data2048/nets/<net>/latest.pt` 和相邻的 `latest.meta.json` 为事实源；`server_models/model_iter<N>.pt` 是可能滞后的手动发布快照。
+
+当前网络为 `b5c96`，模型是 traced TorchScript。其 value 位于 scale 30 的 h-space，因此导出时同时指定缩放和逆变换：
 
 ```bash
-pip install onnx onnxscript onnxruntime
-```
-
-## Adding / updating the 2048 model
-
-The 2048 page runs the `SkyZero_2048_V2` value net in the browser. The current
-network is `b5c96`; the export script eats the traced TorchScript directly (no
-`--net` needed) and bakes the value transform into the ONNX graph:
-
-```bash
-# In the `pytorch` conda env (has torch/onnx/onnxruntime installed)
-python tools/export_onnx_2048.py \
+conda run -n pytorch python tools/export_onnx_2048.py \
     --ckpt ../SkyZero/SkyZero_2048_V2/data2048/nets/b5c96/latest.pt \
-    --out models/2048.onnx --value-scale 30 --value-transform
+    --out models/2048.onnx \
+    --value-scale 30 \
+    --value-transform
 ```
 
-`--value-scale 30` and `--value-transform` come from the net's `latest.meta.json`
-(V2's value lives in h-space at scale 30); the head is rescaled to raw 2048
-points inside the ONNX graph. Then bump `AI_MODEL_VERSION` in `2048.html` to
-cache-bust. See `CLAUDE.md` for the authoritative, step-by-step flow.
+导出后将 `2048.html` 中的 `AI_MODEL_VERSION` 更新为 `v2-<net>-vt-iter<N>`，其中迭代数来自 meta 文件。可用随机 one-hot 局面对比 TorchScript 经 value scale 和逆变换后的输出与 ONNX Runtime 输出。
 
-The browser AI (`ai2048.js`) plays a **1-ply expectimax** over the value head —
-`Q(a) = reward(a) + γ·E_spawn[V(next)]` — rather than the full Gumbel MCTS used
-during self-play, so it's lighter but weaker than the engine's searched
-strength. `tests/test_ai2048.mjs` cross-checks the JS slide/spawn/encode logic
-against a fixture generated from `SkyZero_2048/python/game.py`.
+浏览器 AI 使用 value head 做一层 expectimax：`Q(a) = reward(a) + γ·E_spawn[V(next)]`，比训练自弈使用的完整 Gumbel MCTS 更轻但更弱。`tests/test_ai2048.mjs` 使用训练侧 `python/game.py` 生成的 fixture 对拍滑动、生成和编码逻辑。
 
-## Architecture
+## 躲避模型
 
-- `index.html` — landing page (game picker → `/gomoku`, `/2048`)
-- `gomoku.html` / `style.css` — five-in-a-row UI (ported from `play_web.py`)
-- `2048.html` — 2048 game UI + in-page AI controls (AI 走子 / AI 托管)
-- `main.js` — UI controller, canvas rendering, worker plumbing
-- `worker.js` — runs `ort.InferenceSession` + MCTS in a Web Worker (gomoku)
-- `worker2048.js` — runs the 2048 value net (ONNX) + expectimax off-thread
-- `mcts.js` — single-thread V7.19 PUCT, weighted backup, SVB and LCB selection
-- `ai2048.js` — 2048 afterstate logic + 1-ply value-net expectimax
-- `gomoku.js` — V7.19 Renju/Standard/Freestyle rules and 5+7 input protocol
-- `tools/export_v719_onnx.py` — V7.19 TorchScript → parity-checked ONNX
-- `tools/export_onnx_2048.py` — SkyZero_2048 `.pt` → `models/2048.onnx`
-- `models/manifest.json` — gomoku six-tier V7.19 catalog
+模型来自 `../SkyZero/DodgeSAC`。导出命令如下：
 
-## Gomoku search loop
+```bash
+conda run -n pytorch python tools/export_dodge_sac.py \
+    --ckpt ../SkyZero/DodgeSAC/runs/<name>/best.pt \
+    --version <tag>
+```
 
-The gomoku engine alternates between two modes, **reusing the search tree across
-every move** (`worker.js applyMove` re-roots the tree at the child for the move
-just played). `main.js triggerAISearch()` picks the path via `isPonderTurn()`:
+导出器包含 PyTorch 与打包权重的自检。导出后同步更新 `channel-dodge.html` 中 `dodge-policy.js?v=...` 的版本参数。
 
-- **Ponder** (your turn in play mode, or any move in analysis mode): fixed
-  `ANALYSIS_CHUNK = 128`-sim PUCT chunks, re-fired (reusing the tree) after each
-  result until cumulative root visits reach `ANALYSIS_CAP_MIN = 2000`, then it
-  idles. Runs quietly on your turn but keeps the candidate list / win-rate /
-  heatmaps live; placing a stone aborts the in-flight chunk via `searchId`.
-- **Move-search** (the AI's own turn, play mode): a single anytime-PUCT search
-  that runs for `thinkMs` (toolbar "thinking time", default 1000ms) **or** until
-  cumulative root visits hit `SEARCH_VISIT_CAP` (`worker.js`, = 2000, kept equal
-  to the ponder cap) — whichever comes first — then applies V7.19 retrospective
-  root weighting and LCB selection. Matching KataGo's
-  `searchFactorWhenWinning=0.30` and threshold `0.95`, three consecutive
-  completed AI move-searches above the threshold smoothly scale both time and
-  visit limits from 100% down to 30%.
-  `thinkMs` only governs the AI's own move; it does not deepen the your-turn
-  ponder (that is always the 128-chunk → 2000 cap, independent of `thinkMs`).
+## 五子棋搜索循环
 
-One full turn: page `ready` → `newGame` → ponder your turn; you move → `move`
-(tree reuse) → move-search the AI's reply → AI moves → `move` (tree reuse) →
-ponder your turn again. Both caps count **cumulative** root visits across tree
-reuse, so in the midgame/endgame the search often tops out before spending the
-full time / chunk budget. The two caps are deliberately kept equal — change one,
-change the other.
+五子棋在 ponder 与 move-search 之间交替，并通过 `worker.js` 的 `applyMove` 将落子对应的子节点提升为新根，持续复用搜索树。`main.js` 的 `triggerAISearch()` 通过 `isPonderTurn()` 选择路径。
 
-## V7.19 browser search contract
+- Ponder：对弈模式下用于玩家回合，分析模式下用于任意一方。每块固定 `ANALYSIS_CHUNK = 128` 次 simulation，复用树继续搜索，直到累计根访问达到 `ANALYSIS_CAP_MIN = 2000`。对弈时状态栏保持“轮到你”，候选、胜率和热力图继续刷新；玩家落子时以 `searchId++` 中止在途块。
+- Move-search：AI 回合使用 anytime PUCT，运行至 `thinkMs` 或累计根访问达到 `SEARCH_VISIT_CAP = 2000`，以先到者为准，再使用 V7.19 retrospective weight 与 LCB 选着。连续三次 AI 落子搜索处于极优局面时，`searchFactorWhenWinning = 0.30` 会将时间和访问上限平滑降至 30%；ponder 不参与统计。`thinkMs` 只控制 AI 回合，不增加 ponder 深度。
 
-The gomoku page uses the active V7.19 play package: 5 spatial + 7 global
-features on a fixed 15x15 network canvas (runtime boards 11x11 through 15x15),
-main/opponent/optimistic policy heads, uncertainty-weighted recompute backup,
-value-weighted child aggregation, subtree value bias, variance-scaled PUCT,
-root/non-root FPU, stochastic D4 inference, empty-board center restriction,
-root symmetry pruning, tree reuse, retrospective play-selection weights and
-LCB move selection. PDA is user-adjustable from `-1` (conservative) to `1`
-(aggressive), defaults to `0.5`, and changes NN conditioning without changing
-the search budget. The style slider snaps to balanced (`0`) near its midpoint.
-In play mode its reference color is always the AI, while
-free analysis uses Black as the stable reference. Renju
-forbidden black moves remain playable white-win terminals. Standard is
-exact-five for both colors; Freestyle is five-or-more.
-The analysis drawer shows current, optimistic, opponent, and LCB-adjusted
-play-selection heatmaps by default; raw visits remain an expandable diagnostic.
-The two future-position heatmaps are intentionally not displayed.
+完整循环为 ready → `newGame` → 玩家回合 ponder → 玩家落子 → `move` 与 AI move-search → AI 落子 → `move` → 回到 ponder。两个上限都计算跨树复用后的累计根访问，并刻意保持相等；修改其中一个时必须同步核对另一个。
 
-Browser adaptation: inference and tree descent are deliberately single-threaded
-and one leaf at a time. Each cache miss samples one D4 transform rather than
-forming an 8-way ensemble. RNNM (`ROOT_NONNEIGHBOUR_MASK_RADIUS`) is explicitly
-not implemented; empty-board center-only and symmetry pruning are independent
-root restrictions and remain enabled. Training-only `value_td` is omitted from
-the browser ONNX graph.
+## V7.19 浏览器搜索约定
+
+五子棋使用 V7.19 play package：固定 15×15 网络画布上的 5 spatial 与 7 global 特征，运行棋盘为 11×11 至 15×15；包含 main、opponent、optimistic policy heads、uncertainty-weighted recompute backup、value-weighted child aggregation、subtree value bias、variance-scaled PUCT、root/non-root FPU、随机 D4 推理、空盘中心限制、根对称裁剪、树复用、retrospective play-selection weights 和 LCB 选着。
+
+PDA 可在 `-1` 到 `1` 之间以 `0.1` 调节，默认 `0.5`，接近中点时吸附到 `0`。它改变神经网络条件但不改变搜索预算；对弈模式参考色是 AI，分析模式固定参考黑方。PDA 数值或参考方改变时必须清空搜索树和神经网络缓存。
+
+Renju 禁手仍允许黑方落下并作为白胜终局；Standard 双方恰好五连获胜；Freestyle 五连及以上获胜。浏览器适配为单线程、单 leaf，每次 cache miss 随机选择一个 D4 变换，不做八变换集成。RNNM 明确不实现；训练专用 `value_td` 不进入浏览器 ONNX 图。
+
+分析抽屉默认显示 current、optimistic、opponent 和经 LCB 调整的 play-selection 热力图；原始 visits 仅作为可展开诊断项，两张 future-position 热力图不展示。
+
+## 其他页面与共享工具
+
+- `mcts-tree.html`、`mcts-tree.js`、`worker-tree.js`：逐 simulation 展示五子棋搜索树。`worker-tree.js` 有一份从 `worker.js` 推理路径裁剪而来的实现，修改推理或全局特征时必须同时检查两边。
+- `i18n.js`：仅由 `gomoku.html` 使用。`index.html`、`2048.html` 和 `channel-dodge.html` 仍各自内联翻译字典。
+- `seg-slide.js`：通过 `MutationObserver` 监听 `.seg-btn` 的 `aria-pressed`，为分段控件提供滑块动画。
+
+## 缓存与运行约束
+
+- `_headers` 为 JavaScript 设置缓存。修改由 `importScripts` 加载的 `gomoku.js`、`mcts.js`、`ai2048.js` 等文件时，必须同步更新引用 URL 的 `?v=<version>`。替换模型时也必须更新模型 URL 或对应版本标识。
+- ONNX Runtime Web 从 CDN 加载，固定使用单线程 WASM，避免依赖 SharedArrayBuffer 跨域隔离。
+- 浏览器游戏、规则、特征或搜索逻辑变化时，必须与对应 Python 训练实现对拍。fixture 只代表生成它时的训练侧行为，训练实现变化后需要重新生成。
+
+## 排行榜
+
+排行榜是仅昵称、无登录的荣誉系统，覆盖 2048 与躲避游戏。后端位于 `functions/api/`，数据库结构在 `schema.sql`，前端入口为 `leaderboard.js` 的 `window.SkzLB.submit(game, score)`。
+
+完整搭建和重置流程见 [`LEADERBOARD_SETUP.md`](LEADERBOARD_SETUP.md)。
+
+## 部署
+
+- 通过 Cloudflare Pages 部署，无构建步骤，源码即产物。
+- 本仓库是独立 Git 根，Pages 根目录为 `/`，`wrangler.toml` 的 `pages_build_output_dir = "."`。
+- `functions/api/*` 由 Pages 自动编译为 Functions。
+- 缓存策略定义在 `_headers`：ONNX 模型长期 immutable，manifest 缓存 300 秒，其余静态资源缓存 1 小时。
+- 推送到远端会触发自动部署；执行部署相关 Git 操作前应明确确认发布意图。
