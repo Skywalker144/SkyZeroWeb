@@ -6,7 +6,7 @@
 // It is driven purely by the aria-pressed changes the existing page code already
 // makes (watched via MutationObserver), so no per-control wiring is needed —
 // tagging a .seg-row with `seg-slide` and loading this file is enough. Used by
-// the gomoku mode/side toggles (main.js) and the landing language/theme toggles
+// the gomoku mode/side toggles (gomoku-view.js) and the landing language/theme toggles
 // (index.html inline script); both only flip aria-pressed on their buttons.
 (function () {
     "use strict";
