@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {ScotlandGame} from '../scotlandyard/engine.js';
-const board = JSON.parse(fs.readFileSync(new URL('../scotlandyard/board.json',import.meta.url)));
-const {default_game:config} = JSON.parse(fs.readFileSync(new URL('../scotlandyard/models.json',import.meta.url)));
+import {ScotlandGame} from '../public/scotlandyard/engine.js';
+const board = JSON.parse(fs.readFileSync(new URL('../public/scotlandyard/board.json',import.meta.url)));
+const {default_game:config} = JSON.parse(fs.readFileSync(new URL('../public/scotlandyard/models.json',import.meta.url)));
 let count=0;
 for (const fixture of JSON.parse(fs.readFileSync(process.argv[2]))) {
   const game = new ScotlandGame(board,config,fixture.seed,fixture.opening);

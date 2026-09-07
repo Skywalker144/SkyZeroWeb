@@ -12,8 +12,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const require = createRequire(import.meta.url);
-const AI = require("../ai2048.js");
-const MCTS = require("../mcts2048.js");
+const AI = require("../public/2048/engine/ai.js");
+const MCTS = require("../public/2048/engine/mcts.js");
 const here = dirname(fileURLToPath(import.meta.url));
 const cases = JSON.parse(readFileSync(join(here, "mcts2048_fixture.json"), "utf8"));
 const puctCases = JSON.parse(readFileSync(join(here, "mcts2048_puct_fixture.json"), "utf8"));

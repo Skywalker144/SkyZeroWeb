@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a trained SAC (continuous) Channel-Dodge actor to dodge-policy.js.
+"""Export a trained SAC (continuous) Channel-Dodge actor to policy.js.
 
 The Channel-Dodge autopilot. SAC's actor is a SquashedGaussianActor — a ReLU MLP
 ``271 -> 256 -> 256 -> 4`` (trained in ../SkyZero/DodgeSAC) whose
@@ -26,7 +26,7 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB_ROOT = os.path.dirname(HERE)                                  # …/SkyZeroWeb
-AGENT = os.path.normpath(os.path.join(WEB_ROOT, "..", "DodgeSAC"))  # …/SkyZero/DodgeSAC (sibling)
+AGENT = os.path.normpath(os.path.join(WEB_ROOT, "..", "SkyZero", "DodgeSAC"))
 
 # SquashedGaussianActor.net = _mlp(271, (256,256), 4): Linear,ReLU,Linear,ReLU,Linear
 LAYERS = [
@@ -54,7 +54,8 @@ def _forward_numpy(blob, x):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ckpt", default=os.path.join(AGENT, "runs", "sac_gpu_smooth", "best.pt"))
-    ap.add_argument("--out", default=os.path.join(WEB_ROOT, "dodge-policy.js"))
+    ap.add_argument("--out", default=os.path.join(
+        WEB_ROOT, "public", "channel-dodge", "ai", "policy.js"))
     ap.add_argument("--version", default="sac_gpu_smooth")
     args = ap.parse_args()
 
@@ -114,8 +115,8 @@ window.DODGE_POLICY = {{
     print(f"[export] {args.ckpt}")
     print(f"[export]   self-check OK (64 inputs, max mean err {max_err:.1e})")
     print(f"[export]   wrote {args.out}  ({blob.nbytes/1024:.0f} KB float32 -> {len(js)/1024:.0f} KB js)")
-    print(f"[export] >>> bump cache-bust in channel-dodge.html to:")
-    print(f'[export] >>>   <script src="dodge-policy.js?v={args.version}"></script>')
+    print(f"[export] >>> bump cache-bust in public/channel-dodge/index.html to:")
+    print(f'[export] >>>   <script src="/channel-dodge/ai/policy.js?v={args.version}"></script>')
 
 
 if __name__ == "__main__":

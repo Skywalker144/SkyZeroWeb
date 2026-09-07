@@ -3,10 +3,10 @@ import assert from "node:assert";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { softmax, transformCoord } = require("../mcts.js");
+const { softmax, transformCoord } = require("../public/gomoku/engine/mcts.js");
 
 test("shared inference runtime owns reversible D4 transforms", () => {
-    const { transformSpatial, undoSpatial } = require("../gomoku-inference.js");
+    const { transformSpatial, undoSpatial } = require("../public/gomoku/engine/inference.js");
     const input = Float32Array.from({ length: 18 }, (_, index) => index + 1);
     for (let rotation = 0; rotation < 4; rotation++) {
         for (const flip of [false, true]) {
@@ -21,7 +21,7 @@ test("shared inference runtime owns reversible D4 transforms", () => {
 });
 
 test("shared inference runtime exposes every policy head from one forward pass", async () => {
-    const { GomokuInference } = require("../gomoku-inference.js");
+    const { GomokuInference } = require("../public/gomoku/engine/inference.js");
     const policy = new Float32Array(20);
     policy.set([0, 1, 2, 3], 0);
     policy.set([3, 2, 1, 0], 4);

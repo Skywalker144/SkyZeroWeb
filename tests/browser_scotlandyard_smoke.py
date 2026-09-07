@@ -67,7 +67,7 @@ with sync_playwright() as p:
     assert page.locator('#match-pursuer').inner_text()=='AZ Pursuer'
     assert json.loads(page.evaluate("sessionStorage.getItem('skz_scotland_game_v1')"))['game']['state']['round']==1
     # Verify browser WASM actions against the original PyTorch regression fixtures.
-    catalog=json.loads((root/'scotlandyard/models.json').read_text())
+    catalog=json.loads((root/'public/scotlandyard/models.json').read_text())
     for model in catalog['pursuer']:
         fixtures=json.loads((root/f"tests/{model['id']}-fixtures.json").read_text())
         result=page.evaluate("""async ({model,fixtures}) => {
@@ -80,7 +80,7 @@ with sync_playwright() as p:
             worker.postMessage({id:++id,...message});
           });
           try {
-            await call({kind:'load',model,url:new URL('../models/scotlandyard/'+model.id+'.onnx',location.href).href});
+            await call({kind:'load',model,url:new URL('./models/'+model.id+'.onnx',location.href).href});
             const outputs=[];
             for (const fixture of fixtures) outputs.push(await call({kind:'run',inputs:Object.fromEntries(Object.entries(fixture.inputs).map(([key,v])=>[key,v.data]))}));
             return outputs;
@@ -97,13 +97,13 @@ with sync_playwright() as p:
     print('PASS automatic start, real download progress, mobile overflow, WASM/native parity',flush=True)
     # A failed model download must leave Start usable, and retry must recover.
     context=browser.new_context()
-    context.route('**/models/scotlandyard/*.onnx',lambda route:route.abort())
+    context.route('**/scotlandyard/models/*.onnx',lambda route:route.abort())
     failed=context.new_page()
     failed.goto(args.url.rstrip('/')+'/scotlandyard/')
     failed.locator('#error:not([hidden])').wait_for(timeout=60000)
     failed.locator('#loading-retry:not([hidden])').wait_for()
     assert not failed.locator('#app').evaluate("el=>el.classList.contains('has-game')")
-    context.unroute('**/models/scotlandyard/*.onnx')
+    context.unroute('**/scotlandyard/models/*.onnx')
     failed.locator('#loading-retry').click()
     failed.wait_for_function("document.querySelector('#app').classList.contains('has-game')",timeout=120000)
     failed.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)

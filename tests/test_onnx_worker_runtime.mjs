@@ -5,7 +5,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 
 test("worker runtime keeps the ONNX version and WASM setup in one module", () => {
-    const { ORT_BASE_URL, loadOnnxRuntime } = require("../onnx-worker-runtime.js");
+    const { ORT_BASE_URL, loadOnnxRuntime } = require("../public/shared/onnx-worker-runtime.js");
     const loaded = [];
     const worker = {
         importScripts(url) {

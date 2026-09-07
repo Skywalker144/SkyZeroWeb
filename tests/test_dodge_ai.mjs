@@ -15,7 +15,7 @@ const emptyState = () => ({
 });
 
 test("Dodge SAC observation keeps the training layout and normalization", () => {
-    const { buildObservation, OBSERVATION_SIZE } = require("../dodge-ai.js");
+    const { buildObservation, OBSERVATION_SIZE } = require("../public/channel-dodge/ai/runtime.js");
     const observation = buildObservation(emptyState(), {});
     assert.equal(OBSERVATION_SIZE, 271);
     assert.equal(observation.length, 271);
@@ -27,7 +27,7 @@ test("Dodge SAC observation keeps the training layout and normalization", () => 
 });
 
 test("Dodge policy controller accepts only continuous SAC output", () => {
-    const { createPolicyController } = require("../dodge-ai.js");
+    const { createPolicyController } = require("../public/channel-dodge/ai/runtime.js");
     const weights = new Float32Array(271 * 2 + 2);
     weights[weights.length - 2] = Math.atanh(0.5);
     weights[weights.length - 1] = Math.atanh(-0.25);

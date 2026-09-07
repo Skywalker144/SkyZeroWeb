@@ -2,7 +2,7 @@
 
 Run with:
   conda run -n pytorch python tests/browser_v719_smoke.py
-while serve.py is listening on 127.0.0.1:8000.
+while scripts/serve.py is listening on 127.0.0.1:8000.
 """
 
 import os
@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 
 BASE_URL = os.environ.get(
     "SKYZERO_WEB_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-URL = f"{BASE_URL}/gomoku.html"
+URL = f"{BASE_URL}/gomoku"
 
 
 def wait_ready(page):
@@ -299,7 +299,7 @@ def main():
             if msg.type == "error" else None)
         tree_page.on("pageerror",
                      lambda exc: errors.append(f"tree pageerror: {exc}"))
-        tree_page.goto(f"{BASE_URL}/mcts-tree.html",
+        tree_page.goto(f"{BASE_URL}/mcts-tree",
                        wait_until="domcontentloaded", timeout=120_000)
         tree_page.wait_for_function(
             """() => {
@@ -370,7 +370,7 @@ def main():
         error_context = browser.new_context()
         error_page = error_context.new_page()
         error_page.route(
-            "**/models/level1.onnx*",
+            "**/gomoku/models/level1.onnx*",
             lambda route: route.fulfill(
                 status=503, content_type="text/plain", body="offline"),
         )

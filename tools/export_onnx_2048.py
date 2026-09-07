@@ -18,13 +18,13 @@ Usage:
     # V2 server model (TorchScript): VALUE_SCALE=30, value transform always on
     python tools/export_onnx_2048.py \\
         --ckpt ../SkyZero/SkyZero_2048_V2/server_models/model_iter406.pt \\
-        --out models/2048.onnx --value-scale 30 --value-transform
+        --out public/2048/models/value.onnx --value-scale 30 --value-transform
 
     # bare state_dict: --net parses to blocks/channels, other Config fields default
     python tools/export_onnx_2048.py \\
-        --ckpt .../nets/b3c64/model_latest.pt --net b3c64 --out models/2048.onnx
+        --ckpt .../nets/b3c64/model_latest.pt --net b3c64 --out public/2048/models/value.onnx
 
-Mirrors tools/export_onnx.py's gotchas: opset 18 (Mish), dynamo=False (so the
+Uses opset 18 (Mish), dynamo=False (so the
 weights inline into a single self-contained .onnx rather than a sibling
 .onnx.data file that onnxruntime-web can't follow), dynamic batch axis.
 """

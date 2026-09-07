@@ -116,8 +116,9 @@ def main():
     ids = ['az-selfplay-000360', 'ppo-gnn-000500']
     labels = ['AZ Selfplay · 360（默认）', 'PPO GNN · 500']
     out = args.output
-    (out/'models/scotlandyard').mkdir(parents=True, exist_ok=True)
-    (out/'scotlandyard').mkdir(parents=True, exist_ok=True)
+    static = out/'public'
+    (static/'scotlandyard/models').mkdir(parents=True, exist_ok=True)
+    (static/'scotlandyard').mkdir(parents=True, exist_ok=True)
     catalog = []
     rng = np.random.default_rng(7301)
     def inputs(state):
@@ -128,7 +129,7 @@ def main():
     state = rules.apply_evader(state, rules.legal_evader_moves(state.evader_private())[0])
     sample = inputs(state)
     for wrapper, source, key, label in zip(wrappers, paths, ids, labels):
-        target = out/f'models/scotlandyard/{key}.onnx'
+        target = static/f'scotlandyard/models/{key}.onnx'
         with torch.inference_mode():
             torch.onnx.export(wrapper, sample, target, input_names=INPUTS,
                 output_names=['actions', 'order'], opset_version=17, dynamo=False)
@@ -177,7 +178,7 @@ def main():
                 count += 1
         (out/f'tests/{key}-fixtures.json').write_text(json.dumps(fixtures))
         catalog.append({'id':key, 'label':label, 'kind':'onnx', 'game':config.game.gameplay_payload(),
-            'url':f'../models/scotlandyard/{key}.onnx', 'bytes':target.stat().st_size,
+            'url':f'./models/{key}.onnx', 'bytes':target.stat().st_size,
             'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),
             'source':str(source.relative_to(args.source)), 'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
             'inputs':[{'name':v.name,'type':v.type,'dims':v.shape} for v in session.get_inputs()],
@@ -189,8 +190,8 @@ def main():
     payload['start_nodes'] = list(board.start_nodes)
     payload['node_vocab_size'] = board.node_vocab_size
     payload['max_candidates'] = board.max_pursuer_actions
-    (out/'scotlandyard/board.json').write_text(json.dumps(payload))
-    (out/'scotlandyard/models.json').write_text(json.dumps({'format_version':1,'pursuer':catalog,'evader':[],
+    (static/'scotlandyard/board.json').write_text(json.dumps(payload))
+    (static/'scotlandyard/models.json').write_text(json.dumps({'format_version':1,'pursuer':catalog,'evader':[],
         'default_game':config.game.gameplay_payload(), 'rulesets':{'finite_tickets_v0':config.game.gameplay_payload()}},ensure_ascii=False,indent=2))
 
 if __name__ == '__main__':

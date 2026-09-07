@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {ScotlandGame} from '../scotlandyard/engine.js';
-import {matchPresentation} from '../scotlandyard/match_view.js';
-const board=JSON.parse(fs.readFileSync(new URL('../scotlandyard/board.json',import.meta.url)));
-const {default_game:config}=JSON.parse(fs.readFileSync(new URL('../scotlandyard/models.json',import.meta.url)));
+import {ScotlandGame} from '../public/scotlandyard/engine.js';
+import {matchPresentation} from '../public/scotlandyard/match_view.js';
+const board=JSON.parse(fs.readFileSync(new URL('../public/scotlandyard/board.json',import.meta.url)));
+const {default_game:config}=JSON.parse(fs.readFileSync(new URL('../public/scotlandyard/models.json',import.meta.url)));
 const game=seed=>new ScotlandGame(board,config,seed);
 function pending(g){g.evaderMove(g.legalEvader()[0]);return g;}
 test('compact controller labels identify AZ and PPO pursuers',()=>{

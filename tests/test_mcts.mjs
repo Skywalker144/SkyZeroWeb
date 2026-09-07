@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const {
     Node, MCTS, softmax, uncertaintyWeight, valueWeightCdf,
     searchFactorWhenWinning, boardSymmetries, rootSymmetryMask,
-} = require("../mcts.js");
+} = require("../public/gomoku/engine/mcts.js");
 
 const stubGame = {
     boardSize: 3,

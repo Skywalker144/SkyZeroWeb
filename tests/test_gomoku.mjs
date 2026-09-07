@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const {
     Gomoku, ForbiddenPointFinder,
     MIN_BOARD_SIZE, MAX_BOARD_SIZE,
-} = require("../gomoku.js");
+} = require("../public/gomoku/engine/game.js");
 
 test("V7.19 accepts exactly board sizes 11 through 15", () => {
     assert.strictEqual(MIN_BOARD_SIZE, 11);
