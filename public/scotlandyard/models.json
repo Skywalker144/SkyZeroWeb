@@ -2,8 +2,8 @@
   "format_version": 1,
   "pursuer": [
     {
-      "id": "az-selfplay-000360",
-      "label": "AZ Selfplay · 360（默认）",
+      "id": "az-selfplay-000470",
+      "label": "AZ Selfplay · 470（默认）",
       "kind": "onnx",
       "game": {
         "ruleset": "finite_tickets_v0",
@@ -52,11 +52,11 @@
           18
         ]
       },
-      "url": "./models/az-selfplay-000360.onnx",
+      "url": "./models/az-selfplay-000470.onnx",
       "bytes": 1076427,
-      "sha256": "8599c123ebcf86ca234ab0c8675117032c8973fdad76c7203e2daf8e719c8920",
-      "source": "az_selfplay/data/finite_tickets_p3/checkpoints/checkpoint_000360.pth",
-      "source_sha256": "5deb4075ef3e9cd9116ff34e345a78d0cb213aa2c226b0688ce190e8b0ae9e15",
+      "sha256": "145f9f48b0d1187dd63048ab4b16c2c1b020bc507e1964634e4429206001017b",
+      "source": "az_selfplay/data/finite_tickets_p3/checkpoints/checkpoint_000470.pth",
+      "source_sha256": "a8466f48cb3013bb0c17a95c5e7d13f8efacee99abc3f20553a05b7b9162d5fd",
       "inputs": [
         {
           "name": "history_tickets",
@@ -151,7 +151,7 @@
           ]
         }
       ],
-      "parity_decisions": 120
+      "parity_decisions": 112
     },
     {
       "id": "ppo-gnn-000500",

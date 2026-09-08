@@ -94,7 +94,7 @@ def main():
     from az.alphazero.tensors import public_tensor_batch, pursuer_candidate_batch
     torch.set_num_threads(1)
     board = load_standard_board()
-    az_path = args.source/'az_selfplay/data/finite_tickets_p3/checkpoints/checkpoint_000360.pth'
+    az_path = args.source/'az_selfplay/data/finite_tickets_p3/checkpoints/checkpoint_000470.pth'
     ppo_path = args.source/'ppo_pursuer/data/finite_tickets_p3_gnn_external/checkpoints/update_000500.pt'
     manifest = json.loads((az_path.parent.parent/'run_manifest.json').read_text())
     az_checkpoint = torch.load(az_path, map_location='cpu', weights_only=False)
@@ -113,8 +113,8 @@ def main():
     ppo.load_state_dict(ppo_checkpoint['model'], strict=True)
     wrappers = [PursuerExport(az, True).eval(), PursuerExport(ppo, False).eval()]
     paths = [az_path, ppo_path]
-    ids = ['az-selfplay-000360', 'ppo-gnn-000500']
-    labels = ['AZ Selfplay · 360（默认）', 'PPO GNN · 500']
+    ids = ['az-selfplay-000470', 'ppo-gnn-000500']
+    labels = ['AZ Selfplay · 470（默认）', 'PPO GNN · 500']
     out = args.output
     static = out/'public'
     (static/'scotlandyard/models').mkdir(parents=True, exist_ok=True)

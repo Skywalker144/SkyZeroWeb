@@ -4,7 +4,7 @@ SkyZeroWeb 的纯静态 ScotlandYard 页面，入口 `public/scotlandyard/index.
 
 玩家固定为 Evader，3 名 Pursuer 使用浏览器 Worker 内的 ONNX Runtime Web WASM 纯网络确定性推理。按网络选出的顺序逐个解码动作，动态避让其他 Pursuer；无搜索。模型只接收公开信息，不包含 Evader 私有位置，也不导出训练用 critic。
 
-默认 AZ Selfplay `checkpoint_000360.pth` 的 Pursuer；可切换 PPO GNN `update_000500.pt`。首次打开自动下载默认 AZ 权重，按实际接收字节显示进度，校验和初始化完成后直接开始对局。已有会话自动恢复。右上角仅提供 AZ / PPO GNN 选择，切换后立即加载模型并使用当前 seed 重置对局；规则固定、Evader 始终由玩家控制。加载时检查文件长度和 SHA-256。完整来源、模型输入、环境指纹和校验值见 `models.json`。
+默认 AZ Selfplay `checkpoint_000470.pth` 的 Pursuer；可切换 PPO GNN `update_000500.pt`。首次打开自动下载默认 AZ 权重，按实际接收字节显示进度，校验和初始化完成后直接开始对局。已有会话自动恢复。右上角仅提供 AZ / PPO GNN 选择，切换后立即加载模型并使用当前 seed 重置对局；规则固定、Evader 始终由玩家控制。加载时检查文件长度和 SHA-256。完整来源、模型输入、环境指纹和校验值见 `models.json`。
 
 页面主题沿用站点首页设置，游戏页不提供单独的主题入口。
 

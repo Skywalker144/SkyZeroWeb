@@ -62,7 +62,7 @@ with sync_playwright() as p:
     page.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)
     assert not page.locator('#error').is_visible()
     print('PPO MOVE',page.locator('#turn-label').inner_text(),page.locator('#error').inner_text(),flush=True)
-    page.locator('#quick-pursuer').select_option('az-selfplay-000360')
+    page.locator('#quick-pursuer').select_option('az-selfplay-000470')
     page.wait_for_function("document.querySelector('#app').getAttribute('aria-busy') === 'false'",timeout=120000)
     assert page.locator('#match-pursuer').inner_text()=='AZ Pursuer'
     assert json.loads(page.evaluate("sessionStorage.getItem('skz_scotland_game_v1')"))['game']['state']['round']==1

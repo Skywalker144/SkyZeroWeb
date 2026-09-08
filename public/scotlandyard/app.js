@@ -761,7 +761,7 @@ async function loadCatalog() {
     option.textContent = model.id.startsWith('az-') ? 'AZ' : 'PPO GNN';
     return option;
   }));
-  $('quick-pursuer').value = 'az-selfplay-000360';
+  $('quick-pursuer').value = 'az-selfplay-000470';
   session.catalogReady = true;
 }
 
