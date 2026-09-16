@@ -1,5 +1,10 @@
 /gomoku /gomoku/index.html 200
-/gomoku/:model /gomoku/index.html 200
+/gomoku/lv1 /gomoku/index.html 200
+/gomoku/lv2 /gomoku/index.html 200
+/gomoku/lv3 /gomoku/index.html 200
+/gomoku/lv4 /gomoku/index.html 200
+/gomoku/lv5 /gomoku/index.html 200
+/gomoku/lv6 /gomoku/index.html 200
 /2048 /2048/index.html 200
 /channel-dodge /channel-dodge/index.html 200
 /mcts-tree /gomoku/tree/index.html 200
