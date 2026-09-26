@@ -9,7 +9,7 @@
 | 五子棋 | `/gomoku` | AlphaZero 风格神经网络与 MCTS | `public/gomoku/` |
 | 2048 | `/2048` | Stochastic Gumbel AlphaZero value net 与搜索 | `public/2048/` |
 | 躲避 | `/channel-dodge` | SAC 连续策略 | `public/channel-dodge/` |
-| ScotlandYard | `/scotlandyard/` | AZ Selfplay / PPO GNN 纯网络策略 | `public/scotlandyard/` |
+| ScotlandYard | `/scotlandyard/` | V0.16 AZ 纯网络 checkpoint 盲测 | `public/scotlandyard/` |
 
 躲避游戏的「AI 托管」使用连续 SAC actor，网络为 `271→256→256→4`，前两维高斯均值经 `tanh` 后得到移动向量。权重以 little-endian float32 base64 打包在 `public/channel-dodge/ai/policy.js` 中，由同目录的 `runtime.js` 同步前向运行，不依赖 ONNX、WASM 或 Worker。271 维观测包含最近 32 个威胁、3 条激光、3 颗炸弹、2 个血包、玩家状态与四向墙距，并与 `../SkyZero/DodgeSAC/env_dodge.py` 的 `_obs_vector` 对齐；决策频率为 30 Hz。游戏物理固定在 `450×600` 逻辑坐标系中，页面缩放只影响渲染，敌人弹幕仍由手写行为脚本控制。
 
