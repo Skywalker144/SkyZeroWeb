@@ -37,7 +37,7 @@ export function buildTurnTrack(state, completedStepsOverride = null) {
     const round = Math.ceil(step / 2);
     const role = step % 2 === 1 ? 'evader' : 'pursuer';
     const scheduled = role === 'evader' && scheduledRounds.has(round);
-    const exposedAt = role === 'evader' ? exposedByRound.get(round) : undefined;
+    const exposedAt = role === 'evader' && step <= completedSteps ? exposedByRound.get(round) : undefined;
     return {
       step,
       round,
@@ -56,4 +56,13 @@ export function buildTurnTrack(state, completedStepsOverride = null) {
     terminal,
     steps,
   };
+}
+
+export function revealPresentation(state) {
+  const schedule = state?.reveal_rounds || [];
+  const latest = [...(state?.exposed_positions || [])].sort((a,b) => b.round-a.round)[0] || null;
+  const revealsNow = Boolean(state && !state.terminal && state.phase === 'evader' && schedule.includes(state.round));
+  const nextRound = state?.terminal ? null : schedule.find(r => r > (state?.round || 0)
+    || (r === state?.round && state.phase === 'evader')) ?? null;
+  return {current:latest?.round === state?.round ? latest : null,revealsNow,nextRound};
 }

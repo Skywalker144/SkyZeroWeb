@@ -1,23 +1,30 @@
 {
-  "format_version": 1,
+  "format_version": 2,
+  "protocol": "v016-belief-pilot-v1",
+  "default_model": "v016-belief-000008",
   "pursuer": [
     {
-      "id": "az-selfplay-000470",
-      "label": "AZ Selfplay · 470（默认）",
+      "id": "v016-belief-000002",
+      "label": "Checkpoint 2",
+      "checkpoint": 2,
       "kind": "onnx",
       "game": {
-        "ruleset": "finite_tickets_v0",
-        "num_pursuers": 3,
-        "evader_start_mode": "random",
+        "ruleset": "classic_no_double_unlimited_evader",
+        "num_pursuers": 5,
+        "evader_start_mode": "official",
         "evader_start_locations": [],
-        "pursuer_start_mode": "random",
+        "pursuer_start_mode": "official",
         "pursuer_start_locations": [],
+        "start_mode_weights": [
+          1.0,
+          0.0
+        ],
         "pursuer_history_length": 0,
-        "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+        "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71",
         "resolved_ruleset": {
-          "ruleset_id": "finite_tickets_v0",
-          "num_pursuers": 3,
-          "max_rounds": 23,
+          "ruleset_id": "classic_no_double_unlimited_evader",
+          "num_pursuers": 5,
+          "max_rounds": 22,
           "reveal_rounds": [
             3,
             8,
@@ -25,7 +32,7 @@
             18
           ],
           "pursuer_initial_tickets": [
-            11,
+            10,
             8,
             4
           ],
@@ -39,12 +46,22 @@
           "forced_pass": "required-when-no-unoccupied-destination-v1",
           "public_information": "ticket-reveal-uniform-support-v1",
           "capture": "after-pursuer-joint-action-v1",
-          "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+          "terminal": "capture-pursuers-stuck-round-cap-evader-stuck-v2",
           "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
           "resource_fingerprint": "c62af59b214421e3",
-          "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+          "black_ticket_mode": "hidden",
+          "transfer_pursuer_tickets_to_evader": false,
+          "evader_start_mode": "official",
+          "evader_start_locations": [],
+          "pursuer_start_mode": "official",
+          "pursuer_start_locations": [],
+          "start_mode_weights": [
+            1.0,
+            0.0
+          ],
+          "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71"
         },
-        "max_rounds": 23,
+        "max_rounds": 22,
         "reveal_rounds": [
           3,
           8,
@@ -52,18 +69,27 @@
           18
         ]
       },
-      "url": "./models/az-selfplay-000470.onnx",
-      "bytes": 1076427,
-      "sha256": "145f9f48b0d1187dd63048ab4b16c2c1b020bc507e1964634e4429206001017b",
-      "source": "az_selfplay/data/finite_tickets_p3/checkpoints/checkpoint_000470.pth",
-      "source_sha256": "a8466f48cb3013bb0c17a95c5e7d13f8efacee99abc3f20553a05b7b9162d5fd",
+      "url": "./models/v016-belief-000002-8c4c54d989a8.onnx",
+      "bytes": 3081475,
+      "sha256": "662977849d42e1921bca88be4bec508b1ed322b2aec967357f2ddf5ed5ebb5e3",
+      "source_version": "V0.16",
+      "source": "az_selfplay/data/exp_all/evader_location_belief_backup/checkpoints/checkpoint_000002.pth",
+      "source_sha256": "8c4c54d989a8bcfbdc782756d105972946f99e02b1e3edab04a20e2815b273fc",
+      "run_id": "5c26f19c-02e7-4cd3-b2be-cb47cbdfd89c",
+      "semantic_hash": "bcb44a969ecbe56f73a6b5ebb698a46268f97b94a1d4e66d75a74e48c45337e4",
+      "decision_protocol": {
+        "mode": "deterministic_argmax",
+        "simulations": 0,
+        "canonicalize_pursuer_orders": true,
+        "identity_relabeling": "fixed"
+      },
       "inputs": [
         {
           "name": "history_tickets",
           "type": "tensor(int64)",
           "dims": [
             1,
-            23
+            22
           ]
         },
         {
@@ -79,7 +105,7 @@
           "type": "tensor(int64)",
           "dims": [
             1,
-            3
+            5
           ]
         },
         {
@@ -87,7 +113,7 @@
           "type": "tensor(float)",
           "dims": [
             1,
-            3,
+            5,
             3
           ]
         },
@@ -128,7 +154,7 @@
           "type": "tensor(int64)",
           "dims": [
             1,
-            3,
+            5,
             13
           ]
         },
@@ -137,7 +163,7 @@
           "type": "tensor(int64)",
           "dims": [
             1,
-            3,
+            5,
             13
           ]
         },
@@ -146,30 +172,43 @@
           "type": "tensor(bool)",
           "dims": [
             1,
-            3,
+            5,
             13
+          ]
+        },
+        {
+          "name": "order_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            120
           ]
         }
       ],
-      "parity_decisions": 112
+      "parity_decisions": 121
     },
     {
-      "id": "ppo-gnn-000500",
-      "label": "PPO GNN · 500",
+      "id": "v016-belief-000008",
+      "label": "Checkpoint 8",
+      "checkpoint": 8,
       "kind": "onnx",
       "game": {
-        "ruleset": "finite_tickets_v0",
-        "num_pursuers": 3,
-        "evader_start_mode": "random",
+        "ruleset": "classic_no_double_unlimited_evader",
+        "num_pursuers": 5,
+        "evader_start_mode": "official",
         "evader_start_locations": [],
-        "pursuer_start_mode": "random",
+        "pursuer_start_mode": "official",
         "pursuer_start_locations": [],
+        "start_mode_weights": [
+          1.0,
+          0.0
+        ],
         "pursuer_history_length": 0,
-        "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+        "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71",
         "resolved_ruleset": {
-          "ruleset_id": "finite_tickets_v0",
-          "num_pursuers": 3,
-          "max_rounds": 23,
+          "ruleset_id": "classic_no_double_unlimited_evader",
+          "num_pursuers": 5,
+          "max_rounds": 22,
           "reveal_rounds": [
             3,
             8,
@@ -177,7 +216,7 @@
             18
           ],
           "pursuer_initial_tickets": [
-            11,
+            10,
             8,
             4
           ],
@@ -191,12 +230,22 @@
           "forced_pass": "required-when-no-unoccupied-destination-v1",
           "public_information": "ticket-reveal-uniform-support-v1",
           "capture": "after-pursuer-joint-action-v1",
-          "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+          "terminal": "capture-pursuers-stuck-round-cap-evader-stuck-v2",
           "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
           "resource_fingerprint": "c62af59b214421e3",
-          "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+          "black_ticket_mode": "hidden",
+          "transfer_pursuer_tickets_to_evader": false,
+          "evader_start_mode": "official",
+          "evader_start_locations": [],
+          "pursuer_start_mode": "official",
+          "pursuer_start_locations": [],
+          "start_mode_weights": [
+            1.0,
+            0.0
+          ],
+          "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71"
         },
-        "max_rounds": 23,
+        "max_rounds": 22,
         "reveal_rounds": [
           3,
           8,
@@ -204,18 +253,27 @@
           18
         ]
       },
-      "url": "./models/ppo-gnn-000500.onnx",
-      "bytes": 2968894,
-      "sha256": "f39b41d8cbf89bda2ed6b81b4c7661e41c1d510c89af3514cd2bb4323a84ac9f",
-      "source": "ppo_pursuer/data/finite_tickets_p3_gnn_external/checkpoints/update_000500.pt",
-      "source_sha256": "a3b62a41022e1286606dcae20d66962b4aae88f9ef68dacfc2b50f85f525000c",
+      "url": "./models/v016-belief-000008-c9ccf34b81e4.onnx",
+      "bytes": 3081475,
+      "sha256": "423cb3a7fdd0f1b93d3a332884a59c017c4951118d68e4426419cdffd03b4ffc",
+      "source_version": "V0.16",
+      "source": "az_selfplay/data/exp_all/evader_location_belief_backup/checkpoints/checkpoint_000008.pth",
+      "source_sha256": "c9ccf34b81e40e218c73ec43b0ece6854c2d1d299f2b49b47cc513e01b923c04",
+      "run_id": "5c26f19c-02e7-4cd3-b2be-cb47cbdfd89c",
+      "semantic_hash": "bcb44a969ecbe56f73a6b5ebb698a46268f97b94a1d4e66d75a74e48c45337e4",
+      "decision_protocol": {
+        "mode": "deterministic_argmax",
+        "simulations": 0,
+        "canonicalize_pursuer_orders": true,
+        "identity_relabeling": "fixed"
+      },
       "inputs": [
         {
           "name": "history_tickets",
           "type": "tensor(int64)",
           "dims": [
             1,
-            23
+            22
           ]
         },
         {
@@ -231,7 +289,7 @@
           "type": "tensor(int64)",
           "dims": [
             1,
-            3
+            5
           ]
         },
         {
@@ -239,7 +297,7 @@
           "type": "tensor(float)",
           "dims": [
             1,
-            3,
+            5,
             3
           ]
         },
@@ -280,7 +338,7 @@
           "type": "tensor(int64)",
           "dims": [
             1,
-            3,
+            5,
             13
           ]
         },
@@ -289,7 +347,7 @@
           "type": "tensor(int64)",
           "dims": [
             1,
-            3,
+            5,
             13
           ]
         },
@@ -298,28 +356,592 @@
           "type": "tensor(bool)",
           "dims": [
             1,
-            3,
+            5,
             13
+          ]
+        },
+        {
+          "name": "order_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            120
           ]
         }
       ],
-      "parity_decisions": 93
+      "parity_decisions": 136
+    },
+    {
+      "id": "v016-belief-000016",
+      "label": "Checkpoint 16",
+      "checkpoint": 16,
+      "kind": "onnx",
+      "game": {
+        "ruleset": "classic_no_double_unlimited_evader",
+        "num_pursuers": 5,
+        "evader_start_mode": "official",
+        "evader_start_locations": [],
+        "pursuer_start_mode": "official",
+        "pursuer_start_locations": [],
+        "start_mode_weights": [
+          1.0,
+          0.0
+        ],
+        "pursuer_history_length": 0,
+        "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71",
+        "resolved_ruleset": {
+          "ruleset_id": "classic_no_double_unlimited_evader",
+          "num_pursuers": 5,
+          "max_rounds": 22,
+          "reveal_rounds": [
+            3,
+            8,
+            13,
+            18
+          ],
+          "pursuer_initial_tickets": [
+            10,
+            8,
+            4
+          ],
+          "evader_initial_tickets": [
+            1000000,
+            1000000,
+            1000000,
+            5
+          ],
+          "double_move_enabled": false,
+          "forced_pass": "required-when-no-unoccupied-destination-v1",
+          "public_information": "ticket-reveal-uniform-support-v1",
+          "capture": "after-pursuer-joint-action-v1",
+          "terminal": "capture-pursuers-stuck-round-cap-evader-stuck-v2",
+          "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
+          "resource_fingerprint": "c62af59b214421e3",
+          "black_ticket_mode": "hidden",
+          "transfer_pursuer_tickets_to_evader": false,
+          "evader_start_mode": "official",
+          "evader_start_locations": [],
+          "pursuer_start_mode": "official",
+          "pursuer_start_locations": [],
+          "start_mode_weights": [
+            1.0,
+            0.0
+          ],
+          "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71"
+        },
+        "max_rounds": 22,
+        "reveal_rounds": [
+          3,
+          8,
+          13,
+          18
+        ]
+      },
+      "url": "./models/v016-belief-000016-8e80b6dba6ea.onnx",
+      "bytes": 3081475,
+      "sha256": "5a87d51ff1f52a37a4395a73ca96af94353f9f77f5e8464ee23014de8c26768d",
+      "source_version": "V0.16",
+      "source": "az_selfplay/data/exp_all/evader_location_belief_backup/checkpoints/checkpoint_000016.pth",
+      "source_sha256": "8e80b6dba6ea19a08864e84f27c963b6ccfdda4df642a330bdca35076783f0b4",
+      "run_id": "5c26f19c-02e7-4cd3-b2be-cb47cbdfd89c",
+      "semantic_hash": "bcb44a969ecbe56f73a6b5ebb698a46268f97b94a1d4e66d75a74e48c45337e4",
+      "decision_protocol": {
+        "mode": "deterministic_argmax",
+        "simulations": 0,
+        "canonicalize_pursuer_orders": true,
+        "identity_relabeling": "fixed"
+      },
+      "inputs": [
+        {
+          "name": "history_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            22
+          ]
+        },
+        {
+          "name": "reveal_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "pursuer_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5
+          ]
+        },
+        {
+          "name": "pursuer_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            5,
+            3
+          ]
+        },
+        {
+          "name": "evader_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "possible_mask",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            201
+          ]
+        },
+        {
+          "name": "round_scalar",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            1
+          ]
+        },
+        {
+          "name": "search_context",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "candidate_destinations",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "candidate_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "candidate_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "order_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            120
+          ]
+        }
+      ],
+      "parity_decisions": 92
+    },
+    {
+      "id": "v016-belief-000032",
+      "label": "Checkpoint 32",
+      "checkpoint": 32,
+      "kind": "onnx",
+      "game": {
+        "ruleset": "classic_no_double_unlimited_evader",
+        "num_pursuers": 5,
+        "evader_start_mode": "official",
+        "evader_start_locations": [],
+        "pursuer_start_mode": "official",
+        "pursuer_start_locations": [],
+        "start_mode_weights": [
+          1.0,
+          0.0
+        ],
+        "pursuer_history_length": 0,
+        "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71",
+        "resolved_ruleset": {
+          "ruleset_id": "classic_no_double_unlimited_evader",
+          "num_pursuers": 5,
+          "max_rounds": 22,
+          "reveal_rounds": [
+            3,
+            8,
+            13,
+            18
+          ],
+          "pursuer_initial_tickets": [
+            10,
+            8,
+            4
+          ],
+          "evader_initial_tickets": [
+            1000000,
+            1000000,
+            1000000,
+            5
+          ],
+          "double_move_enabled": false,
+          "forced_pass": "required-when-no-unoccupied-destination-v1",
+          "public_information": "ticket-reveal-uniform-support-v1",
+          "capture": "after-pursuer-joint-action-v1",
+          "terminal": "capture-pursuers-stuck-round-cap-evader-stuck-v2",
+          "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
+          "resource_fingerprint": "c62af59b214421e3",
+          "black_ticket_mode": "hidden",
+          "transfer_pursuer_tickets_to_evader": false,
+          "evader_start_mode": "official",
+          "evader_start_locations": [],
+          "pursuer_start_mode": "official",
+          "pursuer_start_locations": [],
+          "start_mode_weights": [
+            1.0,
+            0.0
+          ],
+          "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71"
+        },
+        "max_rounds": 22,
+        "reveal_rounds": [
+          3,
+          8,
+          13,
+          18
+        ]
+      },
+      "url": "./models/v016-belief-000032-c0692f01d651.onnx",
+      "bytes": 3081475,
+      "sha256": "62c8d6994048dbeef017dfad3743905cd82e506ed673e7635345f67195541f35",
+      "source_version": "V0.16",
+      "source": "az_selfplay/data/exp_all/evader_location_belief_backup/checkpoints/checkpoint_000032.pth",
+      "source_sha256": "c0692f01d651e39ba3aa8ff7cf9603dba99c1b851681542eb55ca3d2bd9b6ffa",
+      "run_id": "5c26f19c-02e7-4cd3-b2be-cb47cbdfd89c",
+      "semantic_hash": "bcb44a969ecbe56f73a6b5ebb698a46268f97b94a1d4e66d75a74e48c45337e4",
+      "decision_protocol": {
+        "mode": "deterministic_argmax",
+        "simulations": 0,
+        "canonicalize_pursuer_orders": true,
+        "identity_relabeling": "fixed"
+      },
+      "inputs": [
+        {
+          "name": "history_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            22
+          ]
+        },
+        {
+          "name": "reveal_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "pursuer_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5
+          ]
+        },
+        {
+          "name": "pursuer_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            5,
+            3
+          ]
+        },
+        {
+          "name": "evader_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "possible_mask",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            201
+          ]
+        },
+        {
+          "name": "round_scalar",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            1
+          ]
+        },
+        {
+          "name": "search_context",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "candidate_destinations",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "candidate_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "candidate_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "order_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            120
+          ]
+        }
+      ],
+      "parity_decisions": 67
+    },
+    {
+      "id": "v016-belief-000118",
+      "label": "Checkpoint 118",
+      "checkpoint": 118,
+      "kind": "onnx",
+      "game": {
+        "ruleset": "classic_no_double_unlimited_evader",
+        "num_pursuers": 5,
+        "evader_start_mode": "official",
+        "evader_start_locations": [],
+        "pursuer_start_mode": "official",
+        "pursuer_start_locations": [],
+        "start_mode_weights": [
+          1.0,
+          0.0
+        ],
+        "pursuer_history_length": 0,
+        "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71",
+        "resolved_ruleset": {
+          "ruleset_id": "classic_no_double_unlimited_evader",
+          "num_pursuers": 5,
+          "max_rounds": 22,
+          "reveal_rounds": [
+            3,
+            8,
+            13,
+            18
+          ],
+          "pursuer_initial_tickets": [
+            10,
+            8,
+            4
+          ],
+          "evader_initial_tickets": [
+            1000000,
+            1000000,
+            1000000,
+            5
+          ],
+          "double_move_enabled": false,
+          "forced_pass": "required-when-no-unoccupied-destination-v1",
+          "public_information": "ticket-reveal-uniform-support-v1",
+          "capture": "after-pursuer-joint-action-v1",
+          "terminal": "capture-pursuers-stuck-round-cap-evader-stuck-v2",
+          "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
+          "resource_fingerprint": "c62af59b214421e3",
+          "black_ticket_mode": "hidden",
+          "transfer_pursuer_tickets_to_evader": false,
+          "evader_start_mode": "official",
+          "evader_start_locations": [],
+          "pursuer_start_mode": "official",
+          "pursuer_start_locations": [],
+          "start_mode_weights": [
+            1.0,
+            0.0
+          ],
+          "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71"
+        },
+        "max_rounds": 22,
+        "reveal_rounds": [
+          3,
+          8,
+          13,
+          18
+        ]
+      },
+      "url": "./models/v016-belief-000118-bad8a1fb49a7.onnx",
+      "bytes": 3081475,
+      "sha256": "f9c1bd4dface049ab06e37ec0236d3d0580c8db6c70260e5773a017a7570e388",
+      "source_version": "V0.16",
+      "source": "az_selfplay/data/exp_all/evader_location_belief_backup/checkpoints/checkpoint_000118.pth",
+      "source_sha256": "bad8a1fb49a75da0b081bec2509d33271d9be796663f69388b175f55dfe60d1f",
+      "run_id": "5c26f19c-02e7-4cd3-b2be-cb47cbdfd89c",
+      "semantic_hash": "bcb44a969ecbe56f73a6b5ebb698a46268f97b94a1d4e66d75a74e48c45337e4",
+      "decision_protocol": {
+        "mode": "deterministic_argmax",
+        "simulations": 0,
+        "canonicalize_pursuer_orders": true,
+        "identity_relabeling": "fixed"
+      },
+      "inputs": [
+        {
+          "name": "history_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            22
+          ]
+        },
+        {
+          "name": "reveal_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "pursuer_positions",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5
+          ]
+        },
+        {
+          "name": "pursuer_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            5,
+            3
+          ]
+        },
+        {
+          "name": "evader_tickets",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "possible_mask",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            201
+          ]
+        },
+        {
+          "name": "round_scalar",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            1
+          ]
+        },
+        {
+          "name": "search_context",
+          "type": "tensor(float)",
+          "dims": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "candidate_destinations",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "candidate_tickets",
+          "type": "tensor(int64)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "candidate_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            5,
+            13
+          ]
+        },
+        {
+          "name": "order_mask",
+          "type": "tensor(bool)",
+          "dims": [
+            1,
+            120
+          ]
+        }
+      ],
+      "parity_decisions": 75
     }
   ],
   "evader": [],
   "default_game": {
-    "ruleset": "finite_tickets_v0",
-    "num_pursuers": 3,
-    "evader_start_mode": "random",
+    "ruleset": "classic_no_double_unlimited_evader",
+    "num_pursuers": 5,
+    "evader_start_mode": "official",
     "evader_start_locations": [],
-    "pursuer_start_mode": "random",
+    "pursuer_start_mode": "official",
     "pursuer_start_locations": [],
+    "start_mode_weights": [
+      1.0,
+      0.0
+    ],
     "pursuer_history_length": 0,
-    "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+    "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71",
     "resolved_ruleset": {
-      "ruleset_id": "finite_tickets_v0",
-      "num_pursuers": 3,
-      "max_rounds": 23,
+      "ruleset_id": "classic_no_double_unlimited_evader",
+      "num_pursuers": 5,
+      "max_rounds": 22,
       "reveal_rounds": [
         3,
         8,
@@ -327,7 +949,7 @@
         18
       ],
       "pursuer_initial_tickets": [
-        11,
+        10,
         8,
         4
       ],
@@ -341,12 +963,22 @@
       "forced_pass": "required-when-no-unoccupied-destination-v1",
       "public_information": "ticket-reveal-uniform-support-v1",
       "capture": "after-pursuer-joint-action-v1",
-      "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+      "terminal": "capture-pursuers-stuck-round-cap-evader-stuck-v2",
       "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
       "resource_fingerprint": "c62af59b214421e3",
-      "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+      "black_ticket_mode": "hidden",
+      "transfer_pursuer_tickets_to_evader": false,
+      "evader_start_mode": "official",
+      "evader_start_locations": [],
+      "pursuer_start_mode": "official",
+      "pursuer_start_locations": [],
+      "start_mode_weights": [
+        1.0,
+        0.0
+      ],
+      "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71"
     },
-    "max_rounds": 23,
+    "max_rounds": 22,
     "reveal_rounds": [
       3,
       8,
@@ -355,19 +987,23 @@
     ]
   },
   "rulesets": {
-    "finite_tickets_v0": {
-      "ruleset": "finite_tickets_v0",
-      "num_pursuers": 3,
-      "evader_start_mode": "random",
+    "classic_no_double_unlimited_evader": {
+      "ruleset": "classic_no_double_unlimited_evader",
+      "num_pursuers": 5,
+      "evader_start_mode": "official",
       "evader_start_locations": [],
-      "pursuer_start_mode": "random",
+      "pursuer_start_mode": "official",
       "pursuer_start_locations": [],
+      "start_mode_weights": [
+        1.0,
+        0.0
+      ],
       "pursuer_history_length": 0,
-      "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d",
+      "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71",
       "resolved_ruleset": {
-        "ruleset_id": "finite_tickets_v0",
-        "num_pursuers": 3,
-        "max_rounds": 23,
+        "ruleset_id": "classic_no_double_unlimited_evader",
+        "num_pursuers": 5,
+        "max_rounds": 22,
         "reveal_rounds": [
           3,
           8,
@@ -375,7 +1011,7 @@
           18
         ],
         "pursuer_initial_tickets": [
-          11,
+          10,
           8,
           4
         ],
@@ -389,12 +1025,22 @@
         "forced_pass": "required-when-no-unoccupied-destination-v1",
         "public_information": "ticket-reveal-uniform-support-v1",
         "capture": "after-pursuer-joint-action-v1",
-        "terminal": "capture-before-round-cap-and-evader-stuck-v1",
+        "terminal": "capture-pursuers-stuck-round-cap-evader-stuck-v2",
         "board_fingerprint": "5807cb0828883dbf66bbf8f85ba00578e79dab5d767cf0aa1b0b64373f582862",
         "resource_fingerprint": "c62af59b214421e3",
-        "environment_identity": "8706c1f2e1b44ca69ffd1655c668aa7664727d2fe95713988d52a577e6946f1d"
+        "black_ticket_mode": "hidden",
+        "transfer_pursuer_tickets_to_evader": false,
+        "evader_start_mode": "official",
+        "evader_start_locations": [],
+        "pursuer_start_mode": "official",
+        "pursuer_start_locations": [],
+        "start_mode_weights": [
+          1.0,
+          0.0
+        ],
+        "environment_identity": "025e0d2f661c6c66447ab044ce944e03a3fd2ebf76041b8edb5bfa91259d7b71"
       },
-      "max_rounds": 23,
+      "max_rounds": 22,
       "reveal_rounds": [
         3,
         8,

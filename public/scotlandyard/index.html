@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ScotlandYard · SkyZero</title>
+  <title>ScotlandYard 人类测评</title>
   <script>
     (() => {
       let mode = 'auto';
@@ -18,12 +18,12 @@
   </script>
   <link rel="preload" href="/shared/fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/shared/fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="./style.css?v=20260907">
+  <link rel="stylesheet" href="./style.css?v=v016-reveal-1">
 </head>
 <body>
-  <section id="model-loading" class="model-loading" aria-labelledby="loading-title">
+  <section id="model-loading" class="model-loading" aria-labelledby="loading-title" hidden>
     <div class="loading-card" role="status" aria-live="polite">
-      <h1 id="loading-title">正在下载 AZ 权重</h1>
+      <h1 id="loading-title">正在准备对局</h1>
       <progress id="model-progress" max="100" value="0" aria-label="权重下载进度"></progress>
       <p id="loading-detail">0%</p>
       <button id="loading-retry" class="btn primary" type="button" hidden>重试下载</button>
@@ -38,6 +38,17 @@
         <button id="error-dismiss" class="btn quiet-btn" type="button" aria-label="关闭错误提示">关闭</button>
       </span>
     </div>
+
+    <section class="evaluation-intro card" aria-labelledby="evaluation-intro-title">
+      <h1 id="evaluation-intro-title">Scotland Yard 人类测评</h1>
+      <p>每组共 20 局，对手由系统安排。你只需专注逃脱。</p>
+      <p class="pilot-copy" data-rules-copy></p>
+      <p class="pilot-copy">允许无限次悔棋，被抓后仍可继续尝试。成功或认输结算一局。可以分次完成，关闭页面后会保留进度。</p>
+      <p class="pilot-copy">开始时会先下载全部测评资源，请等待准备完成。</p>
+      <button id="evaluation-start" class="btn primary start-btn" type="button" disabled>开始测评</button>
+      <button class="btn" type="button" data-export>导出 JSON</button>
+      <p class="pilot-copy" data-storage-status>进度保存在当前浏览器。</p>
+    </section>
 
     <main class="layout" id="layout">
       <section class="board-card">
@@ -56,19 +67,16 @@
 
       <aside class="action-panel" id="action-panel">
         <section class="card match-control" aria-labelledby="control-title">
-          <div class="card-heading"><h2 id="control-title">对局控制</h2></div>
-          <div class="quick-strategies">
-            <label><span>Pursuer</span><select id="quick-pursuer" aria-label="Pursuer 模型"></select></label>
-          </div>
-            <div class="match-actions">
-              <div class="toolbar-group" role="group" aria-label="对局操作">
-                <button class="btn" id="undo" type="button">撤回</button>
-                <button class="btn" id="reset-game" type="button" title="使用当前 seed 重置对局">重置对局</button>
-                <button class="btn" id="new-seed-game" type="button" title="使用所选策略和新 seed 开始对局"><span id="new-seed-game-label" class="stable-toolbar-label">新对局</span></button>
-              </div>
-              <button class="btn" id="autoplay" type="button" aria-pressed="false" hidden>自动播放</button>
-              <button class="btn primary" id="advance" type="button" hidden>执行本轮</button>
+          <div class="card-heading"><h2 id="control-title">测评对局</h2></div>
+          <p class="pilot-copy" data-rules-copy></p>
+          <p id="undo-count" class="undo-count" aria-live="polite">本局累计悔棋 0 次</p>
+          <div class="match-actions">
+            <div class="toolbar-group" role="group" aria-label="对局操作">
+              <button class="btn" id="undo" type="button">悔棋一轮</button>
+              <button class="btn" id="reset-game" type="button" title="每退回一轮计一次悔棋，仍是同一局">退回开局</button>
+              <button class="btn" id="give-up" type="button">认输结束</button>
             </div>
+          </div>
               <div id="search-overlay" class="search-overlay" role="status" aria-live="polite" hidden>
                 <div class="search-card">
                   <div class="search-copy">
@@ -94,6 +102,21 @@
           <div id="action-list" class="action-list"></div>
         </section>
 
+        <section class="card pilot-card" aria-labelledby="evaluation-heading">
+          <h2 id="evaluation-heading">测评进度</h2>
+          <progress id="evaluation-progress" max="20" value="0" aria-label="本组已完成局数"></progress>
+          <p id="evaluation-progress-text" class="pilot-copy" aria-live="polite"></p>
+          <p id="evaluation-current" class="pilot-copy" aria-live="polite"></p>
+          <div class="evaluation-actions">
+            <button class="btn primary" id="evaluation-next" type="button" hidden>下一局</button>
+            <button class="btn primary" id="evaluation-repeat" type="button" hidden>再测一组</button>
+            <button class="btn" id="evaluation-export" type="button" data-export>导出 JSON</button>
+          </div>
+          <p id="evaluation-total" class="pilot-copy"></p>
+          <p class="pilot-copy">可随时导出，文件包含所有测评组的已有结果；导出不会结束当前对局。</p>
+          <p class="pilot-copy" data-storage-status role="status"></p>
+        </section>
+
       </aside>
 
       <aside class="panel">
@@ -106,6 +129,7 @@
 
           </section>
           <p id="turn-label" class="round-caption">正在加载地图与策略…</p>
+          <p id="reveal-hint" class="reveal-hint" aria-live="polite"></p>
           <div id="round-track" class="round-track"></div>
           <h3>Pursuer 剩余车票</h3>
           <div id="pursuer-ticket-table" class="pursuer-ticket-table"><span class="empty">等待开始。</span></div>
@@ -115,6 +139,6 @@
       </aside>
     </main>
   </div>
-  <script type="module" src="./app.js?v=20260907a"></script>
+  <script type="module" src="./app.js?v=v016-preload-1"></script>
 </body>
 </html>

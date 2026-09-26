@@ -1,9 +1,7 @@
-// Browser port of V0.11 shared_game_kernel.GameRules. No inference/private data here.
 export const TICKETS = ['taxi', 'bus', 'underground', 'black'];
 const clone = value => structuredClone(value);
 const inventory = values => Object.fromEntries(values.map((v, i) => [TICKETS[i], v]));
 
-// Versioned browser seed stream. Full 53-bit seeds contribute; independent of NumPy.
 function randomStream(seed) {
   let state = ((seed >>> 0) ^ Math.imul(Math.floor(seed / 4294967296), 0x9e3779b9)) >>> 0;
   return () => {
@@ -44,14 +42,39 @@ export class ScotlandGame {
       last_evader_move: null, last_pursuer_moves: [], last_pursuer_order: [],
       terminal: false, winner: null, terminal_reason: null, last_az_search: {},
     };
-    if (!this.legalEvader().length) this.finish('evader_stuck', 'pursuers');
+    if (!this.hasPursuerMove()) this.finish('pursuers_stuck', 'evader');
+    else if (!this.legalEvader().length) this.finish('evader_stuck', 'pursuers');
   }
   legalEvader() {
     const s = this.state;
-    return this.board.actions[s.evader_position].filter(m => s.evader_tickets[m.ticket] > 0 && !s.pursuer_positions.includes(m.destination));
+    return this.board.evader_actions[s.evader_position].filter(m => s.evader_tickets[m.ticket] > 0 && !s.pursuer_positions.includes(m.destination));
   }
   candidateRows() {
     return this.state.pursuer_positions.map((n, i) => this.board.actions[n].filter(m => m.ticket !== 'black' && this.state.pursuer_tickets[i][m.ticket] > 0));
+  }
+  hasPursuerMove() {
+    return this.candidateRows().some(row => row.some(m => !this.state.pursuer_positions.includes(m.destination)));
+  }
+  orderMask(rows) {
+    const positions = this.state.pursuer_positions;
+    const destinations = rows.map(row => new Set(row.map(m => m.destination)));
+    const interactions = [];
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        if (destinations[i].has(positions[j]) || destinations[j].has(positions[i])
+            || [...destinations[i]].some(n => destinations[j].has(n))) interactions.push([i,j]);
+      }
+    }
+    const rank = positions.map(n => [...positions].sort((a,b) => a-b).indexOf(n));
+    const representatives = new Map();
+    this.board.pursuer_orders.forEach((order,id) => {
+      const signature = interactions.map(([i,j]) => Number(order.indexOf(i) < order.indexOf(j))).join('');
+      const ranked = order.map(i => rank[i]).join('');
+      const previous = representatives.get(signature);
+      if (!previous || ranked < previous.ranked) representatives.set(signature, {ranked,id});
+    });
+    const selected = new Set([...representatives.values()].map(v => v.id));
+    return this.board.pursuer_orders.map((_,id) => Number(selected.has(id)));
   }
   snapshot() {
     return clone({...this.state, possible_location_count: this.state.possible_locations.length,
@@ -80,7 +103,7 @@ export class ScotlandGame {
     } else {
       s.possible_locations = [...new Set(s.possible_locations
         .filter(n => !s.pursuer_positions.includes(n))
-        .flatMap(n => this.board.actions[n])
+        .flatMap(n => this.board.evader_actions[n])
         .filter(m => m.ticket === legal.ticket && !s.pursuer_positions.includes(m.destination))
         .map(m => m.destination))].sort((a,b) => a-b);
     }
@@ -107,7 +130,6 @@ export class ScotlandGame {
         positions[id] = moves[id].destination;
       }
     }
-    // Validate the entire joint action before committing any ticket/state changes.
     s.pursuer_positions = positions;
     moves.forEach((m,i) => { if (m) s.pursuer_tickets[i][m.ticket] -= 1; });
     s.last_pursuer_order = [...order];
@@ -119,7 +141,8 @@ export class ScotlandGame {
     if (positions.includes(s.evader_position)) this.finish('capture', 'pursuers');
     else {
       s.possible_locations = s.possible_locations.filter(n => !positions.includes(n));
-      if (s.round >= s.max_rounds) this.finish('max_rounds', 'evader');
+      if (!this.hasPursuerMove()) this.finish('pursuers_stuck', 'evader');
+      else if (s.round >= s.max_rounds) this.finish('max_rounds', 'evader');
       else {
         s.round += 1;
         s.phase = 'evader';
@@ -138,20 +161,21 @@ export class ScotlandGame {
     const rows = this.candidateRows(), width = board.max_candidates;
     return {
       history_tickets: pad(s.evader_history.map(m => TICKETS.indexOf(m.ticket)+1), config.max_rounds),
-      reveal_positions: pad(s.exposed_positions.slice(-4).map(m => m.destination), 4),
+      reveal_positions: pad(s.exposed_positions.map(m => m.destination), config.reveal_rounds.length),
       pursuer_positions: [...s.pursuer_positions],
-      pursuer_tickets: s.pursuer_tickets.flatMap(t => TICKETS.slice(0,3).map((k,i) => t[k]/config.resolved_ruleset.pursuer_initial_tickets[i])),
-      evader_tickets: TICKETS.map((k,i) => s.evader_tickets[k]/config.resolved_ruleset.evader_initial_tickets[i]),
+      pursuer_tickets: s.pursuer_tickets.flatMap(t => TICKETS.slice(0,3).map((k,i) => t[k]/Math.max(1,config.resolved_ruleset.pursuer_initial_tickets[i]))),
+      evader_tickets: TICKETS.map((k,i) => s.evader_tickets[k]/Math.max(1,config.resolved_ruleset.evader_initial_tickets[i])),
       possible_mask: Array.from({length:board.node_vocab_size}, (_,n) => Number(s.possible_locations.includes(n))),
       round_scalar: [s.round/config.max_rounds], search_context: [0,0],
       candidate_destinations: rows.flatMap(row => pad(row.map(m => m.destination),width)),
       candidate_tickets: rows.flatMap(row => pad(row.map(m => TICKETS.indexOf(m.ticket)+1),width)),
       candidate_mask: rows.flatMap(row => pad(row.map(() => 1),width)),
+      order_mask: this.orderMask(rows),
     };
   }
-  serialize() { return {version:1,seed:this.seed,state:this.state,pending:this.pending,undoStack:this.undoStack}; }
+  serialize() { return {version:2,environment_identity:this.config.environment_identity,seed:this.seed,state:this.state,pending:this.pending,undoStack:this.undoStack}; }
   static restore(board, config, data) {
-    if (data.version !== 1) throw new Error('保存的对局版本不兼容');
+    if (data.version !== 2 || data.environment_identity !== config.environment_identity) throw new Error('保存的对局版本不兼容');
     const game = new ScotlandGame(board, config, data.seed);
     game.state = data.state;
     game.pending = data.pending;

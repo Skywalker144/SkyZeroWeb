@@ -4,6 +4,7 @@ import {
   workspaceFitsSideBySide,
 } from './map_view.js';
 import {legalActionRows} from './action_view.js';
+import {revealPresentation} from './timeline_view.js?v=v016-reveal-1';
 
 export function ticketRingLayout(moves) {
   if (!moves?.length) return [];
@@ -119,10 +120,10 @@ export function createMapController({
       pieces: svg('g', {class: 'piece-layer'}),
     };
     board.append(
-      mapLayers.exposures,
       mapLayers.legal,
       mapLayers.routes,
       mapLayers.pieces,
+      mapLayers.exposures,
     );
   }
 
@@ -215,30 +216,17 @@ export function createMapController({
   function renderExposureLayer() {
     const layer = mapLayers.exposures;
     layer.replaceChildren();
-    const item = [...(session.state?.exposed_positions || [])]
-      .sort((left, right) => right.round - left.round)[0];
+    const item = revealPresentation(session.displayState ?? session.state).current;
     if (!item) return;
     const point = nodeById(item.destination);
     if (!point) return;
-    const group = svg('g', {class: 'exposure-marker'});
+    const group = svg('g', {class: 'exposure-marker','data-round':item.round,'data-destination':item.destination});
     group.appendChild(svg('circle', {
       cx: point.x,
       cy: point.y,
-      r: MAP_MARKER_RADIUS,
+      r: MAP_MARKER_RADIUS + 6,
       class: 'exposure-ring',
     }));
-    group.appendChild(svg('circle', {
-      cx: point.x,
-      cy: point.y,
-      r: MAP_MARKER_INNER_RADIUS,
-      class: 'exposure-node',
-    }));
-    const label = svg('text', {x: point.x, y: point.y, class: 'exposure-label'});
-    label.textContent = 'R';
-    group.appendChild(label);
-    const title = svg('title');
-    title.textContent = `第 ${item.round} 轮在节点 ${item.destination} 暴露；连接线不代表隐藏路径。`;
-    group.appendChild(title);
     layer.appendChild(group);
   }
 

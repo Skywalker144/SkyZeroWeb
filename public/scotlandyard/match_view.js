@@ -2,8 +2,6 @@ function controllerName(source, policyId = '') {
   const kind = source?.kind;
   if (kind === 'onnx') {
     const name = String(source.name || policyId);
-    if (name.startsWith('AZ')) return 'AZ';
-    if (name.startsWith('PPO')) return 'PPO';
     return name.replace('（默认）', '');
   }
   if (kind === 'human') return '玩家';
