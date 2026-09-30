@@ -1,0 +1,18 @@
+[Unit]
+Description=SkyZeroWeb original PokerSkill engine
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/RL/SkyZeroWeb
+EnvironmentFile=%h/RL/SkyZeroWeb/.runtime/poker-engine.env
+ExecStart=%h/.local/bin/python3.9 -u services/poker/engine.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+UMask=0077
+MemoryMax=256M
+TasksMax=64
+
+[Install]
+WantedBy=default.target

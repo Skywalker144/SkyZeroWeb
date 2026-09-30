@@ -1,17 +1,20 @@
 # SkyZeroWeb
 
-聚合游戏平台，最初是 AI 五子棋页面，随后加入了多个自训练 AI。游戏逻辑和 AI 推理全部在浏览器本地运行；仅排行榜使用 Cloudflare Pages Functions 和 D1，不存在后端推理服务器。
+聚合游戏平台，最初是 AI 五子棋页面，随后加入了多个自训练 AI。五子棋、2048、躲避和 ScotlandYard 的游戏逻辑与 AI 推理在浏览器本地运行；排行榜使用 Cloudflare Pages Functions 和 D1。德州扑克通过 Pages API 接入 Linux 上的作者原版 PokerSkill 策略服务，并转发玩家自己的 DeepSeek 请求。
 
 ## 当前游戏
 
 | 游戏 | 页面 | AI | 主要入口 |
 |---|---|---|---|
+| 德州扑克 | `/poker/` | DeepSeek 与作者原版 PokerSkill | `public/poker/` |
 | 五子棋 | `/gomoku` | AlphaZero 风格神经网络与 MCTS | `public/gomoku/` |
 | 2048 | `/2048` | Stochastic Gumbel AlphaZero value net 与搜索 | `public/2048/` |
 | 躲避 | `/channel-dodge` | SAC 连续策略 | `public/channel-dodge/` |
 | ScotlandYard | `/scotlandyard/` | V0.16 AZ 纯网络 checkpoint 盲测 | `public/scotlandyard/` |
 
 躲避游戏的「AI 托管」使用连续 SAC actor，网络为 `271→256→256→4`，前两维高斯均值经 `tanh` 后得到移动向量。权重以 little-endian float32 base64 打包在 `public/channel-dodge/ai/policy.js` 中，由同目录的 `runtime.js` 同步前向运行，不依赖 ONNX、WASM 或 Worker。271 维观测包含最近 32 个威胁、3 条激光、3 颗炸弹、2 个血包、玩家状态与四向墙距，并与 `../SkyZero/DodgeSAC/env_dodge.py` 的 `_obs_vector` 对齐；决策频率为 30 Hz。游戏物理固定在 `450×600` 逻辑坐标系中，页面缩放只影响渲染，敌人弹幕仍由手写行为脚本控制。
+
+德州扑克的运行、配置与验证见 [`docs/poker.md`](docs/poker.md)。
 
 ScotlandYard 的模型、规则、导出和验证约定见 [`docs/scotlandyard.md`](docs/scotlandyard.md)。
 
@@ -60,7 +63,8 @@ python tests/gen_mcts2048_puct_fixture.py
 - `public/gomoku/workers/`：对弈与搜索树 Worker；`search-core.js` 是共同的单步搜索事实源。
 - `public/gomoku/models/`：五子棋模型与 manifest。
 - `public/2048/`、`public/channel-dodge/`、`public/scotlandyard/`：其他游戏的独立垂直模块。
-- `functions/api/`：排行榜 Pages Functions。
+- `functions/api/`：排行榜与德州扑克 Pages Functions。
+- `services/poker/`：Linux 原版策略服务。
 - `database/`：D1 数据库结构。
 - `tools/`：模型导出与验证脚本；默认写入对应的 `public/<game>/` 目录。
 - `tests/`：逻辑对拍、结构契约和浏览器 smoke test。

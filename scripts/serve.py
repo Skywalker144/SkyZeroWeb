@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 PORT = int(os.environ.get("SKYZERO_WEB_PORT", "8000"))
 PUBLIC_DIR = Path(__file__).resolve().parents[1] / "public"
 ROUTES = {
+    "/poker": "poker/index.html",
     "/2048": "2048/index.html",
     "/channel-dodge": "channel-dodge/index.html",
     "/gomoku": "gomoku/index.html",

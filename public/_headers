@@ -18,3 +18,8 @@
 
 /*.css
   Cache-Control: public, max-age=3600
+
+/poker/*
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff

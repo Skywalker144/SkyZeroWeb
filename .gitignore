@@ -21,3 +21,6 @@ origin_models/
 # Internal audit reports stay local-only.
 AUDIT_*.md
 docs/audits/
+
+.runtime/
+.dev.vars

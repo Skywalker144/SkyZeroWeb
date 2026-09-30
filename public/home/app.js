@@ -9,6 +9,8 @@
         tree_desc: 'AlphaZero MCTS 逐步展开',
         g2048_name: '2048',
         g2048_desc: '经典数字合并益智游戏',
+        poker_name: '德州扑克',
+        poker_desc: '与 DeepSeek 对弈 · PokerSkill 策略辅助',
         dodge_name: '躲避',
         dodge_desc: '操控人物躲避四面弹幕',
         aria_lang: '切换语言', aria_theme: '切换配色主题',
@@ -23,6 +25,8 @@
         tree_desc: 'Watch AlphaZero MCTS expand',
         g2048_name: '2048',
         g2048_desc: 'The classic tile-merging puzzle',
+        poker_name: 'Texas Hold’em',
+        poker_desc: 'Play DeepSeek with PokerSkill strategy',
         dodge_name: 'Dodge',
         dodge_desc: 'Steer a character through bullet hell',
         aria_lang: 'Switch language', aria_theme: 'Toggle theme',
@@ -46,6 +50,8 @@
       document.getElementById('card_2048_desc').textContent = s.g2048_desc;
       document.getElementById('card_dodge_name').textContent = s.dodge_name;
       document.getElementById('card_dodge_desc').textContent = s.dodge_desc;
+      document.getElementById('card_poker_name').textContent = s.poker_name;
+      document.getElementById('card_poker_desc').textContent = s.poker_desc;
       var langSeg = document.getElementById('lang_seg');
       langSeg.setAttribute('aria-label', s.aria_lang);
       langSeg.querySelectorAll('.seg-btn[data-lang]').forEach(function(b){

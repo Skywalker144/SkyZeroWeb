@@ -6,6 +6,7 @@
 |---|---|
 | 本地开发、架构、模型更新、部署约定 | [`README.md`](../README.md) |
 | ScotlandYard 浏览器实现、模型与验证 | [`scotlandyard.md`](scotlandyard.md) |
+| 德州扑克、原版策略服务与 API 配置 | [`poker.md`](poker.md) |
 | 排行榜与 Cloudflare D1 运维 | [`leaderboard.md`](leaderboard.md) |
 | Cloudflare Pages 行为 | [`wrangler.toml`](../wrangler.toml)、[`public/_headers`](../public/_headers)、[`public/_redirects`](../public/_redirects)、[`public/_routes.json`](../public/_routes.json) |
 | 游戏和搜索逻辑验证 | [`tests/`](../tests/) |
