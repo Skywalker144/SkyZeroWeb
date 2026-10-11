@@ -1,6 +1,6 @@
 # SkyZeroWeb
 
-聚合游戏平台，最初是 AI 五子棋页面，随后加入了多个自训练 AI。五子棋、2048、躲避和 ScotlandYard 的游戏逻辑与 AI 推理在浏览器本地运行；排行榜使用 Cloudflare Pages Functions 和 D1。德州扑克通过 Pages API 接入 Linux 上的作者原版 PokerSkill 策略服务，并转发玩家自己的 DeepSeek 请求。
+聚合游戏平台，最初是 AI 五子棋页面，随后加入了多个自训练 AI。五子棋、Hex、2048、躲避和 ScotlandYard 的游戏逻辑与 AI 推理在浏览器本地运行；排行榜使用 Cloudflare Pages Functions 和 D1。德州扑克通过 Pages API 接入 Linux 上的作者原版 PokerSkill 策略服务，并转发玩家自己的 DeepSeek 请求。
 
 ## 当前游戏
 
@@ -8,6 +8,7 @@
 |---|---|---|---|
 | 德州扑克 | `/poker/` | DeepSeek 与作者原版 PokerSkill | `public/poker/` |
 | 五子棋 | `/gomoku` | AlphaZero 风格神经网络与 MCTS | `public/gomoku/` |
+| Hex | `/hex/` | EtaZero V1.4 ONNX 与 PUCT | `public/hex/` |
 | 2048 | `/2048` | Stochastic Gumbel AlphaZero value net 与搜索 | `public/2048/` |
 | 躲避 | `/channel-dodge` | SAC 连续策略 | `public/channel-dodge/` |
 | ScotlandYard | `/scotlandyard/` | V0.16 AZ 纯网络 checkpoint 盲测 | `public/scotlandyard/` |
@@ -62,7 +63,7 @@ python tests/gen_mcts2048_puct_fixture.py
 - `public/gomoku/engine/`：五子棋规则、MCTS 和推理协议。
 - `public/gomoku/workers/`：对弈与搜索树 Worker；`search-core.js` 是共同的单步搜索事实源。
 - `public/gomoku/models/`：五子棋模型与 manifest。
-- `public/2048/`、`public/channel-dodge/`、`public/scotlandyard/`：其他游戏的独立垂直模块。
+- `public/hex/`、`public/2048/`、`public/channel-dodge/`、`public/scotlandyard/`：其他游戏的独立垂直模块。
 - `functions/api/`：排行榜与德州扑克 Pages Functions。
 - `services/poker/`：Linux 原版策略服务。
 - `database/`：D1 数据库结构。
@@ -102,6 +103,19 @@ conda run -n pytorch python tools/export_onnx_2048.py \
 导出后将 `public/2048/app.js` 中的 `AI_MODEL_VERSION` 更新为 `v2-<net>-vt-iter<N>`，其中迭代数来自 meta 文件。可用随机 one-hot 局面对比 TorchScript 经 value scale 和逆变换后的输出与 ONNX Runtime 输出。
 
 浏览器 AI 使用 value head 做一层 expectimax：`Q(a) = reward(a) + γ·E_spawn[V(next)]`，比训练自弈使用的完整 Gumbel MCTS 更轻但更弱。`tests/test_ai2048.mjs` 使用训练侧 `python/game.py` 生成的 fixture 对拍滑动、生成和编码逻辑。
+
+## Hex 模型
+
+来源为 `../EtaZero-lab/EtaZero_V1.4` 的 AlphaZero Hex 训练运行。导出工具 [`tools/export_hex_onnx.py`](tools/export_hex_onnx.py) 从已提交轮次选择接近 5h、6h 的模型与最新模型，使用实际发布的 SWA 权重；时间依据、源 checkpoint、哈希与数值验证结果保存在 [`manifest`](public/hex/models/manifest.json)。
+
+```bash
+conda run -n pytorch python tools/export_hex_onnx.py --run ../EtaZero-lab/EtaZero_V1.4/data/<run>
+conda run -n pytorch python tools/gen_hex_fixture.py
+node --test tests/test_hex.mjs
+conda run -n pytorch python tests/browser_hex_smoke.py
+```
+
+浏览器复用公共 ONNX Worker 运行时，采用 FP32 WASM、单叶 PUCT、随机 identity/180° 推理和白方转置。棋规与输入编码与 V1.4 对齐；浏览器搜索是轻量实现，不包含训练侧的图搜索、动态 FPU、误差加权备份、乐观 policy 混合或 LCB，搜索预算由页面设定。“生成平衡开局”使用所选模型和 manifest 中的比赛开局配置，均匀抽取黑方首手，以白方 W 拒绝采样；可取消，生成后保留首手并继续对弈。ONNX 文件名包含内容哈希，重新导出时同步更新 manifest 与页面脚本缓存版本。
 
 ## 躲避模型
 
