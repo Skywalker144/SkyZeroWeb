@@ -11,6 +11,7 @@ PUBLIC_DIR = Path(__file__).resolve().parents[1] / "public"
 ROUTES = {
     "/poker": "poker/index.html",
     "/2048": "2048/index.html",
+    "/hex": "hex/index.html",
     "/channel-dodge": "channel-dodge/index.html",
     "/gomoku": "gomoku/index.html",
     "/mcts-tree": "gomoku/tree/index.html",
