@@ -5,6 +5,8 @@
         hero_title: '选择一个游戏',
         gomoku_name: '五子棋',
         gomoku_desc: '和 SkyZero 对弈',
+        hex_name: 'Hex 六角棋',
+        hex_desc: '连接两边，挑战 EtaZero',
         tree_name: '搜索树可视化',
         tree_desc: 'AlphaZero MCTS 逐步展开',
         g2048_name: '2048',
@@ -21,6 +23,8 @@
         hero_title: 'Choose a game',
         gomoku_name: 'Gomoku',
         gomoku_desc: 'Play against SkyZero',
+        hex_name: 'Hex',
+        hex_desc: 'Connect two edges against EtaZero',
         tree_name: 'Search Tree',
         tree_desc: 'Watch AlphaZero MCTS expand',
         g2048_name: '2048',
@@ -44,6 +48,8 @@
       document.getElementById('hero_title').textContent = s.hero_title;
       document.getElementById('card_gomoku_name').textContent = s.gomoku_name;
       document.getElementById('card_gomoku_desc').textContent = s.gomoku_desc;
+      document.getElementById('card_hex_name').textContent = s.hex_name;
+      document.getElementById('card_hex_desc').textContent = s.hex_desc;
       document.getElementById('card_tree_name').textContent = s.tree_name;
       document.getElementById('card_tree_desc').textContent = s.tree_desc;
       document.getElementById('card_2048_name').textContent = s.g2048_name;
