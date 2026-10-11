@@ -7,6 +7,12 @@
 /2048/models/*.onnx
   Cache-Control: public, max-age=31536000, immutable
 
+/hex/models/*.onnx
+  Cache-Control: public, max-age=31536000, immutable
+
+/hex/models/manifest.json
+  Cache-Control: public, max-age=300
+
 /scotlandyard/models/*.onnx
   Cache-Control: public, max-age=31536000, immutable
 
