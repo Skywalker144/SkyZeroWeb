@@ -1,0 +1,143 @@
+{
+  "version": "etazero-v1.4-hex-20261009",
+  "source_run": "/home/sky/RL/EtaZero-lab/EtaZero_V1.4/data/baseline_hex",
+  "network": {
+    "architecture": "nbt",
+    "blocks": 5,
+    "canvas": 15,
+    "channels": 192,
+    "predict_q_values": false
+  },
+  "hex_opening": {
+    "probability": 1.0,
+    "make_fair_probability": 1.0,
+    "balance_exponent": 20.0,
+    "min_accept_rate": 0.001
+  },
+  "opening_profile": "/home/sky/RL/EtaZero-lab/EtaZero_V1.4/configs/baseline_hex/match.cfg",
+  "sizes": [
+    15,
+    14,
+    13,
+    12,
+    11,
+    10,
+    9
+  ],
+  "timing_basis": "committed_wall_excluding_compile_and_plot",
+  "selection": "nearest committed elapsed_seconds to target; last is latest committed model",
+  "default": "last",
+  "models": [
+    {
+      "id": "5h",
+      "file": "hex-5h-iter000038-bebdab5b38b6.onnx",
+      "iteration": 38,
+      "elapsed_seconds": 17806.37537474401,
+      "target_seconds": 18000,
+      "sha256": "bebdab5b38b64ccf4529378bed49eb67f0fab3f03d16202762c81b732763ac14",
+      "bytes": 7472846,
+      "source": {
+        "backend": "libtorch",
+        "bytes": 7465577,
+        "canvas": 15,
+        "checkpoint": {
+          "id": "iteration_000038_step_00001000_dc2f23cbe70549f59d6f23063ab9e508",
+          "iteration": 38,
+          "optimizer_steps": 36276,
+          "path": "checkpoints/iteration_000038_step_00001000_dc2f23cbe70549f59d6f23063ab9e508.pt",
+          "step": 1000,
+          "total_samples": 4643328,
+          "total_steps": 36276
+        },
+        "contract": "f8fbe62bf8951974e84afc3012a26afa8be1b3db12bf775c09b61ba59c62dbc8",
+        "id": "iteration_000038_step_00001000_dc2f23cbe70549f59d6f23063ab9e508",
+        "inference_precision": "float16",
+        "normalization": "precomputed_inv_std",
+        "path": "models/iteration_000038_step_00001000_dc2f23cbe70549f59d6f23063ab9e508/model.pt",
+        "sha256": "5cdee5019004dc3b72d1414c93e6d898d14f15d502ee1ac7a0b61c0e9c39e9b2",
+        "swa_samples": 72,
+        "weights": "swa"
+      },
+      "onnx_max_absolute_error": {
+        "policy_logits": 4.76837158203125e-06,
+        "wdl_logits": 1.430511474609375e-06,
+        "optimistic_logits": 5.245208740234375e-06,
+        "value_stdev": 5.960464477539063e-08
+      }
+    },
+    {
+      "id": "6h",
+      "file": "hex-6h-iter000047-778c5d0af5b1.onnx",
+      "iteration": 47,
+      "elapsed_seconds": 21749.362318821546,
+      "target_seconds": 21600,
+      "sha256": "778c5d0af5b11d2208ffff50148799d1c00b4dcd960d2bca6e8c1c785b92620b",
+      "bytes": 7472846,
+      "source": {
+        "backend": "libtorch",
+        "bytes": 7465577,
+        "canvas": 15,
+        "checkpoint": {
+          "id": "iteration_000047_step_00001000_3bb272a6317a4c9693ad7d3595bf4785",
+          "iteration": 47,
+          "optimizer_steps": 45276,
+          "path": "checkpoints/iteration_000047_step_00001000_3bb272a6317a4c9693ad7d3595bf4785.pt",
+          "step": 1000,
+          "total_samples": 5795328,
+          "total_steps": 45276
+        },
+        "contract": "f8fbe62bf8951974e84afc3012a26afa8be1b3db12bf775c09b61ba59c62dbc8",
+        "id": "iteration_000047_step_00001000_3bb272a6317a4c9693ad7d3595bf4785",
+        "inference_precision": "float16",
+        "normalization": "precomputed_inv_std",
+        "path": "models/iteration_000047_step_00001000_3bb272a6317a4c9693ad7d3595bf4785/model.pt",
+        "sha256": "8a9299211d842adef5b601491a4e02be40682bebe4a2de38be2dba951618f638",
+        "swa_samples": 89,
+        "weights": "swa"
+      },
+      "onnx_max_absolute_error": {
+        "policy_logits": 6.4373016357421875e-06,
+        "wdl_logits": 1.9073486328125e-06,
+        "optimistic_logits": 6.198883056640625e-06,
+        "value_stdev": 5.21540641784668e-08
+      }
+    },
+    {
+      "id": "last",
+      "file": "hex-last-iter000054-070da40a751f.onnx",
+      "iteration": 54,
+      "elapsed_seconds": 24662.493713114705,
+      "target_seconds": null,
+      "sha256": "070da40a751f090166f260720c240c183834ea8f72128b49b10c92857aece401",
+      "bytes": 7472846,
+      "source": {
+        "backend": "libtorch",
+        "bytes": 7465577,
+        "canvas": 15,
+        "checkpoint": {
+          "id": "iteration_000054_step_00001000_15817f1422e74075a4b4ee7d81ba16e0",
+          "iteration": 54,
+          "optimizer_steps": 52276,
+          "path": "checkpoints/iteration_000054_step_00001000_15817f1422e74075a4b4ee7d81ba16e0.pt",
+          "step": 1000,
+          "total_samples": 6691328,
+          "total_steps": 52276
+        },
+        "contract": "f8fbe62bf8951974e84afc3012a26afa8be1b3db12bf775c09b61ba59c62dbc8",
+        "id": "iteration_000054_step_00001000_15817f1422e74075a4b4ee7d81ba16e0",
+        "inference_precision": "float16",
+        "normalization": "precomputed_inv_std",
+        "path": "models/iteration_000054_step_00001000_15817f1422e74075a4b4ee7d81ba16e0/model.pt",
+        "sha256": "9a6e036c297c3f03d7beadda7b5fd5f400710f2715d7f07124039899999e1454",
+        "swa_samples": 103,
+        "weights": "swa"
+      },
+      "onnx_max_absolute_error": {
+        "policy_logits": 7.68899917602539e-06,
+        "wdl_logits": 1.9073486328125e-06,
+        "optimistic_logits": 8.344650268554688e-06,
+        "value_stdev": 7.450580596923828e-08
+      }
+    }
+  ]
+}
