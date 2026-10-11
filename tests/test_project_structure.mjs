@@ -20,6 +20,8 @@ const staticFiles = [
   "public/gomoku/tree/index.html",
   "public/gomoku/models/manifest.json",
   "public/2048/index.html",
+  "public/hex/index.html",
+  "public/hex/models/manifest.json",
   "public/2048/models/value.onnx",
   "public/channel-dodge/index.html",
   "public/scotlandyard/index.html",
@@ -45,6 +47,7 @@ test("stable routes target the domain entry points", () => {
     }), `missing model route: ${model.id}`);
   }
   assert.match(redirects, /^\/2048\s+\/2048\/index\.html\s+200$/m);
+  assert.match(redirects, /^\/hex\s+\/hex\/index\.html\s+200$/m);
   assert.match(redirects, /^\/channel-dodge\s+\/channel-dodge\/index\.html\s+200$/m);
   assert.match(redirects, /^\/mcts-tree\s+\/gomoku\/tree\/index\.html\s+200$/m);
 });
