@@ -7,6 +7,8 @@
         gomoku_desc: '和 SkyZero 对弈',
         hex_name: 'Hex 六角棋',
         hex_desc: '连接两边，挑战 EtaZero',
+        xiangqi_name: '中国象棋',
+        xiangqi_desc: '楚河汉界，挑战 EtaZero',
         tree_name: '搜索树可视化',
         tree_desc: 'AlphaZero MCTS 逐步展开',
         g2048_name: '2048',
@@ -25,6 +27,8 @@
         gomoku_desc: 'Play against SkyZero',
         hex_name: 'Hex',
         hex_desc: 'Connect two edges against EtaZero',
+        xiangqi_name: 'Xiangqi',
+        xiangqi_desc: 'Chinese chess against EtaZero',
         tree_name: 'Search Tree',
         tree_desc: 'Watch AlphaZero MCTS expand',
         g2048_name: '2048',
@@ -50,6 +54,8 @@
       document.getElementById('card_gomoku_desc').textContent = s.gomoku_desc;
       document.getElementById('card_hex_name').textContent = s.hex_name;
       document.getElementById('card_hex_desc').textContent = s.hex_desc;
+      document.getElementById('card_xiangqi_name').textContent = s.xiangqi_name;
+      document.getElementById('card_xiangqi_desc').textContent = s.xiangqi_desc;
       document.getElementById('card_tree_name').textContent = s.tree_name;
       document.getElementById('card_tree_desc').textContent = s.tree_desc;
       document.getElementById('card_2048_name').textContent = s.g2048_name;

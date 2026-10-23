@@ -12,6 +12,7 @@ ROUTES = {
     "/poker": "poker/index.html",
     "/2048": "2048/index.html",
     "/hex": "hex/index.html",
+    "/xiangqi": "xiangqi/index.html",
     "/channel-dodge": "channel-dodge/index.html",
     "/gomoku": "gomoku/index.html",
     "/mcts-tree": "gomoku/tree/index.html",

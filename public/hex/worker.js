@@ -1,5 +1,5 @@
-importScripts('/shared/onnx-worker-runtime.js?v=20261009', 'engine.js?v=20261009',
-    'search.js?v=20261009', 'inference.js?v=20261009', 'opening.js?v=20261009');
+importScripts('/shared/onnx-worker-runtime.js?v=20261009', '/shared/puct-search.js?v=20261023',
+    'engine.js?v=20261009', 'search.js?v=20261023', 'inference.js?v=20261009', 'opening.js?v=20261009');
 
 let inference = null;
 let generation = 0;

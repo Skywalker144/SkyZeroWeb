@@ -1,0 +1,54 @@
+{
+  "version": "etazero-v3-xiangqi-fe1dbd58fbcf",
+  "source_run": "/home/sky/RL/EtaZero-lab/EtaZero_V3/data/az_go_xiangqi_5h/az_xiangqi",
+  "network": {
+    "architecture": "nbt",
+    "blocks": 5,
+    "canvas": 10,
+    "channels": 192,
+    "predict_q_values": false
+  },
+  "model": {
+    "file": "xiangqi-iter000052-fe1dbd58fbcf.onnx",
+    "sha256": "fe1dbd58fbcf8b68dc0861a73289b5b7e296e3c8933f7378986cf324d0d58a95",
+    "bytes": 8273214,
+    "source": {
+      "action_count": 2086,
+      "backend": "libtorch",
+      "bytes": 8267557,
+      "canvas": 10,
+      "checkpoint": {
+        "id": "iteration_000052_step_00002000_57ce099e6cbf4b46ad6b0e01664e229f",
+        "iteration": 52,
+        "optimizer_steps": 100725,
+        "path": "checkpoints/iteration_000052_step_00002000_57ce099e6cbf4b46ad6b0e01664e229f.pt",
+        "step": 2000,
+        "total_samples": 12892800,
+        "total_steps": 100725
+      },
+      "game": "xiangqi",
+      "global_features": 8,
+      "id": "iteration_000052_step_00002000_57ce099e6cbf4b46ad6b0e01664e229f",
+      "inference_precision": "float16",
+      "input_planes": 113,
+      "normalization": "precomputed_inv_std",
+      "path": "models/iteration_000052_step_00002000_57ce099e6cbf4b46ad6b0e01664e229f/model.pt",
+      "swa_samples": 100,
+      "weights": "swa"
+    },
+    "source_sha256": "750412278c73babb16238691dfddda6fdaac4ec149199c05d79797b870266536",
+    "onnx_max_absolute_error": {
+      "policy_logits": 7.62939453125e-06,
+      "wdl_logits": 9.5367431640625e-07,
+      "optimistic_logits": 6.67572021484375e-06,
+      "value_stdev": 3.725290298461914e-08
+    }
+  },
+  "rules": {
+    "loader": "rules-680d730a760b.js",
+    "loader_sha256": "680d730a760b9b7d3976f8011cac8d7df57f6222bd7daf89fe5f35fb87985724",
+    "wasm": "rules-7e61e50c2082.wasm",
+    "wasm_sha256": "7e61e50c208237442a430ec4a66e4fc97a00371c4f8f8fd87d92c9b8a02ebd42",
+    "source": "rules-source-74b032923381.zip"
+  }
+}

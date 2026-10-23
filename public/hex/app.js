@@ -114,7 +114,7 @@ function loadModel() {
     error = '';
     phase = 'downloading';
     reset();
-    worker = new Worker('/hex/worker.js?v=20261009');
+    worker = new Worker('/hex/worker.js?v=20261023');
     const id = activeId = ++requestId;
     worker.onerror = event => { error = event.message; thinking = false; balancing = false; renderText(); };
     worker.onmessage = ({data}) => {
