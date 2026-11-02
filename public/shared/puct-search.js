@@ -35,7 +35,7 @@
                     value = -value;
                 }
                 if (simulation % 8 === 0) {
-                    onProgress({visits: root.visits, value: root.sum / root.visits});
+                    onProgress({visits: root.visits, value: root.sum / root.visits, elapsedMs: performance.now() - started});
                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
                 if (root.visits >= 2 && performance.now() - started >= thinkMs) break;
@@ -44,8 +44,11 @@
             const selected = root.children?.reduce((best, child) => !best || child.visits > best.visits
                 || (child.visits === best.visits && child.prior > best.prior) ? child : best, null);
             if (!selected) throw new Error('No legal search move');
+            const candidates = root.children.filter(child => child.visits).map(child => ({
+                action: child.action, visits: child.visits, value: -child.sum / child.visits
+            })).sort((a, b) => b.visits - a.visits);
             return {action: selected.action, visits: root.visits, value: root.sum / root.visits,
-                elapsedMs: performance.now() - started};
+                candidates, elapsedMs: performance.now() - started};
         } finally { for (const position of allocated) dispose(position); }
     }
 
