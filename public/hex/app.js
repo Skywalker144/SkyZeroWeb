@@ -1,6 +1,6 @@
 const TEXT = {
     zh: {title: '六角棋', subtitle: '连起两边，赢下整盘。', auto: '自动主题', light: '明亮', dark: '暗黑',
-        opponent: '你的对手', model: '训练时长', size: '棋盘大小', side: '你的执色', budget: 'AI 思考时间',
+        gameInfo: '对局信息', evaluation: 'AI 局面评估', gameStats: '本局统计', totalMoves: '总手数', searchVisits: 'AI 搜索', candidates: '候选着法', candidateLegend: '上次搜索 · 评估 · 访问', noAnalysis: '暂无分析', model: '训练时长', size: '棋盘大小', side: '你的执色', budget: 'AI 思考时间',
         blackFirst: '黑方 · 先手', whiteSecond: '白方 · 后手', blackGoal: '黑方连接上下', whiteGoal: '白方连接左右',
         balancedOpening: '生成平衡开局', cancelOpening: '取消生成', balancing: '生成平衡开局中…', attempts: '次尝试', whiteWin: '首手后白方胜率', openingHint: '从新棋盘开始，用当前模型生成黑方首手。',
         newGame: '新对局', undo: '悔棋', howTo: '怎么玩', rules: '点击空格落子，将同色棋子连成一条连接目标两边的路径。黑方先手，白方后手，不设换边；桥形空点不算已连通。',
@@ -8,7 +8,7 @@ const TEXT = {
         won: '你赢了！', lost: 'AI 获胜', error: '加载或推理失败', retry: '点击新对局重试', last: '最新轮次', hours: '小时',
         moves: '手', visits: '次搜索', iteration: '轮次', actual: '实际训练', winrate: 'AI 胜率'},
     en: {title: '', subtitle: 'Two edges. One winning connection.', auto: 'Auto theme', light: 'Light', dark: 'Dark',
-        opponent: 'YOUR OPPONENT', model: 'Training time', size: 'Board size', side: 'Your color', budget: 'AI thinking time',
+        gameInfo: 'Game information', evaluation: 'AI position estimate', gameStats: 'Game statistics', totalMoves: 'Moves', searchVisits: 'AI visits', candidates: 'Candidate moves', candidateLegend: 'Last search · estimate · visits', noAnalysis: 'No analysis yet', model: 'Training time', size: 'Board size', side: 'Your color', budget: 'AI thinking time',
         blackFirst: 'Black · first', whiteSecond: 'White · second', blackGoal: 'Black: top to bottom', whiteGoal: 'White: left to right',
         balancedOpening: 'Balanced opening', cancelOpening: 'Cancel generation', balancing: 'Generating opening…', attempts: 'attempts', whiteWin: 'White win estimate after opening', openingHint: 'Start a new board with a black opening stone selected using this model.',
         newGame: 'New game', undo: 'Undo', howTo: 'How to play', rules: 'Place a stone on an empty hexagon. Connect your two edges with a continuous path of your stones. Black moves first. No swap rule; empty bridges do not count as connections.',
@@ -42,8 +42,8 @@ function renderText() {
     const winner = game.winner(board);
     $('status').textContent = error ? `${t('error')}: ${error}` : !ready ? t(phase)
         : balancing ? `${t('balancing')} ${openingAttempts} ${t('attempts')}` : winner ? t(winner === human() ? 'won' : 'lost') : thinking ? t('thinking') : t('yourTurn');
-    $('turn-dot').className = `stone ${(winner || player()) === 1 ? 'black' : 'white'}`;
-    $('move-count').textContent = `${history.length} ${t('moves')}`;
+    $('status-pill').dataset.variant = error ? 'error' : !ready || balancing || thinking ? 'thinking' : winner ? 'done' : 'active';
+    BoardGameAnalysis.render({ply: history.length, result: stats, t, coordinate: action => `${String.fromCharCode(65 + action % game.size)}${Math.floor(action / game.size) + 1}`});
     $('undo').disabled = !ready || balancing || history.length <= undoFloor();
     $('balanced-opening').disabled = !ready || !!error;
     $('balanced-opening').textContent = t(balancing ? 'cancelOpening' : 'balancedOpening');
@@ -99,6 +99,7 @@ function reset(start = true) {
     game = new HexEngine.HexGame(Number($('size').value) || 15);
     board = new Int8Array(game.size ** 2);
     history = [];
+    BoardGameAnalysis.reset();
     thinking = false;
     balancing = false;
     opening = null;
@@ -114,7 +115,7 @@ function loadModel() {
     error = '';
     phase = 'downloading';
     reset();
-    worker = new Worker('/hex/worker.js?v=20261023');
+    worker = new Worker('/hex/worker.js?v=20261102b');
     const id = activeId = ++requestId;
     worker.onerror = event => { error = event.message; thinking = false; balancing = false; renderText(); };
     worker.onmessage = ({data}) => {
@@ -135,6 +136,7 @@ function loadModel() {
         if (data.type === 'move') {
             thinking = false;
             stats = data.result;
+            BoardGameAnalysis.record(history.length + 1, stats);
             board = game.play(board, data.result.action, player());
             history.push(data.result.action);
             renderBoard();
@@ -183,6 +185,7 @@ $('undo').addEventListener('click', () => {
     board = new Int8Array(game.size ** 2);
     for (let i = 0; i < history.length; i++) board = game.play(board, history[i], i % 2 ? -1 : 1);
     stats = null;
+    BoardGameAnalysis.trim(history.length);
     renderBoard();
     startAI();
 });
