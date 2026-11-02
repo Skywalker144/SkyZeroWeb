@@ -68,13 +68,20 @@ test('Xiangqi initial perft, independent clones and illegal moves', () => {
 test('PUCT selects a forced win and releases every search state', async () => {
     const {search} = require('../public/shared/puct-search.js');
     let alive = 0;
+    const progress = [];
     const result = await search({state: {ply: 0, player: 1},
         legal: state => state.ply ? [] : [0, 1],
         play: (state, action) => { alive++; return {ply: 1, player: -1, action}; },
         terminalValue: state => state.ply ? (state.action === 1 ? -1 : 1) : null,
         dispose: () => alive--,
-        evaluate: async () => ({policy: [0.5, 0.5], value: 0}), maxVisits: 30, thinkMs: 10000});
+        evaluate: async () => ({policy: [0.5, 0.5], value: 0}), maxVisits: 30, thinkMs: 10000,
+        onProgress: update => progress.push(update)});
+    assert.ok(progress.length > 0);
+    assert.ok(progress.every(update => Number.isFinite(update.elapsedMs) && update.elapsedMs >= 0));
     assert.equal(result.action, 1);
+    assert.equal(result.candidates[0].action, 1);
+    assert.equal(result.candidates[0].value, 1);
+    assert.equal(result.candidates.reduce((sum, item) => sum + item.visits, 0), result.visits - 1);
     assert.equal(alive, 0);
 });
 
