@@ -65,8 +65,11 @@ with sync_playwright() as playwright:
         page.wait_for_function('() => history.length === 2 && !thinking', timeout=60_000)
         assert page.locator('.cell.black').count() == 1
         assert page.locator('.cell.white').count() == 1
+        assert page.locator('.candidate-row').count() > 0
+        assert page.locator('#evaluation-value').inner_text().endswith('%')
         page.locator('#undo').click()
         assert page.evaluate('history.length') == 0
+        assert page.locator('#evaluation-value').inner_text() == '—'
         page.select_option('#side', '-1')
         page.locator('#balanced-opening').click()
         page.wait_for_function('() => opening && !balancing && !thinking && history.length === 1', timeout=120_000)
