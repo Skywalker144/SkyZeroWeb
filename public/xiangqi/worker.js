@@ -1,4 +1,4 @@
-importScripts('/shared/onnx-worker-runtime.js?v=20261009', '/shared/puct-search.js?v=20261023',
+importScripts('/shared/onnx-worker-runtime.js?v=20261009', '/shared/puct-search.js?v=20261102',
     'engine.js?v=20261023', 'inference.js?v=20261023');
 
 let native, inference, moves;
