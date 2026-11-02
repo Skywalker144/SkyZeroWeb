@@ -74,13 +74,18 @@ with sync_playwright() as playwright:
     assert page.evaluate('state.board[40]') == 4
     assert page.evaluate('state.player') == 1
     assert page.locator('#last-move').inner_text() != '—'
+    assert page.locator('.candidate-row').count() > 0
+    assert page.locator('#evaluation-value').inner_text().endswith('%')
     page.locator('#undo').click()
     wait_ready(page)
     assert page.evaluate('actions.length') == 0
+    assert page.locator('#evaluation-value').inner_text() == '—'
     page.select_option('#budget', '5000')
     page.locator('[data-square="30"]').click()
     page.locator('[data-square="40"]').click()
     page.wait_for_function('thinking')
+    page.wait_for_function("() => /\\d+\\.\\d s/.test(document.querySelector('#search-info').textContent)")
+    assert 'NaN' not in page.locator('#search-info').inner_text()
     page.locator('#undo').click()
     wait_ready(page)
     page.wait_for_timeout(800)
