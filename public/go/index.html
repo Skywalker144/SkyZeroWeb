@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>围棋 · SkyZero</title>
+  <script>
+    const mode = localStorage.getItem('skz_theme') || 'auto';
+    document.documentElement.dataset.theme = mode === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode;
+  </script>
+  <link rel="stylesheet" href="/shared/base.css?v=20260907">
+  <link rel="stylesheet" href="/shared/board-shell.css?v=20261105c">
+  <link rel="stylesheet" href="/shared/board-game.css?v=20261105c">
+  <link rel="stylesheet" href="/go/style.css?v=20261105b">
+  <script defer src="/shared/board-layout.js?v=20261105c"></script>
+  <script defer src="/shared/board-game.js?v=20261105c"></script>
+  <script defer src="/shared/ui/board-controls.js?v=20261105b"></script>
+  <script defer src="/shared/board-session.js?v=20261105b"></script>
+  <script defer src="/go/app.js?v=20261105b"></script>
+  <script defer src="/shared/ui/seg-slide.js?v=20260702"></script>
+</head>
+<body class="board-page">
+  <main class="app board-game-app">
+    <header class="topbar game-topbar">
+      <div class="tb-brandrow game-brand-row">
+        <a class="brand-title" href="/" aria-label="SkyZero home"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · Go</span></a>
+        <div class="status-pill" id="status-pill"><span class="dot"></span><span id="status" role="status" aria-live="polite">加载模型…</span></div>
+      </div>
+      <div class="tb-controls game-controls">
+        <div class="tb-group control-group"><label class="tb-label" for="side" data-i18n="side">你的执色</label><select id="side" data-board-segment><option value="1" data-i18n="blackFirst">黑方 · 先手</option><option value="-1" data-i18n="whiteSecond">白方 · 后手</option></select></div>
+        <div class="tb-group control-group" id="think_time_wrap"><label class="tb-label" for="budget" data-i18n="budget">AI 思考时间</label><select id="budget" data-board-select><option value="500">0.5 s</option><option value="1000">1 s</option><option value="3000" selected>3 s</option><option value="5000">5 s</option></select></div>
+        <div class="tb-actions game-actions"><button id="new-game" class="btn primary" type="button" data-i18n="newGame">新对局</button><button id="retry" class="btn" type="button" hidden data-i18n="retry">重试</button><button id="undo" class="btn danger-ghost" type="button" disabled data-i18n="undo">悔棋</button><button id="pass" class="btn" type="button" disabled data-i18n="pass">停一手</button></div>
+      </div>
+      <div class="topbar-right"><button id="language" class="btn" type="button">EN</button><div class="settings-wrap"><button id="settings_btn" class="btn" type="button" aria-expanded="false" aria-controls="settings_pop" data-ui="settings">设置</button>
+      <div id="settings_pop" class="settings-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings_title"><div class="settings-dialog"><div class="settings-header"><div class="settings-heading"><h2 id="settings_title" class="settings-title" data-ui="settings">设置</h2></div><button id="settings_close_btn" class="settings-close" type="button" aria-label="关闭设置">×</button></div><div class="settings-content"><section class="settings-panel"><div class="settings-group"><div class="settings-item"><div class="settings-item-copy"><label class="settings-item-title" for="size" data-ui="boardSize">棋盘大小</label></div><div class="settings-control"><select id="size" data-board-select><option value="9">9 × 9</option><option value="13">13 × 13</option><option value="19" selected>19 × 19</option></select></div></div><div class="settings-item"><div class="settings-item-copy"><label class="settings-item-title" for="theme" data-ui="theme">主题</label></div><div class="settings-control"><select id="theme" data-board-select><option value="auto" data-i18n="auto">自动主题</option><option value="light" data-i18n="light">明亮</option><option value="dark" data-i18n="dark">暗黑</option></select></div></div><div class="settings-item"><div class="settings-item-copy"><span class="settings-item-title" data-i18n="ruleLabel">规则</span></div><div class="settings-control" data-i18n="ruleSummary">中国规则 · 贴 7.5 目</div></div></div><div class="credits"><a href="/go/LICENSE.txt">KataGo · MIT</a><a href="/go/PIKAFISH-LICENSE.txt">Pikafish · GPLv3</a><a id="rules-source" data-i18n="source">规则源码</a></div></section></div></div></div></div></div>
+    </header>
+    <div class="main game-layout">
+      <aside class="winrate-col left-column">
+        <div class="card game-card chart-card">
+          <div class="chart-heading"><span data-i18n="evaluation">胜率</span><strong id="evaluation-value">—</strong></div>
+          <svg id="evaluation-chart" viewBox="0 0 280 180" preserveAspectRatio="none" role="img" aria-label="AI position estimate"></svg>
+        </div>
+        <div class="card game-card stats-card">
+          <div class="card-heading" data-i18n="gameStats">本局统计</div>
+          <div class="stats-grid">
+            <div class="stat"><span data-i18n="totalMoves">总手数</span><strong id="move-count">0</strong></div>
+            <div class="stat"><span data-i18n="searchVisits">AI 搜索</span><strong id="search-visits">—</strong></div>
+          </div>
+        </div>
+      </aside>
+      <section class="board-col board-panel card board-card" aria-label="Go board">
+
+        <div class="board-wrap"><svg id="board" viewBox="0 0 660 660" role="group" aria-label="围棋棋盘"></svg></div>
+      </section>
+      <aside class="analysis-col right-column">
+        <div class="card game-card candidate-card">
+          <div class="card-heading candidate-heading"><span data-i18n="candidates">候选着法</span><span data-i18n="candidateLegend">胜率 · 访问</span></div>
+          <div id="candidates" class="candidate-list"></div>
+        </div>
+
+      </aside>
+    </div>
+    <div class="mobile-actionbar" id="mobile_actionbar"></div>
+  </main>
+</body>
+</html>

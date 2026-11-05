@@ -1,0 +1,13 @@
+#board { touch-action: manipulation; }
+.go-grid { fill: none; stroke: var(--board-line); stroke-width: 1.2; pointer-events: none; }
+.go-label { fill: var(--board-line); font: 12px var(--font-mono); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.go-star { fill: var(--board-star); pointer-events: none; }
+.go-point { cursor: pointer; outline: none; }
+.go-point[aria-disabled="true"] { cursor: default; }
+.go-hit { fill: transparent; }
+.go-black { fill: url(#go-black); stroke: var(--stone-outline); stroke-width: .6; }
+.go-white { fill: url(#go-white); stroke: #888; stroke-width: .6; }
+.go-stone { filter: drop-shadow(0 1.5px 1px #0004); pointer-events: none; }
+.go-point:focus-visible .go-hit { fill: #4493f84a; }
+.go-point[aria-disabled="false"]:hover .go-hit { fill: #4493f84a; }
+.go-last { fill: none; stroke-width: 2; pointer-events: none; }
