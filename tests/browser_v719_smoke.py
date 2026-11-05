@@ -1,3 +1,4 @@
+from browser_runtime import use_cached_runtime
 """Browser smoke test for the V7.19 gomoku deployment.
 
 Run with:
@@ -30,6 +31,7 @@ def main():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
+        use_cached_runtime(page.context)
         page.on("console", lambda msg: errors.append(
             f"console {msg.type}: {msg.text}") if msg.type == "error" else None)
         page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
@@ -294,6 +296,7 @@ def main():
         assert page.locator("#settings_btn").is_visible()
 
         tree_page = browser.new_page(viewport={"width": 1280, "height": 800})
+        use_cached_runtime(tree_page.context)
         tree_page.on("console", lambda msg: errors.append(
             f"tree console {msg.type}: {msg.text}")
             if msg.type == "error" else None)
@@ -322,6 +325,7 @@ def main():
 
         direct_page = browser.new_page(
             viewport={"width": 1440, "height": 1000})
+        use_cached_runtime(direct_page.context)
         direct_page.add_init_script(
             """window.__difficultyEverVisible = false;
                document.addEventListener("DOMContentLoaded", () => {
@@ -368,6 +372,7 @@ def main():
         direct_page.evaluate("hideLoadingOverlay()")
 
         error_context = browser.new_context()
+        use_cached_runtime(error_context)
         error_page = error_context.new_page()
         error_page.route(
             "**/gomoku/models/level1.onnx*",
