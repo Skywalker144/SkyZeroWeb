@@ -16,10 +16,13 @@ const staticFiles = [
   "public/shared/leaderboard.js",
   "public/shared/onnx-worker-runtime.js",
   "public/gomoku/index.html",
-  "public/gomoku/style.css",
   "public/gomoku/tree/index.html",
   "public/gomoku/models/manifest.json",
   "public/2048/index.html",
+  "public/go/index.html",
+  "public/go/models/manifest.json",
+  "public/shared/board-shell.css",
+  "public/shared/ui/board-controls.js",
   "public/hex/index.html",
   "public/hex/models/manifest.json",
   "public/xiangqi/index.html",
@@ -49,6 +52,7 @@ test("stable routes target the domain entry points", () => {
     }), `missing model route: ${model.id}`);
   }
   assert.match(redirects, /^\/2048\s+\/2048\/index\.html\s+200$/m);
+  assert.match(redirects, /^\/go\s+\/go\/index\.html\s+200$/m);
   assert.match(redirects, /^\/hex\s+\/hex\/index\.html\s+200$/m);
   assert.match(redirects, /^\/xiangqi\s+\/xiangqi\/index\.html\s+200$/m);
   assert.match(redirects, /^\/channel-dodge\s+\/channel-dodge\/index\.html\s+200$/m);
@@ -97,4 +101,18 @@ test("source-only concerns stay outside the deployable tree", () => {
   ]) {
     assert.equal(existsSync(join(root, path)), false, path);
   }
+});
+
+test('board pages share the Gomoku visual shell and settings controller', () => {
+  for (const game of ['gomoku','hex','xiangqi','go']) {
+    const html=readFileSync(join(root,`public/${game}/index.html`),'utf8');
+    assert.match(html,/\/shared\/board-shell\.css\?v=20261105[a-z]?/);
+    assert.match(html,/\/shared\/ui\/board-controls\.js\?v=20261105[a-z]?/);
+    assert.match(html,/id="settings_pop"/);
+  }
+});
+
+test('Gomoku tree loads the shared board shell', () => {
+  const html = readFileSync(join(root, 'public/gomoku/tree/index.html'), 'utf8');
+  assert.match(html, /<link\s+rel="stylesheet"\s+href="\/shared\/board-shell\.css\?v=20261105[a-z]?"/);
 });
