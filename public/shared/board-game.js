@@ -1,19 +1,12 @@
 (function () {
     const samples = [];
     const byId = id => document.getElementById(id);
-    const topbar = document.querySelector('.game-topbar');
-    const board = byId('board');
-    const resize = () => {
-        const box = board.viewBox.baseVal;
-        document.documentElement.style.setProperty('--board-ratio', box.height ? box.width / box.height : 1);
-        document.documentElement.style.setProperty('--board-top', `${topbar.getBoundingClientRect().bottom}px`);
-    };
-    new ResizeObserver(resize).observe(topbar);
-    new MutationObserver(resize).observe(board, {attributes: true, attributeFilter: ['viewBox']});
-    window.addEventListener('resize', resize);
-    resize();
-
+    const overlay = document.createElement('div');
+    overlay.id = 'loading_overlay';
+    overlay.innerHTML = '<div class="loader-card"><div class="loader-spin"></div><div class="loader-text" id="loading_text"></div></div>';
+    document.querySelector('.board-panel').append(overlay);
     window.BoardGameAnalysis = {
+        loading(active, text) { overlay.hidden = !active; overlay.style.display = active ? '' : 'none'; byId('loading_text').textContent = text; },
         reset() { samples.length = 0; },
         trim(ply) { while (samples.length && samples.at(-1).ply > ply) samples.pop(); },
         record(ply, result) { samples.push({ply, value: result.value}); },
@@ -28,16 +21,16 @@
             list.replaceChildren();
             if (!candidates.length) {
                 const empty = document.createElement('div');
-                empty.className = 'candidate-empty';
+                empty.className = 'cand-empty candidate-empty';
                 empty.textContent = t('noAnalysis');
                 list.append(empty);
                 return;
             }
             for (const [index, candidate] of candidates.slice(0, 10).entries()) {
                 const row = document.createElement('div');
-                row.className = `candidate-row${index === 0 ? ' best' : ''}`;
+                row.className = `cand-row candidate-row${index === 0 ? ' best' : ''}`;
                 const percent = Math.round((candidate.value + 1) * 50);
-                row.innerHTML = `<span>${index + 1}</span><span></span><strong>${percent}%</strong><span class="candidate-track"><i style="width:${candidate.visits / candidates[0].visits * 100}%"></i></span><span>${candidate.visits}</span>`;
+                row.innerHTML = `<span class="cand-rank">${index + 1}</span><span class="cand-coord"></span><strong class="cand-wr">${percent}%</strong><span class="cand-track"><span style="width:${candidate.visits / candidates[0].visits * 100}%"></span></span><span class="cand-visits">${candidate.visits}</span>`;
                 row.children[1].textContent = coordinate(candidate.action);
                 list.append(row);
             }

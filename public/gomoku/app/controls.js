@@ -59,50 +59,6 @@ registerI18nCallback(() => {
     updateReviewBar();
 });
 
-// --- Settings dialog (single panel: rule / size / palette / setup) ---
-(function initSettingsDialog() {
-    const btn = document.getElementById("settings_btn");
-    const modal = document.getElementById("settings_pop");
-    const closeBtn = document.getElementById("settings_close_btn");
-    if (!btn || !modal || !closeBtn) return;
-    function setOpen(open) {
-        modal.classList.toggle("hidden", !open);
-        document.body.classList.toggle("settings-open", open);
-        btn.setAttribute("aria-expanded", open ? "true" : "false");
-        if (open) closeBtn.focus();
-    }
-    btn.addEventListener("click", () => {
-        setOpen(modal.classList.contains("hidden"));
-    });
-    closeBtn.addEventListener("click", () => {
-        setOpen(false);
-        btn.focus();
-    });
-    modal.addEventListener("click", (ev) => {
-        if (ev.target === modal) setOpen(false);
-    });
-    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") setOpen(false); });
-})();
-
-// On narrow viewports the Settings control moves out of the toolbar into a
-// bottom bar (keeping the top tidy); on wide ones it returns to the toolbar.
-// The single .settings-wrap node is relocated, so the popover wiring above and
-// its element IDs stay intact.
-(function initSettingsPlacement() {
-    const wrap = document.querySelector(".settings-wrap");
-    const topHome = document.querySelector(".topbar-right");
-    const bottomHome = document.getElementById("mobile_actionbar");
-    if (!wrap || !topHome || !bottomHome) return;
-    const mq = window.matchMedia("(max-width: 720px)");
-    function place() {
-        const dest = mq.matches ? bottomHome : topHome;
-        if (wrap.parentElement !== dest) dest.appendChild(wrap);
-    }
-    place();
-    if (mq.addEventListener) mq.addEventListener("change", place);
-    else if (mq.addListener) mq.addListener(place);
-})();
-
 // --- Heatmap drawer ---
 (function initHeatDrawer() {
     const btn = document.getElementById("heat_drawer_btn");

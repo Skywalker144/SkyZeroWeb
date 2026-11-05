@@ -142,69 +142,21 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // --- Board sizing --------------------------------------------------------
-// The three-column grid (320 · 1fr · 340) is fixed in CSS, so JS only fits the
-// square board canvas into the centre column's width and the viewport height.
-const boardCard = document.querySelector(".board-card");
-const mainEl = document.querySelector(".main");
-const topbarEl = document.querySelector(".topbar");
-const appEl = document.querySelector(".app");
-const boardColEl = document.querySelector(".board-col");
 
 function syncBoardSize() {
-    const compact = window.matchMedia("(max-width: 1180px)").matches;
-    const phone = window.matchMedia("(max-width: 720px)").matches;
-    MARGIN = phone ? MARGIN_PHONE : (compact ? MARGIN_COMPACT : MARGIN_DESKTOP);
-
-    const cardCS = getComputedStyle(boardCard);
-    const cardPadX = parseFloat(cardCS.paddingLeft) + parseFloat(cardCS.paddingRight);
-    const cardPadY = parseFloat(cardCS.paddingTop)  + parseFloat(cardCS.paddingBottom);
-    const cardBorderX = parseFloat(cardCS.borderLeftWidth) + parseFloat(cardCS.borderRightWidth);
-    const cardBorderY = parseFloat(cardCS.borderTopWidth)  + parseFloat(cardCS.borderBottomWidth);
-    const availW = Math.max(0, boardColEl.clientWidth - cardPadX - cardBorderX);
-
-    // Vertical budget: viewport minus app padding, toolbar, card chrome and
-    // (while editing) the edit toolbar that sits under the board.
-    const topbarCS = getComputedStyle(topbarEl);
-    const topbarH = topbarEl.offsetHeight + parseFloat(topbarCS.marginBottom || 0);
-    const appCS = getComputedStyle(appEl);
-    const appPadY = parseFloat(appCS.paddingTop) + parseFloat(appCS.paddingBottom);
-    const colCS = getComputedStyle(boardColEl);
-    const colGap = parseFloat(colCS.rowGap || colCS.gap) || 0;
-    const editTb = document.getElementById("edit_toolbar");
-    const editH = (document.body.classList.contains("editing") && editTb)
-        ? editTb.offsetHeight + colGap : 0;
-    const reviewTb = document.getElementById("review_bar");
-    const reviewH = (reviewTb && !reviewTb.classList.contains("hidden"))
-        ? reviewTb.offsetHeight + colGap : 0;
-    const reserved = appPadY + topbarH + cardPadY + cardBorderY + editH + reviewH + 12;
-    const availH = window.innerHeight - reserved;
-
-    const cap = compact ? 560 : 900;
-    const size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
-    const minCell = compact ? 12 : 18;
-    CELL = Math.max(minCell, Math.floor((size - 2 * MARGIN) / (N - 1)));
-    // Integer cell widths can leave several unused pixels on wider phones
-    // (notably 430px iPhones). Absorb that remainder into the canvas margin so
-    // the canvas fills the card content box and all four CSS insets match.
-    if (phone) MARGIN = (size - CELL * (N - 1)) / 2;
-    BOARD_LOGICAL = MARGIN * 2 + CELL * (N - 1);
-    if (cv.width !== Math.round(BOARD_LOGICAL * DPR)) {
-        setupCanvas(cv, BOARD_LOGICAL, BOARD_LOGICAL);
-        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-        if (typeof draw === "function") draw();
+    const phone=window.matchMedia("(max-width: 720px)").matches;
+    const margin=phone?MARGIN_PHONE:(SkyZeroBoardLayout.stacked?MARGIN_COMPACT:MARGIN_DESKTOP);
+    const fitted=SkyZeroBoardLayout.fitCanvas({size:N,margin});
+    MARGIN=fitted.margin;
+    CELL=fitted.cell;
+    BOARD_LOGICAL=fitted.logical;
+    if(cv.width!==Math.round(BOARD_LOGICAL*DPR) || cv.style.width!==BOARD_LOGICAL+"px") {
+        setupCanvas(cv,BOARD_LOGICAL,BOARD_LOGICAL);
+        ctx.setTransform(DPR,0,0,DPR,0,0);
+        if(typeof draw==="function")draw();
     }
-    // Pin the side columns to the board's height: the win-rate chart fills it,
-    // and the analysis panel scrolls internally so expanding the heatmap drawer
-    // shrinks the candidate list instead of stretching the page.
-    const colH = compact ? "" : boardCard.offsetHeight + "px";
-    const wcol = document.getElementById("winrate_col");
-    const acol = document.getElementById("right_col");
-    if (wcol) wcol.style.height = colH;
-    if (acol) acol.style.height = colH;
 }
-new ResizeObserver(syncBoardSize).observe(mainEl);
-new ResizeObserver(syncBoardSize).observe(topbarEl);
-window.addEventListener("resize", syncBoardSize);
+document.addEventListener("boardlayoutchange",syncBoardSize);
 
 let state = null;        // { board: 2D N×N int, last_move: [r,c]|null, board_size: N }
 let showGumbel = false;
@@ -728,9 +680,6 @@ window.addEventListener("resize", () => {
 });
 
 // --- Value chart ---
-// Sizing is handled by CSS (#value_chart in ../style.css) so that mobile media
-// queries can shrink the canvas — JS just keeps the bitmap in sync via the
-// ResizeObserver below.
 const vcCanvas = document.getElementById("value_chart");
 let vctx = setupCanvas(vcCanvas, 280, 160, false);
 // Chart inner padding, shared by drawValueChart and the hover/click hit-testing

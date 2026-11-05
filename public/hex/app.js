@@ -1,20 +1,26 @@
 const TEXT = {
-    zh: {title: '六角棋', subtitle: '连起两边，赢下整盘。', auto: '自动主题', light: '明亮', dark: '暗黑',
-        gameInfo: '对局信息', evaluation: 'AI 局面评估', gameStats: '本局统计', totalMoves: '总手数', searchVisits: 'AI 搜索', candidates: '候选着法', candidateLegend: '上次搜索 · 评估 · 访问', noAnalysis: '暂无分析', model: '训练时长', size: '棋盘大小', side: '你的执色', budget: 'AI 思考时间',
-        blackFirst: '黑方 · 先手', whiteSecond: '白方 · 后手', blackGoal: '黑方连接上下', whiteGoal: '白方连接左右',
-        balancedOpening: '生成平衡开局', cancelOpening: '取消生成', balancing: '生成平衡开局中…', attempts: '次尝试', whiteWin: '首手后白方胜率', openingHint: '从新棋盘开始，用当前模型生成黑方首手。',
-        newGame: '新对局', undo: '悔棋', howTo: '怎么玩', rules: '点击空格落子，将同色棋子连成一条连接目标两边的路径。黑方先手，白方后手，不设换边；桥形空点不算已连通。',
-        local: 'AI 在你的浏览器中运行。', downloading: '下载模型…', loading: '初始化 AI…', yourTurn: '轮到你', thinking: 'AI 思考中…',
-        won: '你赢了！', lost: 'AI 获胜', error: '加载或推理失败', retry: '点击新对局重试', last: '最新轮次', hours: '小时',
-        moves: '手', visits: '次搜索', iteration: '轮次', actual: '实际训练', winrate: 'AI 胜率'},
-    en: {title: '', subtitle: 'Two edges. One winning connection.', auto: 'Auto theme', light: 'Light', dark: 'Dark',
-        gameInfo: 'Game information', evaluation: 'AI position estimate', gameStats: 'Game statistics', totalMoves: 'Moves', searchVisits: 'AI visits', candidates: 'Candidate moves', candidateLegend: 'Last search · estimate · visits', noAnalysis: 'No analysis yet', model: 'Training time', size: 'Board size', side: 'Your color', budget: 'AI thinking time',
-        blackFirst: 'Black · first', whiteSecond: 'White · second', blackGoal: 'Black: top to bottom', whiteGoal: 'White: left to right',
-        balancedOpening: 'Balanced opening', cancelOpening: 'Cancel generation', balancing: 'Generating opening…', attempts: 'attempts', whiteWin: 'White win estimate after opening', openingHint: 'Start a new board with a black opening stone selected using this model.',
-        newGame: 'New game', undo: 'Undo', howTo: 'How to play', rules: 'Place a stone on an empty hexagon. Connect your two edges with a continuous path of your stones. Black moves first. No swap rule; empty bridges do not count as connections.',
-        local: 'The AI runs locally in your browser.', downloading: 'Downloading model…', loading: 'Initializing AI…', yourTurn: 'Your turn', thinking: 'AI is thinking…',
-        won: 'You won!', lost: 'AI won', error: 'Loading or inference failed', retry: 'Click New game to retry', last: 'Latest iteration', hours: 'hours',
-        moves: 'moves', visits: 'visits', iteration: 'Iteration', actual: 'Trained for', winrate: 'AI win estimate'},
+    zh: {
+        title: "六角棋", auto: "自动主题", light: "明亮", dark: "暗黑",
+        evaluation: "胜率", gameStats: "本局统计", totalMoves: "总手数", searchVisits: "AI 搜索",
+        candidates: "候选着法", candidateLegend: "胜率 · 访问", noAnalysis: "暂无分析", model: "模型",
+        size: "棋盘大小", side: "执子", budget: "思考", blackFirst: "黑棋",
+        whiteSecond: "白棋", balancedOpening: "平衡开局", cancelOpening: "取消生成", balancing: "生成平衡开局中…",
+        attempts: "次尝试", whiteWin: "白胜", newGame: "新对局", undo: "悔棋",
+        downloading: "下载模型…", loading: "初始化 AI…", yourTurn: "轮到你", thinking: "AI 思考中…",
+        won: "你赢了！", lost: "AI 获胜", error: "加载或推理失败", retry: "点击新对局重试",
+        last: "最新轮次", hours: "小时", opening: "开局"
+    },
+    en: {
+        title: "", auto: "Auto theme", light: "Light", dark: "Dark",
+        evaluation: "Win rate", gameStats: "Game statistics", totalMoves: "Moves", searchVisits: "AI visits",
+        candidates: "Candidate moves", candidateLegend: "Win % · visits", noAnalysis: "No analysis yet", model: "Model",
+        size: "Board size", side: "Side", budget: "Think", blackFirst: "Black",
+        whiteSecond: "White", balancedOpening: "Balanced opening", cancelOpening: "Cancel generation", balancing: "Generating opening…",
+        attempts: "attempts", whiteWin: "White", newGame: "New game", undo: "Undo",
+        downloading: "Downloading model…", loading: "Initializing AI…", yourTurn: "Your turn", thinking: "AI is thinking…",
+        won: "You won!", lost: "AI won", error: "Loading or inference failed", retry: "Click New game to retry",
+        last: "Latest iteration", hours: "hours", opening: "Opening"
+    }
 };
 const $ = id => document.getElementById(id);
 let language = localStorage.getItem('skz_lang') === 'en' ? 'en' : 'zh';
@@ -34,22 +40,20 @@ function renderText() {
         for (const model of manifest.models) {
             $('model').querySelector(`option[value="${model.id}"]`).textContent = model.id === 'last' ? t('last') : `${model.target_seconds / 3600} ${t('hours')}`;
         }
-        const model = manifest.models.find(item => item.id === $('model').value);
-        const seconds = Math.round(model.elapsed_seconds);
-        const time = `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-        $('model-detail').textContent = `${t('iteration')} ${model.iteration} · ${t('actual')} ${time}`;
+
     }
     const winner = game.winner(board);
-    $('status').textContent = error ? `${t('error')}: ${error}` : !ready ? t(phase)
+    $('status').title = error;
+    $('status').textContent = error ? t('error') : !ready ? t(phase)
         : balancing ? `${t('balancing')} ${openingAttempts} ${t('attempts')}` : winner ? t(winner === human() ? 'won' : 'lost') : thinking ? t('thinking') : t('yourTurn');
+    BoardGameAnalysis.loading(!ready && !error, $('status').textContent);
     $('status-pill').dataset.variant = error ? 'error' : !ready || balancing || thinking ? 'thinking' : winner ? 'done' : 'active';
     BoardGameAnalysis.render({ply: history.length, result: stats, t, coordinate: action => `${String.fromCharCode(65 + action % game.size)}${Math.floor(action / game.size) + 1}`});
     $('undo').disabled = !ready || balancing || history.length <= undoFloor();
     $('balanced-opening').disabled = !ready || !!error;
     $('balanced-opening').textContent = t(balancing ? 'cancelOpening' : 'balancedOpening');
-    $('opening-info').textContent = opening ? `${opening.attempts} ${t('attempts')} · ${t('whiteWin')} ${Math.round(opening.whiteWinProbability * 100)}%` : t('openingHint');
-    $('search-info').textContent = error ? t('retry') : stats
-        ? `${stats.visits} ${t('visits')} · ${t('winrate')} ${Math.round((stats.value + 1) * 50)}%` : '';
+    $('opening-info').textContent = opening ? `${opening.attempts} ${t('attempts')} · ${t('whiteWin')} ${Math.round(opening.whiteWinProbability * 100)}%` : '';
+    $('opening-info').hidden = !opening;
     $('board').setAttribute('aria-disabled', String(!ready || thinking || balancing || !!winner || !!error));
 }
 
@@ -60,12 +64,13 @@ function renderBoard() {
     const winner = game.winner(board), path = new Set(winner ? game.connection(board, winner) : []);
     const [right, bottom] = center(size - 1, size - 1);
     $('board').setAttribute('viewBox', `0 0 ${right + 34} ${bottom + 34}`);
-    const markup = [];
+    const markup = ['<defs><radialGradient id="hex-black" cx="30%" cy="30%"><stop stop-color="var(--stone-black-0)"/><stop offset="1" stop-color="var(--stone-black-1)"/></radialGradient><radialGradient id="hex-white" cx="30%" cy="30%"><stop stop-color="var(--stone-white-0)"/><stop offset="1" stop-color="var(--stone-white-1)"/></radialGradient></defs>'];
     for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
         const action = row * size + col, [x, y] = center(row, col);
         const color = board[action] === 1 ? 'black' : board[action] === -1 ? 'white' : 'empty';
         const coordinate = `${String.fromCharCode(65 + col)}${row + 1}`;
         markup.push(`<polygon class="cell ${color}${path.has(action) ? ' connected' : ''}" data-action="${action}" points="${Array.from({length: 6}, (_, i) => vertex(x, y, i).join(',')).join(' ')}" role="button" tabindex="${board[action] ? -1 : 0}" aria-label="${coordinate}" aria-disabled="${!!board[action]}"><title>${coordinate}</title></polygon>`);
+        if (board[action]) markup.push(`<circle class="hex-piece ${color}" cx="${x}" cy="${y}" r="${radius * .78}"/>`);
         if (history.at(-1) === action) markup.push(`<circle class="last-marker" cx="${x}" cy="${y}" r="4" stroke="${board[action] === 1 ? '#fff' : '#24313d'}"/>`);
         if (row === 0) markup.push(`<text class="board-label" x="${x}" y="${y - 21}">${String.fromCharCode(65 + col)}</text>`);
         if (col === 0) markup.push(`<text class="board-label" x="${x - 24}" y="${y + 3}">${row + 1}</text>`);
@@ -115,7 +120,7 @@ function loadModel() {
     error = '';
     phase = 'downloading';
     reset();
-    worker = new Worker('/hex/worker.js?v=20261102b');
+    worker = new Worker('/hex/worker.js?v=20261105b');
     const id = activeId = ++requestId;
     worker.onerror = event => { error = event.message; thinking = false; balancing = false; renderText(); };
     worker.onmessage = ({data}) => {

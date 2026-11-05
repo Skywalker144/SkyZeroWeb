@@ -2,18 +2,13 @@
 html[data-theme="dark"] { --hex-empty: #353c42; --hex-line: #59636c; --hex-hover: #596571; }
 #board[aria-disabled="true"] .cell { cursor: default; }
 #board[aria-disabled="true"] .cell.empty:hover { fill: var(--hex-empty); }
-
-.stone { display: inline-block; width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; border: 1px solid #66717d; }
-.stone.black { background: #24313d; }
-.stone.white { background: #fff; }
-.board-wrap { padding: 12px; background: var(--surface-sunken); border-radius: 0 0 14px 14px; }
-#board { width: 100%; display: block; overflow: visible; }
+.board-card.hex-board { padding: 0; }
+#board { width: 100%; display: block; overflow: visible; background: transparent; border-radius: 0; }
 .cell { fill: var(--hex-empty); stroke: var(--hex-line); stroke-width: 1.2; cursor: pointer; transition: fill .12s; }
-.cell.black { fill: #24313d; stroke: #17212b; }
-.cell.white { fill: #fff; stroke: #a6adb5; }
 .cell.empty:hover, .cell.empty:focus-visible { fill: var(--hex-hover); }
 .cell.connected { stroke: #d49b36; stroke-width: 3; }
+.hex-piece { pointer-events: none; filter: drop-shadow(0 1px 1px #0003); stroke-width: .6; }
+.hex-piece.black { fill: url(#hex-black); stroke: var(--stone-outline); }
+.hex-piece.white { fill: url(#hex-white); stroke: #a6adb5; }
 .board-label { fill: var(--fg-muted); font-size: 10px; text-anchor: middle; pointer-events: none; }
 .last-marker { fill: none; stroke-width: 2; pointer-events: none; }
-
-.board-wrap { background: var(--surface-sunken); }

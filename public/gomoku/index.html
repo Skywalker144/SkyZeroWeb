@@ -45,9 +45,9 @@
     })();
   </script>
   <link rel="stylesheet" href="/shared/base.css?v=20260907">
-  <link rel="stylesheet" href="/gomoku/style.css?v=20260916">
+  <link rel="stylesheet" href="/shared/board-shell.css?v=20261105c">
 </head>
-<body class="gomoku-page">
+<body class="gomoku-page board-page">
   <script>
     // Apply the play/analysis mode class before first paint so the analysis-only
     // surfaces (free-board placement, sims-count label) don't flash on load.
@@ -489,52 +489,26 @@
     </div>
   </div>
 
-  <!-- Size the board canvas to its final dimensions BEFORE the blocking game
-       scripts below load. Otherwise the
-       browser paints the canvas at its 300×150 default first, then gomoku-view.js's
-       syncBoardSize() resizes it once it finally executes — jumping the board
-       box and the side columns pinned to its height. This mirrors the first run
-       of syncBoardSize() in gomoku-view.js; keep the formula in sync with it. -->
+  <script src="/shared/board-layout.js?v=20261105c"></script>
   <script>
   (function(){
-    var cv = document.getElementById("board");
-    var card = document.querySelector(".board-card");
-    var col = document.querySelector(".board-col");
-    var topbar = document.querySelector(".topbar");
-    var app = document.querySelector(".app");
-    if (!cv || !card || !col || !topbar || !app) return;
-    var N = 15, DPR = window.devicePixelRatio || 1;
-    var compact = window.matchMedia("(max-width: 1180px)").matches;
-    var phone = window.matchMedia("(max-width: 720px)").matches;
-    var MARGIN = phone ? 8 : (compact ? 10 : 28);
-    var cs = getComputedStyle(card);
-    var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
-    var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-    var availW = Math.max(0, col.clientWidth - padX);
-    var acs = getComputedStyle(app), tcs = getComputedStyle(topbar);
-    var reserved = parseFloat(acs.paddingTop) + parseFloat(acs.paddingBottom) + topbar.offsetHeight + (parseFloat(tcs.marginBottom) || 0) + padY + 12;
-    var availH = window.innerHeight - reserved;
-    var cap = compact ? 560 : 900;
-    var size = Math.max(compact ? 220 : 300, Math.min(availW, availH, cap));
-    var CELL = Math.max(compact ? 12 : 18, Math.floor((size - 2 * MARGIN) / (N - 1)));
-    if (phone) MARGIN = (size - CELL * (N - 1)) / 2;
-    var LOGICAL = MARGIN * 2 + CELL * (N - 1);
-    cv.width = Math.round(LOGICAL * DPR);
-    cv.height = Math.round(LOGICAL * DPR);
-    cv.style.width = LOGICAL + "px";
-    cv.style.height = LOGICAL + "px";
-    var colH = compact ? "" : card.offsetHeight + "px";
-    var wcol = document.getElementById("winrate_col"), acol = document.getElementById("right_col");
-    if (wcol) wcol.style.height = colH;
-    if (acol) acol.style.height = colH;
+    var cv=document.getElementById("board");
+    var phone=window.matchMedia("(max-width:720px)").matches;
+    var fitted=SkyZeroBoardLayout.fitCanvas({size:15,margin:phone?8:(SkyZeroBoardLayout.stacked?10:28)});
+    var ratio=window.devicePixelRatio||1;
+    cv.width=Math.round(fitted.logical*ratio);
+    cv.height=Math.round(fitted.logical*ratio);
+    cv.style.width=fitted.logical+"px";
+    cv.style.height=fitted.logical+"px";
   })();
   </script>
   <script src="/gomoku/app/i18n.js?v=20260730-2"></script>
   <script src="/gomoku/engine/game.js?v=20260729"></script>
   <script src="/gomoku/app/context.js?v=20260907"></script>
-  <script src="/gomoku/app/view.js?v=20260907"></script>
+  <script src="/gomoku/app/view.js?v=20261105c"></script>
   <script src="/gomoku/app/game.js?v=20260907"></script>
-  <script src="/gomoku/app/controls.js?v=20260907"></script>
+  <script src="/shared/ui/board-controls.js?v=20261105"></script>
+  <script src="/gomoku/app/controls.js?v=20261105"></script>
   <script src="/gomoku/app/main.js?v=20260907"></script>
   <script src="/shared/ui/seg-slide.js?v=20260702"></script>
 </body>
