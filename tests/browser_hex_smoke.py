@@ -1,3 +1,4 @@
+from browser_runtime import use_cached_runtime, select_control, click_settings_action
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ def wait_ready(page):
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True, args=['--no-sandbox'])
     page = browser.new_page(viewport={'width': 1200, 'height': 950})
+    use_cached_runtime(page.context)
     page.on('pageerror', lambda problem: errors.append(str(problem)))
     page.on('console', lambda message: errors.append(message.text) if message.type == 'error' else None)
     page.goto(base + '/hex/', wait_until='domcontentloaded')
@@ -25,9 +27,12 @@ with sync_playwright() as playwright:
     expected_manifest = json.loads((root / 'public/hex/models/manifest.json').read_text())
     assert page.evaluate('manifest') == expected_manifest
     assert page.locator('.cell').count() == 225
+    assert page.locator('.board-panel.card, .board-panel .board-wrap').count() == 0
+    assert page.locator('.board-panel').evaluate('(node)=>getComputedStyle(node).backgroundColor') == 'rgba(0, 0, 0, 0)'
+    assert page.locator('.cell').nth(0).evaluate('(node)=>node.getBBox().y') == page.locator('.cell').nth(1).evaluate('(node)=>node.getBBox().y')
     assert page.locator('#model option').count() == 3
     for model in [item['id'] for item in expected_manifest['models']]:
-        page.select_option('#model', model)
+        select_control(page, '#model', model)
         wait_ready(page)
         fixture = json.loads((root / 'tests' / f'hex-{model}-inference.json').read_text())
         artifact = page.evaluate("""async () => {
@@ -60,21 +65,25 @@ with sync_playwright() as playwright:
                     assert actual['policy'][action] == 0
             assert abs(sum(actual['policy']) - 1) < 1e-5
         print(f'{model}: browser WASM parity on {len(fixture["cases"])} positions', flush=True)
-        page.select_option('#budget', '500')
+        select_control(page, '#budget', '500')
         page.locator('[data-action="112"]').click()
         page.wait_for_function('() => history.length === 2 && !thinking', timeout=60_000)
         assert page.locator('.cell.black').count() == 1
+        assert page.locator('circle.hex-piece.black').count() == 1
         assert page.locator('.cell.white').count() == 1
+        assert page.locator('circle.hex-piece.white').count() == 1
         assert page.locator('.candidate-row').count() > 0
         assert page.locator('#evaluation-value').inner_text().endswith('%')
         page.locator('#undo').click()
         assert page.evaluate('history.length') == 0
         assert page.locator('#evaluation-value').inner_text() == '—'
-        page.select_option('#side', '-1')
-        page.locator('#balanced-opening').click()
+        select_control(page, '#side', '-1')
+        click_settings_action(page, '#balanced-opening')
         page.wait_for_function('() => opening && !balancing && !thinking && history.length === 1', timeout=120_000)
         assert page.locator('.cell.black').count() == 1
+        assert page.locator('circle.hex-piece.black').count() == 1
         assert page.locator('.cell.white').count() == 0
+        assert page.locator('circle.hex-piece.white').count() == 0
         assert page.locator('#undo').is_disabled()
         assert page.evaluate('opening.attempts >= 1 && opening.whiteWinProbability >= 0 && opening.whiteWinProbability <= 1')
         action = page.evaluate('Array.from(board).indexOf(0)')
@@ -83,7 +92,7 @@ with sync_playwright() as playwright:
         page.locator('#undo').click()
         assert page.evaluate('history.length === 1 && board[opening.action] === 1')
         print(f'{model}: balanced opening and protected-prefix undo OK', flush=True)
-        page.select_option('#side', '1')
+        select_control(page, '#side', '1')
     page.evaluate("""() => {
         document.getElementById('balanced-opening').click();
         if (!balancing) throw new Error('Opening did not start');
@@ -91,7 +100,7 @@ with sync_playwright() as playwright:
     }""")
     page.wait_for_timeout(1000)
     assert page.evaluate('!balancing && !opening && history.length === 0')
-    page.locator('#balanced-opening').click()
+    click_settings_action(page, '#balanced-opening')
     page.wait_for_function('() => opening && !balancing && !thinking && history.length === 2', timeout=120_000)
     assert page.locator('#undo').is_disabled()
     action = page.evaluate('Array.from(board).indexOf(0)')
@@ -112,8 +121,8 @@ with sync_playwright() as playwright:
     page.locator('#new-game').click()
     page.wait_for_timeout(1500)
     assert page.evaluate('history.length') == 0
-    page.select_option('#size', '9')
-    page.select_option('#side', '-1')
+    select_control(page, '#size', '9')
+    select_control(page, '#side', '-1')
     page.wait_for_function('() => history.length === 1 && !thinking', timeout=60_000)
     assert page.locator('.cell').count() == 81
     action = page.evaluate('Array.from(board).indexOf(0)')
@@ -121,8 +130,8 @@ with sync_playwright() as playwright:
     page.wait_for_function('() => history.length === 3 && !thinking', timeout=60_000)
     page.locator('#undo').click()
     assert page.evaluate('history.length') == 1
-    page.select_option('#side', '1')
-    page.select_option('#size', '9')
+    select_control(page, '#side', '1')
+    select_control(page, '#size', '9')
     page.evaluate("""() => {
         history = [0, 8, 9, 17, 18, 26, 27, 35, 36, 44, 45, 53, 54, 62, 63, 71];
         board = new Int8Array(81);
@@ -137,7 +146,7 @@ with sync_playwright() as playwright:
     page.locator('#new-game').click()
     page.locator('#language').click()
     assert page.locator('#status').inner_text() == 'Your turn'
-    page.select_option('#theme', 'dark')
+    select_control(page, '#theme', 'dark')
     page.wait_for_timeout(200)
     assert page.evaluate('document.documentElement.dataset.theme') == 'dark'
     page.set_viewport_size({'width': 390, 'height': 844})
@@ -145,13 +154,14 @@ with sync_playwright() as playwright:
     (root / '.cache').mkdir(exist_ok=True)
     page.screenshot(path=str(root / '.cache/hex-mobile.png'), full_page=True)
     page.set_viewport_size({'width': 1200, 'height': 950})
-    page.select_option('#size', '15')
-    page.select_option('#theme', 'light')
+    select_control(page, '#size', '15')
+    select_control(page, '#theme', 'light')
     page.wait_for_timeout(200)
     page.screenshot(path=str(root / '.cache/hex-desktop.png'), full_page=True)
     page.goto(base + '/', wait_until='domcontentloaded')
     assert page.locator('a[href="/hex/"]').count() == 1
     failure = browser.new_page()
+    use_cached_runtime(failure.context)
     failure.route('**/hex/models/*.onnx', lambda route: route.fulfill(status=503, body='offline'))
     failure.goto(base + '/hex/', wait_until='domcontentloaded')
     failure.wait_for_function('() => error.includes("503")')
@@ -161,6 +171,7 @@ with sync_playwright() as playwright:
     wait_ready(failure)
     failure.close()
     failure = browser.new_page()
+    use_cached_runtime(failure.context)
     failure.route('**/hex/models/manifest.json*', lambda route: route.fulfill(status=503, body='offline'))
     failure.goto(base + '/hex/', wait_until='domcontentloaded')
     failure.wait_for_function('() => error.includes("503")')
