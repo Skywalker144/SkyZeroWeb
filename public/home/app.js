@@ -3,7 +3,7 @@
       zh: {
         title: 'SkyZero · Web',
         hero_title: '选择一个游戏',
-        gomoku_name: '五子棋',
+        gomoku_name: '五子棋', go_name: '围棋', go_desc: '黑白纵横，挑战 AI',
         gomoku_desc: '和 SkyZero 对弈',
         hex_name: 'Hex 六角棋',
         hex_desc: '连接两边，挑战 AI',
@@ -23,7 +23,7 @@
       en: {
         title: 'SkyZero · Web',
         hero_title: 'Choose a game',
-        gomoku_name: 'Gomoku',
+        gomoku_name: 'Gomoku', go_name: 'Go', go_desc: 'Black and white. Play the AI.',
         gomoku_desc: 'Play against SkyZero',
         hex_name: 'Hex',
         hex_desc: 'Connect two edges against AI',
@@ -52,6 +52,8 @@
       document.getElementById('hero_title').textContent = s.hero_title;
       document.getElementById('card_gomoku_name').textContent = s.gomoku_name;
       document.getElementById('card_gomoku_desc').textContent = s.gomoku_desc;
+      document.getElementById('card_go_name').textContent = s.go_name;
+      document.getElementById('card_go_desc').textContent = s.go_desc;
       document.getElementById('card_hex_name').textContent = s.hex_name;
       document.getElementById('card_hex_desc').textContent = s.hex_desc;
       document.getElementById('card_xiangqi_name').textContent = s.xiangqi_name;
