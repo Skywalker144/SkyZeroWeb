@@ -1,14 +1,10 @@
-    /* Landing page fills the viewport so the hero + cards + footer fit on one
-       screen without scrolling. Spacing uses vh-based clamps: tall monitors stay
-       airy, short laptops compress to fit. (.app is global but this <style> only
-       loads on the landing page, so the rule is effectively scoped here.) */
     .app {
       min-height: 100dvh; display: flex; flex-direction: column;
     }
     .landing-main {
       flex: 1; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: clamp(20px, 4.5vh, 56px);
-      padding: clamp(16px, 4vh, 40px) 20px clamp(16px, 3.5vh, 48px);
+      justify-content: center; gap: clamp(24px, 3.5vh, 36px);
+      padding: clamp(16px, 2.5vh, 32px) 20px clamp(24px, 3vh, 40px);
       text-align: center;
     }
     .landing-hero {
@@ -16,10 +12,6 @@
     }
     .hero-brand {
       display: inline-flex; align-items: center; gap: 14px;
-    }
-    .hero-mark {
-      width: 46px; height: 46px; flex: none;
-      filter: drop-shadow(0 4px 12px rgba(27,31,36,0.12));
     }
     .hero-wordmark {
       font-size: clamp(34px, 7vw, 52px); line-height: 1;
@@ -29,16 +21,21 @@
       letter-spacing: 0.01em;
     }
     .landing-grid {
-      display: grid; gap: 18px; width: 100%; max-width: 520px;
-      grid-template-columns: repeat(2, 1fr);
+      display: grid; gap: 16px; width: 100%; max-width: 960px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-rows: 1fr;
     }
-    @media (max-width: 560px) {
-      .landing-grid { grid-template-columns: 1fr; max-width: 280px; }
+    @media (max-width: 839px) {
+      .landing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 620px; }
+    }
+    @media (max-width: 559px) {
+      .landing-main { padding-inline: 12px; }
+      .landing-grid { grid-template-columns: minmax(0, 1fr); max-width: 360px; gap: 12px; }
     }
     .game-card {
       display: flex; flex-direction: column; align-items: center;
-      gap: clamp(10px, 1.6vh, 14px);
-      padding: clamp(18px, 3vh, 32px) 24px; text-decoration: none;
+      justify-content: center; gap: 8px; min-width: 0;
+      padding: clamp(16px, 2.5vh, 24px) 20px; text-decoration: none;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-lg); color: var(--fg);
       transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
@@ -47,7 +44,6 @@
       border-color: var(--border-strong); transform: translateY(-3px);
       box-shadow: 0 8px 24px rgba(27,31,36,0.10);
     }
-    /* Pressed: settle back down so a tap reads as a click, not just a hover. */
     .game-card:active {
       border-color: var(--border-strong); transform: translateY(-1px);
       box-shadow: 0 3px 10px rgba(27,31,36,0.08);
@@ -57,7 +53,7 @@
       .game-card:hover, .game-card:active { transform: none; }
     }
     .game-card .game-icon {
-      width: clamp(64px, 9vh, 88px); height: clamp(64px, 9vh, 88px);
+      width: clamp(56px, 7.5vh, 72px); height: clamp(56px, 7.5vh, 72px);
       display: grid; place-items: center;
     }
     .game-card .game-icon svg { width: 100%; height: 100%; }
@@ -66,12 +62,9 @@
     }
     .game-card .game-desc {
       font-size: 13px; color: var(--fg-muted); line-height: 1.5;
+      overflow-wrap: anywhere;
     }
-    /* Gomoku icon board */
     .ico-board { background: var(--board-bg); border-radius: 8px; padding: 10px; }
-    /* Phone: lang/theme are the landing page's only header controls and they're
-       hidden on phones (see style.css), so drop the whole now-empty bar and let
-       the hero + cards sit at the top. */
     @media (max-width: 720px) {
       .topbar { display: none; }
     }
