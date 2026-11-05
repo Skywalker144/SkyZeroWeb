@@ -4,7 +4,7 @@
 
 规则和历史观测直接编译训练侧的 XiangqiState 与 Pikafish 规则代码。源码快照及逐文件来源哈希位于 [`tools/xiangqi/`](../tools/xiangqi/)，页面提供 GPLv3 许可证和对应构建源码包。浏览器不使用 Pikafish 的搜索、NNUE 或权重。棋盘、合法着法、历史编码和终局裁定只来自该 WASM；主线程负责交互，Worker 负责规则和 ONNX 推理。
 
-浏览器使用与 Hex 共用的 [`轻量单叶 PUCT`](../public/shared/puct-search.js)，复用训练侧的红黑坐标变换和随机水平镜像。搜索未复现训练侧的图搜索、FPU、子树价值偏差、LCB 等修正，因此不代表原生引擎同等棋力。思考时间与访问上限见 [`Worker`](../public/xiangqi/worker.js)。
+浏览器使用与 Hex、围棋共用的 [`轻量单叶 PUCT`](../public/shared/puct-search.js)，复用训练侧的红黑坐标变换和随机水平镜像。搜索未复现训练侧的图搜索、FPU、子树价值偏差、LCB 等修正，因此不代表原生引擎同等棋力。思考时间与访问上限见 [`Worker`](../public/xiangqi/worker.js)。
 
 ## 更新与验证
 
