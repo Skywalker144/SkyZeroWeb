@@ -13,10 +13,10 @@
   <link rel="stylesheet" href="/shared/board-game.css?v=20261105c">
   <link rel="stylesheet" href="/xiangqi/style.css?v=20261102">
   <script defer src="/shared/board-layout.js?v=20261105c"></script>
-  <script defer src="/shared/board-game.js?v=20261105c"></script>
+  <script defer src="/shared/board-game.js?v=20261115"></script>
   <script defer src="/shared/ui/board-controls.js?v=20261105b"></script>
   <script defer src="/shared/board-session.js?v=20261105b"></script>
-  <script defer src="/xiangqi/app.js?v=20261105b"></script>
+  <script defer src="/xiangqi/app.js?v=20261115"></script>
   <script defer src="/shared/ui/seg-slide.js?v=20260702"></script>
 </head>
 <body class="board-page">
@@ -28,7 +28,7 @@
       </div>
       <div class="tb-controls game-controls">
         <div class="tb-group control-group"><label class="tb-label" for="side" data-i18n="side">你的执色</label><select id="side" data-board-segment><option value="1" data-i18n="redFirst">红方 · 先手</option><option value="-1" data-i18n="blackSecond">黑方 · 后手</option></select></div>
-        <div class="tb-group control-group" id="think_time_wrap"><label class="tb-label" for="budget" data-i18n="budget">AI 思考时间</label><select id="budget" data-board-select><option value="500">0.5 s</option><option value="1000">1 s</option><option value="3000" selected>3 s</option><option value="5000">5 s</option></select></div>
+        <div class="tb-group control-group" id="think_time_wrap"><label class="tb-label" for="budget" data-i18n="budget">AI 思考时间</label><select id="budget" data-board-select><option value="0" selected data-i18n="policyOnly">不思考</option><option value="500">0.5 s</option><option value="1000">1 s</option><option value="3000">3 s</option><option value="5000">5 s</option></select></div>
         <div class="tb-actions game-actions"><button id="new-game" class="btn primary" type="button" data-i18n="newGame">新对局</button><button id="retry" class="btn" type="button" hidden data-i18n="retry">重试</button><button id="undo" class="btn danger-ghost" type="button" disabled data-i18n="undo">悔棋</button></div>
       </div>
       <div class="topbar-right"><button id="language" class="btn" type="button">EN</button><div class="settings-wrap"><button id="settings_btn" class="btn" type="button" aria-expanded="false" aria-controls="settings_pop" data-ui="settings">设置</button>
@@ -54,7 +54,7 @@
       </section>
       <aside class="analysis-col right-column">
         <div class="card game-card candidate-card">
-          <div class="card-heading candidate-heading"><span data-i18n="candidates">候选着法</span><span data-i18n="candidateLegend">胜率 · 访问</span></div>
+          <div class="card-heading candidate-heading"><span data-i18n="candidates">候选着法</span><span id="candidate-legend" data-i18n="candidateLegend">胜率 · 访问</span></div>
           <div id="candidates" class="candidate-list"></div>
         </div>
 

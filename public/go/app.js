@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const TEXT = {
     zh: {
         title: "围棋", auto: "自动主题", light: "明亮", dark: "暗黑",
-        side: "执子", blackFirst: "黑棋", whiteSecond: "白棋", budget: "思考",
+        side: "执子", blackFirst: "黑棋", whiteSecond: "白棋", budget: "思考", policyOnly: "不思考", policyLegend: "策略概率",
         newGame: "新对局", undo: "悔棋", pass: "停一手", gameStats: "本局统计",
         totalMoves: "总手数", searchVisits: "AI 搜索", candidates: "候选着法", candidateLegend: "胜率 · 访问",
         noAnalysis: "暂无分析", evaluation: "胜率", source: "规则源码", retry: "重试",
@@ -12,7 +12,7 @@ const TEXT = {
     },
     en: {
         title: "Go", auto: "Auto theme", light: "Light", dark: "Dark",
-        side: "Side", blackFirst: "Black", whiteSecond: "White", budget: "Think",
+        side: "Side", blackFirst: "Black", whiteSecond: "White", budget: "Think", policyOnly: "No search", policyLegend: "Policy probability",
         newGame: "New game", undo: "Undo", pass: "Pass", gameStats: "Game statistics",
         totalMoves: "Moves", searchVisits: "AI visits", candidates: "Candidate moves", candidateLegend: "Win % · visits",
         noAnalysis: "No analysis yet", evaluation: "Win rate", source: "Rules source", retry: "Retry",
@@ -73,7 +73,7 @@ function choose(action) {
     if(!session.ready || session.busy || session.thinking || session.error || !session.state || session.state.finished || session.state.player!==human || !session.state.legal.includes(action))return;
     session.actions.push(action);session.syncPosition();
 }
-session=new BoardGameSession({game:'go',version:'20261105b',getHuman:()=>human,render,analysis:BoardGameAnalysis,
+session=new BoardGameSession({game:'go',version:'20261115',getHuman:()=>human,render,analysis:BoardGameAnalysis,
     positionOptions:()=>({size:size(),komi:session.manifest.game.komi}),
     onManifest:manifest=>{
         $('rules-source').href='/go/'+manifest.rules.source;

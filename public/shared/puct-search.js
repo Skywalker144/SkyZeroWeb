@@ -5,6 +5,17 @@
         const allocated = [];
         const started = performance.now();
         try {
+            if (thinkMs === 0) {
+                if (!shouldContinue()) return null;
+                const evaluation = await evaluate(state);
+                if (!shouldContinue()) return null;
+                if (!Number.isFinite(evaluation.value)) throw new Error('Non-finite search value');
+                const candidates = legal(state).map(action => ({action, prior: evaluation.policy[action]}))
+                    .sort((a, b) => b.prior - a.prior);
+                if (!candidates.length) throw new Error('No legal search move');
+                return {action: candidates[0].action, visits: 0, value: evaluation.value,
+                    candidates, policyOnly: true, elapsedMs: performance.now() - started};
+            }
             for (let simulation = 0; simulation < maxVisits; simulation++) {
                 if (!shouldContinue()) return null;
                 let node = root;

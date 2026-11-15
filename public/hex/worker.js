@@ -1,4 +1,4 @@
-importScripts('/shared/onnx-worker-runtime.js?v=20261009', '/shared/puct-search.js?v=20261102',
+importScripts('/shared/onnx-worker-runtime.js?v=20261009', '/shared/puct-search.js?v=20261115',
     'engine.js?v=20261009', 'search.js?v=20261023', 'inference.js?v=20261009', 'opening.js?v=20261009');
 
 let inference = null;

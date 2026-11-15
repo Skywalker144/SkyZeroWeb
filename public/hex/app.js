@@ -3,7 +3,7 @@ const TEXT = {
         title: "六角棋", auto: "自动主题", light: "明亮", dark: "暗黑",
         evaluation: "胜率", gameStats: "本局统计", totalMoves: "总手数", searchVisits: "AI 搜索",
         candidates: "候选着法", candidateLegend: "胜率 · 访问", noAnalysis: "暂无分析", model: "模型",
-        size: "棋盘大小", side: "执子", budget: "思考", blackFirst: "黑棋",
+        size: "棋盘大小", side: "执子", budget: "思考", policyOnly: "不思考", policyLegend: "策略概率", blackFirst: "黑棋",
         whiteSecond: "白棋", balancedOpening: "平衡开局", cancelOpening: "取消生成", balancing: "生成平衡开局中…",
         attempts: "次尝试", whiteWin: "白胜", newGame: "新对局", undo: "悔棋",
         downloading: "下载模型…", loading: "初始化 AI…", yourTurn: "轮到你", thinking: "AI 思考中…",
@@ -14,7 +14,7 @@ const TEXT = {
         title: "", auto: "Auto theme", light: "Light", dark: "Dark",
         evaluation: "Win rate", gameStats: "Game statistics", totalMoves: "Moves", searchVisits: "AI visits",
         candidates: "Candidate moves", candidateLegend: "Win % · visits", noAnalysis: "No analysis yet", model: "Model",
-        size: "Board size", side: "Side", budget: "Think", blackFirst: "Black",
+        size: "Board size", side: "Side", budget: "Think", policyOnly: "No search", policyLegend: "Policy probability", blackFirst: "Black",
         whiteSecond: "White", balancedOpening: "Balanced opening", cancelOpening: "Cancel generation", balancing: "Generating opening…",
         attempts: "attempts", whiteWin: "White", newGame: "New game", undo: "Undo",
         downloading: "Downloading model…", loading: "Initializing AI…", yourTurn: "Your turn", thinking: "AI is thinking…",
@@ -120,7 +120,7 @@ function loadModel() {
     error = '';
     phase = 'downloading';
     reset();
-    worker = new Worker('/hex/worker.js?v=20261105b');
+    worker = new Worker('/hex/worker.js?v=20261115');
     const id = activeId = ++requestId;
     worker.onerror = event => { error = event.message; thinking = false; balancing = false; renderText(); };
     worker.onmessage = ({data}) => {

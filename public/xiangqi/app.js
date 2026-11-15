@@ -4,7 +4,7 @@ const STRINGS = {
         title: "中国象棋", auto: "自动主题", light: "明亮", dark: "暗黑",
         gameStats: "本局统计", totalMoves: "总手数", searchVisits: "AI 搜索", candidates: "候选着法",
         candidateLegend: "胜率 · 访问", noAnalysis: "暂无分析", side: "执子", redFirst: "红棋",
-        blackSecond: "黑棋", budget: "思考", newGame: "新对局", undo: "悔棋",
+        blackSecond: "黑棋", budget: "思考", policyOnly: "不思考", policyLegend: "策略概率", newGame: "新对局", undo: "悔棋",
         retry: "重试", source: "规则源码", loading: "加载模型…", preparing: "准备棋局…",
         thinking: "AI 思考中…", yourTurn: "轮到你", check: "将军", win: "你赢了！",
         loss: "AI 获胜", draw: "和棋", red: "红方", black: "黑方",
@@ -15,7 +15,7 @@ const STRINGS = {
         title: "Xiangqi", auto: "Auto theme", light: "Light", dark: "Dark",
         gameStats: "Game statistics", totalMoves: "Moves", searchVisits: "AI visits", candidates: "Candidate moves",
         candidateLegend: "Win % · visits", noAnalysis: "No analysis yet", side: "Side", redFirst: "Red",
-        blackSecond: "Black", budget: "Think", newGame: "New game", undo: "Undo",
+        blackSecond: "Black", budget: "Think", policyOnly: "No search", policyLegend: "Policy probability", newGame: "New game", undo: "Undo",
         retry: "Retry", source: "Rules source", loading: "Loading model…", preparing: "Preparing position…",
         thinking: "AI is thinking…", yourTurn: "Your turn", check: "Check", win: "You win!",
         loss: "AI wins", draw: "Draw", red: "Red", black: "Black",
@@ -98,7 +98,7 @@ function choose(square) {
     }
 }
 
-session=new BoardGameSession({game:'xiangqi',version:'20261105b',getHuman:()=>human,render,analysis:BoardGameAnalysis,
+session=new BoardGameSession({game:'xiangqi',version:'20261115',getHuman:()=>human,render,analysis:BoardGameAnalysis,
     onReady:data=>{moves=data.moves;},
     onPositionRequested:()=>{selected=null;},
     onManifest:manifest=>{$('rules-source').href='/xiangqi/'+manifest.rules.source;}

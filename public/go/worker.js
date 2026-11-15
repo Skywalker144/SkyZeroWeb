@@ -1,4 +1,4 @@
-importScripts('/shared/onnx-worker-runtime.js?v=20261009','/shared/puct-search.js?v=20261102',
+importScripts('/shared/onnx-worker-runtime.js?v=20261009','/shared/puct-search.js?v=20261115',
     'engine.js?v=20261105','inference.js?v=20261105');
 let native, inference, generation=0;
 self.onmessage=async ({data})=> {
