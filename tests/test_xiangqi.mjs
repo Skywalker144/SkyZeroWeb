@@ -85,6 +85,22 @@ test('PUCT selects a forced win and releases every search state', async () => {
     assert.equal(alive, 0);
 });
 
+test('zero think time selects the highest legal network policy without search', async () => {
+    const {search} = require('../public/shared/puct-search.js');
+    let evaluations = 0;
+    const result = await search({state: {}, legal: () => [0, 2],
+        play: () => { throw new Error('must not search'); }, terminalValue: () => null,
+        evaluate: async () => { evaluations++; return {policy: [0.2, 0.9, 0.8], value: 0.3}; },
+        thinkMs: 0});
+    assert.equal(evaluations, 1);
+    assert.equal(result.action, 2);
+    assert.equal(result.visits, 0);
+    assert.equal(result.value, 0.3);
+    assert.deepEqual(result.candidates.map(item => item.action), [2, 0]);
+    assert.equal(result.candidates[0].prior, 0.8);
+    assert.equal(result.policyOnly, true);
+});
+
 test('PUCT cancellation and evaluation failures release search states', async () => {
     const {search} = require('../public/shared/puct-search.js');
     for (const fail of [false, true]) {
