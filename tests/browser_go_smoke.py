@@ -46,10 +46,11 @@ with sync_playwright() as playwright:
         state=probe(page,dict(type='position',size=row['size'],actions=row['actions']))
         assert all(v==0 for a,v in enumerate(actual['policy']) if a not in state['legal'])
     print('Go native rules and browser ONNX probes passed',flush=True)
-    select_control(page, '#budget','500')
+    assert page.locator('#budget').input_value() == '0'
     page.locator('[data-action="60"]').focus();page.keyboard.press('Enter')
     page.wait_for_function('session.actions.length===2 && !session.thinking && !session.busy',timeout=60_000)
     assert page.locator('.go-stone').count()==2
+    assert page.evaluate('session.lastSearch.policyOnly && session.lastSearch.visits === 0')
     assert page.locator('.candidate-row').count()>0
     page.locator('#undo').click();wait_ready(page)
     assert page.evaluate('session.actions.length')==0
