@@ -1048,8 +1048,8 @@ let thinkMs = (function () {
     } catch (_) { return 500; }
 })();
 let searchEnabled = (function () {
-    try { return localStorage.getItem("skz_search_enabled") !== "0"; }
-    catch (_) { return true; }
+    try { return localStorage.getItem("skz_search_enabled") === "1"; }
+    catch (_) { return false; }
 })();
 let pda = (function () {
     try {
