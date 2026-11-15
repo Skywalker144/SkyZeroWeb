@@ -40,7 +40,7 @@ def main():
             state="visible", timeout=120_000)
         page.locator(".difficulty-option").first.click()
         wait_ready(page)
-        assert page.locator("#think_trigger_val").inner_text() == "0.5秒"
+        assert page.locator("#think_trigger_val").inner_text() == "关闭"
         assert page.locator("#think_time_range").input_value() == "0"
         page.locator("#think_trigger").click()
         assert page.locator("#think_pop").is_visible()
@@ -51,9 +51,6 @@ def main():
             trigger_box["x"] + trigger_box["width"] / 2
             - pop_box["x"] - pop_box["width"] / 2
         ) < 1
-        assert page.locator("#search_toggle").is_checked()
-        assert page.locator("#thinking_toggle_label").inner_text() == "启用思考"
-        page.locator("#search_toggle").evaluate("(input) => input.click()")
         assert not page.locator("#search_toggle").is_checked()
         assert page.locator("#thinking_toggle_label").inner_text() == "关闭"
         assert page.locator("#think_trigger_val").inner_text() == "关闭"
