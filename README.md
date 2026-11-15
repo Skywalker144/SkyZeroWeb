@@ -137,7 +137,7 @@ conda run -n pytorch python tools/export_dodge_sac.py \
 
 ## 五子棋搜索循环
 
-五子棋在 ponder 与 move-search 之间交替，并通过 `public/gomoku/workers/search.js` 的 `applyMove` 将落子对应的子节点提升为新根，持续复用搜索树。`public/gomoku/app/game.js` 的 `triggerAISearch()` 通过 `isPonderTurn()` 选择路径。
+五子棋启用思考后在 ponder 与 move-search 之间交替，并通过 `public/gomoku/workers/search.js` 的 `applyMove` 将落子对应的子节点提升为新根，持续复用搜索树。`public/gomoku/app/game.js` 的 `triggerAISearch()` 通过 `isPonderTurn()` 选择路径。
 
 - Ponder：对弈模式下用于玩家回合，分析模式下用于任意一方。每块固定 `ANALYSIS_CHUNK = 128` 次 simulation，复用树继续搜索，直到累计根访问达到 `ANALYSIS_CAP_MIN = 2000`。对弈时状态栏保持“轮到你”，候选、胜率和热力图继续刷新；玩家落子时以 `searchId++` 中止在途块。
 - Move-search：AI 回合使用 anytime PUCT，运行至 `thinkMs` 或累计根访问达到 `SEARCH_VISIT_CAP = 2000`，以先到者为准，再使用 V7.19 retrospective weight 与 LCB 选着。连续三次 AI 落子搜索处于极优局面时，`searchFactorWhenWinning = 0.30` 会将时间和访问上限平滑降至 30%；ponder 不参与统计。`thinkMs` 只控制 AI 回合，不增加 ponder 深度。
