@@ -65,13 +65,14 @@ with sync_playwright() as playwright:
                     assert actual['policy'][action] == 0
             assert abs(sum(actual['policy']) - 1) < 1e-5
         print(f'{model}: browser WASM parity on {len(fixture["cases"])} positions', flush=True)
-        select_control(page, '#budget', '500')
+        assert page.locator('#budget').input_value() == '0'
         page.locator('[data-action="112"]').click()
         page.wait_for_function('() => history.length === 2 && !thinking', timeout=60_000)
         assert page.locator('.cell.black').count() == 1
         assert page.locator('circle.hex-piece.black').count() == 1
         assert page.locator('.cell.white').count() == 1
         assert page.locator('circle.hex-piece.white').count() == 1
+        assert page.evaluate('stats.policyOnly && stats.visits === 0')
         assert page.locator('.candidate-row').count() > 0
         assert page.locator('#evaluation-value').inner_text().endswith('%')
         page.locator('#undo').click()
