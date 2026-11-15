@@ -66,7 +66,7 @@ with sync_playwright() as playwright:
     }''')
     assert artifact['bytes'] == manifest['model']['bytes']
     assert artifact['sha256'] == manifest['model']['sha256']
-    select_control(page, '#budget', '500')
+    assert page.locator('#budget').input_value() == '0'
     page.locator('[data-square="30"]').focus()
     page.keyboard.press('Enter')
     assert page.locator('.destination').count() == 1
@@ -75,6 +75,7 @@ with sync_playwright() as playwright:
     page.wait_for_function('session.actions.length === 2 && !session.thinking && !session.busy', timeout=60_000)
     assert page.evaluate('session.state.board[40]') == 4
     assert page.evaluate('session.state.player') == 1
+    assert page.evaluate('session.lastSearch.policyOnly && session.lastSearch.visits === 0')
     assert page.locator('.candidate-row').count() > 0
     assert page.locator('#evaluation-value').inner_text().endswith('%')
     page.locator('#undo').click()
