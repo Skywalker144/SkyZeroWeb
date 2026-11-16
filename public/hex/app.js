@@ -75,14 +75,15 @@ function renderBoard() {
         if (row === 0) markup.push(`<text class="board-label" x="${x}" y="${y - 21}">${String.fromCharCode(65 + col)}</text>`);
         if (col === 0) markup.push(`<text class="board-label" x="${x - 24}" y="${y + 3}">${row + 1}</text>`);
     }
-    for (const [edge, color] of [['top', '#24313d'], ['bottom', '#24313d'], ['left', '#fff'], ['right', '#fff']]) {
+    for (const edge of ['top', 'bottom', 'left', 'right']) {
+        const points = [];
         for (let i = 0; i < size; i++) {
             const [x, y] = center(edge === 'top' ? 0 : edge === 'bottom' ? size - 1 : i,
                 edge === 'left' ? 0 : edge === 'right' ? size - 1 : i);
-            const vertices = edge === 'top' ? [4, 5, 0] : edge === 'bottom' ? [1, 2, 3] : edge === 'left' ? [3, 4] : [0, 1];
-            const points = vertices.map(index => vertex(x, y, index).join(',')).join(' ');
-            markup.push(`<polyline points="${points}" fill="none" stroke="#66717d" stroke-width="6" pointer-events="none"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="4" pointer-events="none"/>`);
+            const vertices = edge === 'top' ? [4, 5, 0] : edge === 'bottom' ? [3, 2, 1] : edge === 'left' ? [4, 3, 2] : [5, 0, 1];
+            points.push(...vertices.map(index => vertex(x, y, index).join(',')));
         }
+        markup.push(`<polyline class="hex-edge-underlay ${edge}" points="${points.join(' ')}"/><polyline class="hex-edge ${edge}" points="${points.join(' ')}"/>`);
     }
     $('board').innerHTML = markup.join('');
     renderText();

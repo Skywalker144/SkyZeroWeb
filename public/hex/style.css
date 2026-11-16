@@ -1,12 +1,18 @@
-:root { --hex-empty: #ece4d5; --hex-line: #b6aa95; --hex-hover: #d3c5aa; }
-html[data-theme="dark"] { --hex-empty: #353c42; --hex-line: #59636c; --hex-hover: #596571; }
+:root { --hex-empty: #ece4d5; --hex-line: #b6aa95; --hex-hover: #d3c5aa; --hex-edge-outline: #9a9386; }
+html[data-theme="dark"] { --hex-empty: #353c42; --hex-line: #59636c; --hex-hover: #596571; --hex-edge-outline: #89949e; }
 #board[aria-disabled="true"] .cell { cursor: default; }
 #board[aria-disabled="true"] .cell.empty:hover { fill: var(--hex-empty); }
 .board-card.hex-board { padding: 0; }
 #board { width: 100%; display: block; overflow: visible; background: transparent; border-radius: 0; }
 .cell { fill: var(--hex-empty); stroke: var(--hex-line); stroke-width: 1.2; cursor: pointer; transition: fill .12s; }
 .cell.empty:hover, .cell.empty:focus-visible { fill: var(--hex-hover); }
+.cell:focus-visible { outline: none; stroke: var(--accent); stroke-width: 2; }
 .cell.connected { stroke: #d49b36; stroke-width: 3; }
+.hex-edge, .hex-edge-underlay { fill: none; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
+.hex-edge-underlay { stroke: var(--hex-edge-outline); stroke-width: 5; }
+.hex-edge { stroke-width: 3; }
+.hex-edge.top, .hex-edge.bottom { stroke: #171b20; }
+.hex-edge.left, .hex-edge.right { stroke: #f8f7f2; }
 .hex-piece { pointer-events: none; filter: drop-shadow(0 1px 1px #0003); stroke-width: .6; }
 .hex-piece.black { fill: url(#hex-black); stroke: var(--stone-outline); }
 .hex-piece.white { fill: url(#hex-white); stroke: #a6adb5; }
