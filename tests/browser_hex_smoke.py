@@ -27,6 +27,21 @@ with sync_playwright() as playwright:
     expected_manifest = json.loads((root / 'public/hex/models/manifest.json').read_text())
     assert page.evaluate('manifest') == expected_manifest
     assert page.locator('.cell').count() == 225
+    for edge in ['top', 'bottom', 'left', 'right']:
+        assert page.locator(f'.hex-edge.{edge}').count() == 1
+        assert page.locator(f'.hex-edge.{edge}').evaluate('(node) => node.points.numberOfItems') == 45
+        assert page.locator(f'.hex-edge.{edge}').evaluate('''node => {
+            for (let i = 3; i < node.points.numberOfItems; i += 3) {
+                const a = node.points.getItem(i - 1), b = node.points.getItem(i);
+                if (Math.hypot(a.x - b.x, a.y - b.y) > 0.001) return false;
+            }
+            return true;
+        }''')
+    cell = page.locator('[data-action="112"]')
+    cell.focus()
+    assert cell.evaluate('(node) => getComputedStyle(node).outlineStyle') == 'none'
+    assert cell.evaluate('(node) => getComputedStyle(node).strokeWidth') == '2px'
+    cell.blur()
     assert page.locator('.board-panel.card, .board-panel .board-wrap').count() == 0
     assert page.locator('.board-panel').evaluate('(node)=>getComputedStyle(node).backgroundColor') == 'rgba(0, 0, 0, 0)'
     assert page.locator('.cell').nth(0).evaluate('(node)=>node.getBBox().y') == page.locator('.cell').nth(1).evaluate('(node)=>node.getBBox().y')
