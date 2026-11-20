@@ -1,0 +1,109 @@
+.skz-arcade {
+  margin: 0 auto;
+  padding: 8px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+}
+
+.skz-scores {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.skz-score {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 9px 14px;
+  text-align: center;
+  box-shadow: var(--shadow-xs), var(--surface-highlight);
+}
+
+.skz-score-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.skz-score-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.15;
+  margin-top: 2px;
+}
+
+.skz-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.skz-ai-btn {
+  gap: 0;
+}
+
+.skz-ai-btn[aria-pressed="true"] {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+}
+
+html[data-theme="dark"] .skz-ai-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--fg) 84%, var(--bg));
+  border-color: color-mix(in srgb, var(--fg) 84%, var(--bg));
+}
+
+.skz-ai-btn[aria-pressed="true"] .bw-sky {
+  color: currentColor;
+  -webkit-text-fill-color: currentColor;
+}
+
+.skz-overlay {
+  position: absolute;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  text-align: center;
+}
+
+.skz-overlay.show {
+  display: flex;
+}
+
+.skz-overlay-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+@media (max-width: 720px) {
+  .topbar.topbar--compact {
+    gap: 6px 8px;
+  }
+  .topbar.topbar--compact .brand-title {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+  .topbar.topbar--compact .topbar-actions {
+    gap: 6px;
+  }
+  .topbar.topbar--compact .seg-row.compact .seg-btn {
+    min-width: 26px;
+    padding: 0 7px;
+  }
+}
