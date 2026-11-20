@@ -34,13 +34,13 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="/shared/base.css?v=20260907">
-  <script defer src="/shared/leaderboard.js?v=20260703"></script>
-  <link rel="stylesheet" href="/home/style.css?v=20261106">
+  <link rel="stylesheet" href="/shared/base.css?v=20261119">
+  <script defer src="/shared/leaderboard.js?v=20261119"></script>
+  <link rel="stylesheet" href="/home/style.css?v=20261119">
 </head>
-<body>
+<body class="home-page">
   <div class="app">
-    <header class="topbar">
+    <header class="topbar topbar--compact">
       <div></div>
       <div class="topbar-actions">
         <div class="seg-row compact seg-slide" id="lang_seg" role="group" aria-label="切换语言">
@@ -161,8 +161,8 @@
           <div class="game-icon" aria-hidden="true">
             <svg viewBox="0 0 88 88" fill="none"><path d="M18 22L65 15L72 63L35 73L18 22ZM18 22L72 63M65 15L35 73" stroke="currentColor" stroke-width="3" opacity=".45"/><circle cx="18" cy="22" r="7" fill="#d59c3a"/><circle cx="65" cy="15" r="7" fill="#558cc4"/><circle cx="72" cy="63" r="7" fill="#cf655d"/><circle cx="35" cy="73" r="9" fill="#8c65cd"/></svg>
           </div>
-          <div class="game-name">ScotlandYard</div>
-          <div class="game-desc">扮演 Evader，挑战 AI 追捕队</div>
+          <div class="game-name" id="card_scotlandyard_name">ScotlandYard</div>
+          <div class="game-desc" id="card_scotlandyard_desc">扮演 Evader，挑战 AI 追捕队</div>
         </a>
 
         <a class="game-card" href="/poker/">
@@ -196,7 +196,8 @@
     </div>
   </div>
 
-  <script src="/home/app.js?v=20261105"></script>
+  <script src="/shared/ui/prefs.js?v=20261119"></script>
+  <script src="/home/app.js?v=20261119"></script>
   <script defer src="/shared/ui/seg-slide.js?v=20260620"></script>
 </body>
 </html>

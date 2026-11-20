@@ -1,4 +1,3 @@
-    // ---------- i18n (self-contained for the landing page) ----------
     var STRINGS = {
       zh: {
         title: 'SkyZero · Web',
@@ -17,8 +16,8 @@
         poker_desc: '与 DeepSeek 对弈 · PokerSkill 策略辅助',
         dodge_name: '躲避',
         dodge_desc: '操控人物躲避四面弹幕',
-        aria_lang: '切换语言', aria_theme: '切换配色主题',
-        th_auto: '自动', th_light: '明亮', th_dark: '暗黑',
+        scotlandyard_name: 'ScotlandYard',
+        scotlandyard_desc: '扮演 Evader，挑战 AI 追捕队',
       },
       en: {
         title: 'SkyZero · Web',
@@ -37,17 +36,12 @@
         poker_desc: 'Play DeepSeek with PokerSkill strategy',
         dodge_name: 'Dodge',
         dodge_desc: 'Steer a character through bullet hell',
-        aria_lang: 'Switch language', aria_theme: 'Toggle theme',
-        th_auto: 'Auto', th_light: 'Light', th_dark: 'Dark',
+        scotlandyard_name: 'ScotlandYard',
+        scotlandyard_desc: 'Play Evader against AI pursuers',
       },
     };
-    function getLang() {
-      try { var l = localStorage.getItem('skz_lang'); return (l === 'zh' || l === 'en') ? l : 'zh'; }
-      catch (e) { return 'zh'; }
-    }
     function applyLang(lang) {
       var s = STRINGS[lang] || STRINGS.zh;
-      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
       document.title = s.title;
       document.getElementById('hero_title').textContent = s.hero_title;
       document.getElementById('card_gomoku_name').textContent = s.gomoku_name;
@@ -64,67 +58,15 @@
       document.getElementById('card_2048_desc').textContent = s.g2048_desc;
       document.getElementById('card_dodge_name').textContent = s.dodge_name;
       document.getElementById('card_dodge_desc').textContent = s.dodge_desc;
+      document.getElementById('card_scotlandyard_name').textContent = s.scotlandyard_name;
+      document.getElementById('card_scotlandyard_desc').textContent = s.scotlandyard_desc;
       document.getElementById('card_poker_name').textContent = s.poker_name;
       document.getElementById('card_poker_desc').textContent = s.poker_desc;
-      var langSeg = document.getElementById('lang_seg');
-      langSeg.setAttribute('aria-label', s.aria_lang);
-      langSeg.querySelectorAll('.seg-btn[data-lang]').forEach(function(b){
-        b.setAttribute('aria-pressed', b.dataset.lang === lang ? 'true' : 'false');
-      });
-      var themeSeg = document.getElementById('theme_seg');
-      themeSeg.setAttribute('aria-label', s.aria_theme);
-      var titles = { auto: s.th_auto, light: s.th_light, dark: s.th_dark };
-      themeSeg.querySelectorAll('.seg-btn[data-theme]').forEach(function(b){
-        b.setAttribute('aria-label', titles[b.dataset.theme]);
-        b.setAttribute('title', titles[b.dataset.theme]);
-      });
-    }
-
-    // ---------- Theme ----------
-    var THEME_MODES = ['auto', 'light', 'dark'];
-    function resolveTheme(mode) {
-      if (mode === 'light' || mode === 'dark') return mode;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    function applyTheme(mode) {
-      if (THEME_MODES.indexOf(mode) < 0) mode = 'auto';
-      document.documentElement.dataset.theme = resolveTheme(mode);
-      document.documentElement.dataset.themeMode = mode;
-      document.querySelectorAll('#theme_seg .seg-btn[data-theme]').forEach(function(b){
-        b.setAttribute('aria-pressed', b.dataset.theme === mode ? 'true' : 'false');
-      });
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-      applyLang(getLang());
-      applyTheme(document.documentElement.dataset.themeMode || 'auto');
-
-      document.querySelectorAll('#lang_seg .seg-btn[data-lang]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          var lang = b.dataset.lang;
-          try { localStorage.setItem('skz_lang', lang); } catch (e) {}
-          applyLang(lang);
-        });
-      });
-      document.querySelectorAll('#theme_seg .seg-btn[data-theme]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          var next = b.dataset.theme;
-          if (THEME_MODES.indexOf(next) < 0) return;
-          try {
-            if (next === 'auto') localStorage.removeItem('skz_theme');
-            else localStorage.setItem('skz_theme', next);
-          } catch (e) {}
-          applyTheme(next);
-        });
-      });
-
-      try {
-        var mql = window.matchMedia('(prefers-color-scheme: dark)');
-        var onSys = function () {
-          if ((document.documentElement.dataset.themeMode || 'auto') !== 'auto') return;
-          applyTheme('auto');
-        };
-        if (mql.addEventListener) mql.addEventListener('change', onSys);
-        else if (mql.addListener) mql.addListener(onSys);
-      } catch (e) {}
+      if (window.SkzPrefs) {
+        applyLang(window.SkzPrefs.getLang());
+        window.SkzPrefs.onLang(applyLang);
+      }
     });

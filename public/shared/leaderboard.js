@@ -139,7 +139,8 @@
       '.skz-lb-fab{position:fixed;right:16px;bottom:16px;z-index:55;box-sizing:border-box;' +
         'display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;' +
         'width:52px;height:52px;padding:0;border-radius:50%;' +
-        'background:var(--surface,#fff);border:1px solid var(--border,#d0d7de);' +
+        'background:var(--surface,#fff);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);' +
+        'border:1px solid var(--border,#d0d7de);' +
         'box-shadow:0 4px 14px rgba(0,0,0,.18);color:var(--fg,#1b1f24);font-size:22px;line-height:1}' +
       '.skz-lb-fab:hover{border-color:var(--border-strong,#afb8c1)}' +
       '.skz-lb-fab:active{background:var(--surface-2,#f6f8fa)}' +
@@ -161,8 +162,8 @@
         'padding:16px;background:color-mix(in srgb,var(--bg,#fff) 72%,transparent);backdrop-filter:blur(3px)}' +
       '.skz-lb-mask[hidden]{display:none}' +
       '.skz-lb-panel{width:100%;max-width:420px;max-height:80vh;display:flex;flex-direction:column;gap:14px;' +
-        'padding:18px;background:var(--surface,#fff);border:1px solid var(--border-strong,#afb8c1);' +
-        'border-radius:var(--radius-lg,16px);box-shadow:0 12px 40px rgba(0,0,0,.3)}' +
+        'padding:18px;background:var(--surface-solid,var(--surface,#fff));border:1px solid var(--border-strong,#afb8c1);' +
+        'border-radius:var(--radius-lg,16px);box-shadow:0 16px 48px rgba(0,0,0,.32)}' +
       '.skz-lb-head{display:flex;align-items:center;justify-content:space-between}' +
       '.skz-lb-h{font-size:18px;font-weight:700;color:var(--fg,#1b1f24)}' +
       '.skz-lb-x{cursor:pointer;background:none;border:none;font-size:22px;line-height:1;color:var(--fg-muted,#656d76)}' +
@@ -190,8 +191,9 @@
         // brand. positionDock() keeps `top` in document coordinates.
         '.skz-lb-dock{display:flex;flex-direction:column;gap:12px;position:absolute;left:20px;top:72px;' +
           'width:272px;max-height:calc(100vh - 96px);box-sizing:border-box;padding:16px;z-index:40;' +
-          'background:var(--surface,#fff);border:1px solid var(--border,#d0d7de);' +
-          'border-radius:var(--radius-lg,16px);box-shadow:0 6px 24px rgba(0,0,0,.06)}' +
+          'background:var(--surface,#fff);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);' +
+          'border:1px solid var(--border,#d0d7de);' +
+          'border-radius:var(--radius-lg,16px);box-shadow:var(--shadow-xs,0 6px 24px rgba(0,0,0,.06))}' +
         // Where a dock exists, the floating FAB and the overlay button are redundant.
         '.skz-lb-has-dock .skz-lb-fab{display:none}' +
         '.skz-lb-has-dock .skz-lb-overlay-btn{display:none}' +
@@ -199,8 +201,8 @@
       // Inline panel (e.g. 2048 mobile): in-flow below the board. Hidden while
       // empty (before the script fills it) and on desktop (the dock takes over).
       '.skz-lb-inline{display:flex;flex-direction:column;gap:12px;margin-top:16px;box-sizing:border-box;' +
-        'padding:16px;background:var(--surface,#fff);border:1px solid var(--border,#d0d7de);' +
-        'border-radius:var(--radius-lg,16px)}' +
+        'padding:16px;background:var(--surface,#fff);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);' +
+        'border:1px solid var(--border,#d0d7de);border-radius:var(--radius-lg,16px);box-shadow:var(--shadow-xs,none)}' +
       '.skz-lb-inline:empty{display:none}' +
       // Where an inline panel exists, the FAB + overlay button are redundant at
       // every width (inline covers narrow, dock covers wide).
@@ -665,12 +667,7 @@
     // nickname right away so their scores can land on the board. Only when one
     // isn't set yet — returning players aren't nagged.
     if (ONLY_GAME && !getName()) openNameDialog();
-    // Keep labels in sync if the user toggles language in-page. The page's own
-    // lang listener is registered first (inline script runs before this defer
-    // script), so localStorage is already updated when these fire.
-    document.querySelectorAll('#lang_seg .seg-btn[data-lang]').forEach(function (b) {
-      b.addEventListener('click', relabelAll);
-    });
+    window.addEventListener('skz:lang', relabelAll);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
