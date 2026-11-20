@@ -68,48 +68,16 @@
   const BRAND_WM = '<span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span>';
   const withBrand = (s) => s.replace('SkyZero', BRAND_WM);
 
-  // Cache the resolved accent color; refresh whenever the theme switches.
   let accentColor = '#4493f8';
   function refreshAccent() {
     const c = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
     if (c) accentColor = c;
   }
-
-  // ---------- Theme + lang controls (mirror the other pages) ----------
-  function applyTheme(mode) {
-    const resolved = (mode === 'auto')
-      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : mode;
-    document.documentElement.dataset.theme = resolved;
-    document.documentElement.dataset.themeMode = mode;
-    document.querySelectorAll('#theme_seg .seg-btn').forEach(b => {
-      b.setAttribute('aria-pressed', String(b.dataset.theme === mode));
-    });
-    if (typeof refreshAccent === 'function') refreshAccent();
+  if (window.SkzPrefs) {
+    LANG = window.SkzPrefs.getLang();
+    window.SkzPrefs.onTheme(() => refreshAccent());
   }
-  (function initThemeSeg(){
-    let mode = 'auto';
-    try {
-      const v = localStorage.getItem('skz_theme');
-      if (v === 'light' || v === 'dark') mode = v;
-    } catch(_) {}
-    applyTheme(mode);
-    document.querySelectorAll('#theme_seg .seg-btn').forEach(b => {
-      b.addEventListener('click', () => {
-        const m = b.dataset.theme;
-        try {
-          if (m === 'auto') localStorage.removeItem('skz_theme');
-          else localStorage.setItem('skz_theme', m);
-        } catch(_) {}
-        applyTheme(m);
-      });
-    });
-    try {
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (document.documentElement.dataset.themeMode === 'auto') applyTheme('auto');
-      });
-    } catch(_) {}
-  })();
+  refreshAccent();
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -168,18 +136,12 @@
     if (typeof refreshRoster === 'function') refreshRoster();
     renderOverlay();
   }
-  (function initLangSeg(){
-    document.querySelectorAll('#lang_seg .seg-btn').forEach(b => {
-      b.setAttribute('aria-pressed', String(b.dataset.lang === LANG));
-      b.addEventListener('click', () => {
-        LANG = b.dataset.lang;
-        try { localStorage.setItem('skz_lang', LANG); } catch(_) {}
-        document.querySelectorAll('#lang_seg .seg-btn').forEach(o =>
-          o.setAttribute('aria-pressed', String(o.dataset.lang === LANG)));
-        applyLang();
-      });
+  if (window.SkzPrefs) {
+    window.SkzPrefs.onLang(next => {
+      LANG = next;
+      applyLang();
     });
-  })();
+  }
 
   // ============================================================
   //  Game constants

@@ -34,36 +34,61 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="/shared/base.css?v=20260907">
-  <!-- Pin the leaderboard to dodge so the 2048 board doesn't show here. -->
+  <link rel="stylesheet" href="/shared/base.css?v=20261119">
   <script>window.SKZ_LB_GAME = 'dodge';</script>
-  <script defer src="/shared/leaderboard.js?v=20260703"></script>
-  <link rel="stylesheet" href="/channel-dodge/style.css?v=20260907">
+  <script defer src="/shared/leaderboard.js?v=20261119"></script>
+  <link rel="stylesheet" href="/shared/arcade-shell.css?v=20261119">
+  <link rel="stylesheet" href="/channel-dodge/style.css?v=20261119">
 </head>
 <body>
   <div class="app">
-    <header class="topbar">
+    <header class="topbar topbar--compact">
       <div class="brand">
         <a class="brand-title" href="/" title="返回首页" id="brand_link"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · Dodge</span></a>
       </div>
+      <div class="topbar-actions">
+        <div class="seg-row compact seg-slide" id="lang_seg" role="group" aria-label="切换语言">
+          <button class="seg-btn" data-lang="zh" aria-pressed="true">中</button>
+          <button class="seg-btn" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+        <div class="seg-row compact seg-slide" id="theme_seg" role="group" aria-label="切换配色主题">
+          <button class="seg-btn" data-theme="auto" aria-pressed="true" aria-label="自动" title="自动">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="8" cy="8" r="6"></circle>
+              <path d="M8 2 a6 6 0 0 1 0 12 z" fill="currentColor" stroke="none"></path>
+            </svg>
+          </button>
+          <button class="seg-btn" data-theme="light" aria-pressed="false" aria-label="明亮" title="明亮">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="8" cy="8" r="3"></circle>
+              <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"></path>
+            </svg>
+          </button>
+          <button class="seg-btn" data-theme="dark" aria-pressed="false" aria-label="暗黑" title="暗黑">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
     </header>
 
-    <div class="cd-app">
-      <div class="cd-scores">
-        <div class="cd-score">
-          <div class="cd-score-label" id="lbl_score">分数</div>
-          <div class="cd-score-value" id="score">0</div>
+    <div class="skz-arcade cd-app">
+      <div class="skz-scores cd-scores">
+        <div class="skz-score cd-score">
+          <div class="skz-score-label cd-score-label" id="lbl_score">分数</div>
+          <div class="skz-score-value cd-score-value" id="score">0</div>
         </div>
-        <div class="cd-score">
-          <div class="cd-score-label" id="lbl_best">最高分</div>
-          <div class="cd-score-value" id="best">0</div>
+        <div class="skz-score cd-score">
+          <div class="skz-score-label cd-score-label" id="lbl_best">最高分</div>
+          <div class="skz-score-value cd-score-value" id="best">0</div>
         </div>
       </div>
 
-      <div class="cd-actions">
+      <div class="skz-actions cd-actions">
         <button class="btn primary" id="start_btn">开始</button>
         <button class="btn" id="pause_btn" disabled>暂停</button>
-        <button class="btn" id="ai_btn" aria-pressed="false"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管</button>
+        <button class="btn skz-ai-btn" id="ai_btn" aria-pressed="false"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管</button>
       </div>
       <div class="cd-hint" id="ai_hint" hidden>本局由 <span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管,未计入排行榜</div>
 
@@ -71,8 +96,8 @@
         <canvas class="cd-canvas" id="canvas"></canvas>
         <div class="cd-hp"><div class="cd-hp-fill" id="hp_fill"></div></div>
         <div class="cd-time" id="time">0.0s</div>
-        <div class="cd-overlay show" id="overlay">
-          <div class="cd-overlay-title" id="overlay_title">躲避 Channel Dodge</div>
+        <div class="skz-overlay cd-overlay show" id="overlay">
+          <div class="skz-overlay-title cd-overlay-title" id="overlay_title">躲避 Channel Dodge</div>
           <div class="cd-overlay-sub" id="overlay_sub"></div>
           <div class="cd-overlay-stats" id="overlay_stats" hidden></div>
           <button class="btn primary" id="overlay_btn">开始</button>
@@ -171,8 +196,10 @@
 
   <!-- Trained autopilot weights (tiny MLP, pure-JS forward pass below). Exported from
        ../DodgeSAC by tools/export_dodge_sac.py (continuous SAC). Bump ?v= each retrain. -->
+  <script src="/shared/ui/prefs.js?v=20261119"></script>
   <script src="/channel-dodge/ai/policy.js?v=sac_t4b"></script>
   <script src="/channel-dodge/ai/runtime.js?v=20260907"></script>
-  <script src="/channel-dodge/app.js?v=20260907"></script>
+  <script src="/channel-dodge/app.js?v=20261119"></script>
+  <script defer src="/shared/ui/seg-slide.js?v=20260702"></script>
 </body>
 </html>
