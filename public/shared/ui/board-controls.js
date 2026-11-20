@@ -31,10 +31,14 @@
                 else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
             }
         });
-        const wrap=button.closest('.settings-wrap'),top=document.querySelector('.topbar-right'),bottom=document.getElementById('mobile_actionbar');
+        const wrap=button.closest('.settings-wrap'),langBtn=document.getElementById('language'),top=document.querySelector('.topbar-right'),bottom=document.getElementById('mobile_actionbar');
         if(wrap && top && bottom) {
             const query=matchMedia('(max-width:720px)');
-            const place=()=>{(query.matches ? bottom : top).appendChild(wrap);};
+            const place=()=>{
+                const dest=query.matches ? bottom : top;
+                if(langBtn)dest.appendChild(langBtn);
+                dest.appendChild(wrap);
+            };
             query.addEventListener('change',place);place();
         }
     }

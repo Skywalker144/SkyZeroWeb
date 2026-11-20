@@ -25,24 +25,26 @@
     }
   })();
 </script>
-<link rel="stylesheet" href="/shared/base.css?v=20260907">
-<link rel="stylesheet" href="/shared/board-shell.css?v=20261105c">
+<link rel="stylesheet" href="/shared/base.css?v=20261119">
+<link rel="stylesheet" href="/shared/board-shell.css?v=20261119">
 <style>
   :root { --path:#d29922; }
   html[data-theme="dark"] { --path:#e3b341; }
 
   body { height:100vh; display:flex; flex-direction:column; overflow:hidden; }
 
-  .appbar { display:flex; align-items:center; gap:12px; padding:10px 16px;
-            background:var(--surface); border-bottom:1px solid var(--border); }
+  .appbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px;
+            background:var(--surface); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+            border-bottom:1px solid var(--border); box-shadow:var(--surface-highlight); }
   .appbar .brand-title { font-size:19px; }
 
   #controls { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
-              padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); }
+              padding:10px 16px; background:var(--surface); backdrop-filter:blur(12px);
+              -webkit-backdrop-filter:blur(12px); border-bottom:1px solid var(--border); }
   #controls label { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
                     color:var(--fg-subtle); display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
   #controls select {
-    height:32px; padding:0 8px; background:var(--surface); color:var(--fg);
+    height:32px; padding:0 8px; background:var(--surface-solid, var(--surface)); color:var(--fg);
     border:1px solid var(--border); border-radius:var(--radius-sm);
     font-family:var(--font-mono); font-size:12.5px; cursor:pointer;
     transition:border-color .12s, box-shadow .12s;
@@ -63,6 +65,7 @@
           background: repeating-linear-gradient(0deg, var(--surface) 0 24px, var(--surface-2) 24px 48px); }
   #tree.dragging { cursor:grabbing; }
   aside#detail { width:290px; border-left:1px solid var(--border); background:var(--surface);
+                 backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
                  padding:12px; overflow-y:auto; font-size:13px; }
   aside#detail h2 { font-size:13px; margin:0 0 8px; color:var(--fg-subtle); font-weight:600; }
   #detailBoard { display:block; margin:0 auto 10px; border:1px solid var(--border); border-radius:4px; }
@@ -72,6 +75,7 @@
   #detailTable td.v { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
   #detailHint { color:var(--fg-muted); font-size:12px; line-height:1.5; }
   #legend { padding:7px 16px; border-top:1px solid var(--border); background:var(--surface);
+            backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
             font-size:11px; color:var(--fg-muted); display:flex; flex-wrap:wrap; gap:14px; }
   #legend b { color:var(--fg); font-weight:600; }
 </style>
@@ -79,6 +83,27 @@
 <body>
   <header class="appbar">
     <a class="brand-title" href="/" title="返回首页"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · 搜索树</span></a>
+    <div class="topbar-actions">
+      <div class="seg-row compact seg-slide" id="theme_seg" role="group" aria-label="切换配色主题">
+        <button class="seg-btn" data-theme="auto" aria-pressed="true" aria-label="自动" title="自动">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="8" cy="8" r="6"></circle>
+            <path d="M8 2 a6 6 0 0 1 0 12 z" fill="currentColor" stroke="none"></path>
+          </svg>
+        </button>
+        <button class="seg-btn" data-theme="light" aria-pressed="false" aria-label="明亮" title="明亮">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="8" cy="8" r="3"></circle>
+            <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"></path>
+          </svg>
+        </button>
+        <button class="seg-btn" data-theme="dark" aria-pressed="false" aria-label="暗黑" title="暗黑">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
   </header>
 
   <div id="controls">
@@ -149,6 +174,8 @@
     <span>滚轮缩放 · 拖拽平移</span>
   </div>
 
-  <script src="/gomoku/tree/app.js?v=20260907"></script>
+  <script src="/shared/ui/prefs.js?v=20261119"></script>
+  <script src="/gomoku/tree/app.js?v=20261119"></script>
+  <script defer src="/shared/ui/seg-slide.js?v=20260702"></script>
 </body>
 </html>

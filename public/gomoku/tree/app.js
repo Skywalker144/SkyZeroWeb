@@ -340,39 +340,14 @@ elTopk.addEventListener("input", () => { elTopkv.textContent = elTopk.value; app
 elTopp.addEventListener("input", () => { elToppv.textContent = (+elTopp.value).toFixed(2); applyPruneAndLayout(); render(); });
 window.addEventListener("resize", render);
 
-// ============================================================ theme
-// Tri-state auto/light/dark seg toggle, mirroring the gomoku/2048 pages. The
-// pre-paint script (in <head>) already resolved the initial theme from skz_theme;
-// here we sync the seg buttons, swap the canvas palette, and persist changes.
 function pickPalette() { T = THEMES[document.documentElement.dataset.theme === "dark" ? "dark" : "light"]; }
-function applyTheme(mode) {
-    const resolved = mode === "auto"
-        ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-        : mode;
-    document.documentElement.dataset.theme = resolved;
-    document.documentElement.dataset.themeMode = mode;
-    document.querySelectorAll("#theme_seg .seg-btn").forEach(b =>
-        b.setAttribute("aria-pressed", String(b.dataset.theme === mode)));
-    pickPalette();
-    if (tree) { render(); renderDetail(); }
-}
-(function initThemeSeg() {
-    let mode = "auto";
-    try { const v = localStorage.getItem("skz_theme"); if (v === "light" || v === "dark") mode = v; } catch (_) {}
-    applyTheme(mode);
-    document.querySelectorAll("#theme_seg .seg-btn").forEach(b => {
-        b.addEventListener("click", () => {
-            const m = b.dataset.theme;
-            try { if (m === "auto") localStorage.removeItem("skz_theme"); else localStorage.setItem("skz_theme", m); } catch (_) {}
-            applyTheme(m);
-        });
+pickPalette();
+if (window.SkzPrefs) {
+    window.SkzPrefs.onTheme(() => {
+        pickPalette();
+        if (tree) { render(); renderDetail(); }
     });
-    try {
-        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-            if (document.documentElement.dataset.themeMode === "auto") applyTheme("auto");
-        });
-    } catch (_) {}
-})();
+}
 
 // ============================================================ boot
 async function loadModels() {

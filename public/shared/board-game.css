@@ -39,4 +39,5 @@
   .game-controls > .control-group { flex: 1 1 calc(50% - 7px); }
   .control-group > .custom-select, .control-group .cs-trigger, .control-group > .seg-row { width: 100%; }
   .game-topbar .topbar-right > #language { display: none; }
+  .mobile-actionbar #language { flex: 0 0 auto; min-width: 56px; }
 }

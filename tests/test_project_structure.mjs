@@ -12,9 +12,11 @@ const staticFiles = [
   "public/_redirects",
   "public/_routes.json",
   "public/shared/base.css",
+  "public/shared/arcade-shell.css",
   "public/shared/fonts/fonts.css",
   "public/shared/leaderboard.js",
   "public/shared/onnx-worker-runtime.js",
+  "public/shared/ui/prefs.js",
   "public/gomoku/index.html",
   "public/gomoku/tree/index.html",
   "public/gomoku/models/manifest.json",
@@ -29,6 +31,8 @@ const staticFiles = [
   "public/xiangqi/models/manifest.json",
   "public/2048/models/value.onnx",
   "public/channel-dodge/index.html",
+  "public/poker/index.html",
+  "public/poker/style.css",
   "public/scotlandyard/index.html",
   "public/scotlandyard/models.json",
 ];
@@ -106,13 +110,13 @@ test("source-only concerns stay outside the deployable tree", () => {
 test('board pages share the Gomoku visual shell and settings controller', () => {
   for (const game of ['gomoku','hex','xiangqi','go']) {
     const html=readFileSync(join(root,`public/${game}/index.html`),'utf8');
-    assert.match(html,/\/shared\/board-shell\.css\?v=20261105[a-z]?/);
-    assert.match(html,/\/shared\/ui\/board-controls\.js\?v=20261105[a-z]?/);
+    assert.match(html,/\/shared\/board-shell\.css\?v=20261119/);
+    assert.match(html,/\/shared\/ui\/board-controls\.js\?v=20261119/);
     assert.match(html,/id="settings_pop"/);
   }
 });
 
 test('Gomoku tree loads the shared board shell', () => {
   const html = readFileSync(join(root, 'public/gomoku/tree/index.html'), 'utf8');
-  assert.match(html, /<link\s+rel="stylesheet"\s+href="\/shared\/board-shell\.css\?v=20261105[a-z]?"/);
+  assert.match(html, /<link\s+rel="stylesheet"\s+href="\/shared\/board-shell\.css\?v=20261119"/);
 });
