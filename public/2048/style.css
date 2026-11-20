@@ -1,49 +1,6 @@
-    /* 2048-specific styles. Theme colors come from style.css variables so
-       light/dark mode follow the gomoku page automatically. */
     .g2048-app {
-      max-width: 520px; margin: 0 auto; padding: 8px 16px 24px;
-      display: flex; flex-direction: column; gap: 14px;
-      /* Allow vertical scroll so the inline leaderboard below the board stays
-         reachable on phones; only the board itself opts out of scroll (below)
-         so swipes drive moves instead of panning the page. */
-      touch-action: pan-y;
-    }
-    .g2048-scores {
-      display: flex; gap: 10px; justify-content: center;
-    }
-    .g2048-score {
-      flex: 1; min-width: 0;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 8px 14px;
-      text-align: center;
-    }
-    .g2048-score-label {
-      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--fg-muted);
-    }
-    .g2048-score-value {
-      font-family: var(--font-mono);
-      font-size: 22px; font-weight: 700; color: var(--fg);
-      line-height: 1.1; margin-top: 2px;
-    }
-    .g2048-actions {
-      display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
-    }
-    /* .btn:disabled is now shared in style.css. */
-    /* AI auto-play toggle: lit (neutral "ink" fill) when engaged — matches
-       .btn.primary so colour stays reserved for the brand wordmark. */
-    #ai_auto_btn[aria-pressed="true"] {
-      background: var(--fg); border-color: var(--fg); color: var(--bg);
-    }
-    /* The button label carries the SkyZero wordmark. Drop the flex gap so the
-       wordmark + " 接管" keep their original single-space spacing. While engaged
-       only "Sky" follows the button's text colour (else it'd vanish into the ink
-       fill); "Zero" keeps its rainbow, which pops on the dark/light fill. */
-    #ai_auto_btn { gap: 0; }
-    #ai_auto_btn[aria-pressed="true"] .bw-sky {
-      color: currentColor; -webkit-text-fill-color: currentColor;
+      max-width: 520px;
+      gap: 14px;
     }
     .g2048-ai-status {
       min-height: 18px; text-align: center; font-size: 12.5px;
@@ -255,25 +212,13 @@
     .g2048-tile-inner[data-v="2048"] { background:#edc22e; color:#f9f6f2; }
     .g2048-tile-inner[data-v-big]    { background:#3c3a32; color:#f9f6f2; }
     .g2048-overlay {
-      position: absolute;
-      /* `inset: 0` would size the overlay to the board's padding-box (inside
-         the 1px border) — then matching the corner curve means subtracting
-         border-width, which never lines up perfectly under sub-pixel rendering
-         or after theme tweaks. Instead extend the overlay 1px past every edge
-         so it covers the border too, and use the same `--radius-lg` as the
-         board's OUTER corner. Now the curves coincide by construction. */
       inset: -1px;
-      display: none; flex-direction: column; align-items: center; justify-content: center;
       gap: 10px;
-      background: color-mix(in srgb, var(--bg) 78%, transparent);
-      backdrop-filter: blur(2px);
-      /* Inherits --board-radius from .g2048-board so they always match. */
       border-radius: var(--board-radius);
       z-index: 3;
     }
-    .g2048-overlay.show { display: flex; }
     .g2048-overlay-title {
-      font-size: 28px; font-weight: 700; color: var(--fg);
+      font-size: 28px;
     }
     .g2048-overlay-note {
       font-size: 12.5px; color: var(--fg-muted); text-align: center; max-width: 240px;

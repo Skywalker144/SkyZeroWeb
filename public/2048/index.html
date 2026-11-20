@@ -43,35 +43,60 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="/shared/base.css?v=20260907">
-  <!-- Pin the leaderboard to 2048 so the dodge board doesn't show here. -->
+  <link rel="stylesheet" href="/shared/base.css?v=20261119">
   <script>window.SKZ_LB_GAME = '2048';</script>
-  <script defer src="/shared/leaderboard.js?v=20260703"></script>
-  <link rel="stylesheet" href="/2048/style.css?v=20260907">
+  <script defer src="/shared/leaderboard.js?v=20261119"></script>
+  <link rel="stylesheet" href="/shared/arcade-shell.css?v=20261119">
+  <link rel="stylesheet" href="/2048/style.css?v=20261119">
 </head>
 <body>
   <div class="app">
-    <header class="topbar">
+    <header class="topbar topbar--compact">
       <div class="brand">
         <a class="brand-title" href="/" title="返回首页" id="brand_link"><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span><span class="brand-suffix"> · 2048</span></a>
       </div>
-    </header>
-
-    <div class="g2048-app">
-      <div class="g2048-scores">
-        <div class="g2048-score">
-          <div class="g2048-score-label" id="lbl_score">分数</div>
-          <div class="g2048-score-value" id="score">0</div>
+      <div class="topbar-actions">
+        <div class="seg-row compact seg-slide" id="lang_seg" role="group" aria-label="切换语言">
+          <button class="seg-btn" data-lang="zh" aria-pressed="true">中</button>
+          <button class="seg-btn" data-lang="en" aria-pressed="false">EN</button>
         </div>
-        <div class="g2048-score">
-          <div class="g2048-score-label" id="lbl_best">最高分</div>
-          <div class="g2048-score-value" id="best">0</div>
+        <div class="seg-row compact seg-slide" id="theme_seg" role="group" aria-label="切换配色主题">
+          <button class="seg-btn" data-theme="auto" aria-pressed="true" aria-label="自动" title="自动">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="8" cy="8" r="6"></circle>
+              <path d="M8 2 a6 6 0 0 1 0 12 z" fill="currentColor" stroke="none"></path>
+            </svg>
+          </button>
+          <button class="seg-btn" data-theme="light" aria-pressed="false" aria-label="明亮" title="明亮">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="8" cy="8" r="3"></circle>
+              <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"></path>
+            </svg>
+          </button>
+          <button class="seg-btn" data-theme="dark" aria-pressed="false" aria-label="暗黑" title="暗黑">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"></path>
+            </svg>
+          </button>
         </div>
       </div>
-      <div class="g2048-actions">
+    </header>
+
+    <div class="skz-arcade g2048-app">
+      <div class="skz-scores g2048-scores">
+        <div class="skz-score g2048-score">
+          <div class="skz-score-label g2048-score-label" id="lbl_score">分数</div>
+          <div class="skz-score-value g2048-score-value" id="score">0</div>
+        </div>
+        <div class="skz-score g2048-score">
+          <div class="skz-score-label g2048-score-label" id="lbl_best">最高分</div>
+          <div class="skz-score-value g2048-score-value" id="best">0</div>
+        </div>
+      </div>
+      <div class="skz-actions g2048-actions">
         <button class="btn primary" id="new_btn">新对局</button>
         <button class="btn danger-ghost" id="undo_btn" disabled>撤销</button>
-        <button class="btn" id="ai_auto_btn" aria-pressed="false" disabled><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管</button>
+        <button class="btn skz-ai-btn" id="ai_auto_btn" aria-pressed="false" disabled><span class="brand-wm"><span class="bw-sky">Sky</span><span class="bw-zero">Zero</span></span> 接管</button>
       </div>
       <div class="g2048-ai-speed" id="ai_speed_row">
         <div class="g2048-speed-track">
@@ -89,18 +114,18 @@
       <div class="g2048-board" id="g2048_board" tabindex="0" aria-label="2048 board">
         <div class="g2048-grid" id="grid"></div>
         <div class="g2048-tiles" id="tiles"></div>
-        <div class="g2048-overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlay_title">
-          <div class="g2048-overlay-title" id="overlay_title">游戏结束</div>
+        <div class="skz-overlay g2048-overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlay_title">
+          <div class="skz-overlay-title g2048-overlay-title" id="overlay_title">游戏结束</div>
           <div class="g2048-overlay-note" id="overlay_note" hidden></div>
           <button class="btn primary" id="overlay_btn">再来一局</button>
         </div>
       </div>
-      <!-- Mobile leaderboard mount: leaderboard.js fills this in below the
-           board on narrow screens (desktop uses the left dock instead). -->
       <div class="skz-lb-inline" id="skz-lb-inline"></div>
     </div>
   </div>
 
-  <script src="/2048/app.js?v=20260907"></script>
+  <script src="/shared/ui/prefs.js?v=20261119"></script>
+  <script src="/2048/app.js?v=20261119"></script>
+  <script defer src="/shared/ui/seg-slide.js?v=20260702"></script>
 </body>
 </html>

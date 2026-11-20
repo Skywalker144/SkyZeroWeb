@@ -55,19 +55,13 @@
       if (typeof updateOverlay === 'function') updateOverlay();
     }
 
-    // ---------- Theme (no in-page switcher; that lives on the home page) ----------
-    // Theme + language are chosen on the home page and persisted in localStorage:
-    // the inline script in <head> applies the saved theme before first paint and
-    // applyLang() applies the saved language at boot. The only thing left to do
-    // here is follow OS dark/light changes while the page is open in 'auto' mode.
-    try {
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (document.documentElement.dataset.themeMode === 'auto') {
-          const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        }
+    if (window.SkzPrefs) {
+      LANG = window.SkzPrefs.getLang();
+      window.SkzPrefs.onLang(function (next) {
+        LANG = next;
+        applyLang();
       });
-    } catch(_) {}
+    }
 
     // ---------- Game ----------
     const SIZE = 4;
